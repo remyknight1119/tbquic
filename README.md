@@ -1,2 +1,2 @@
-# QUIC
-Quick UDP Internet Connections
+# TBQUIC
+A lib of Quick UDP Internet Connections

@@ -50,3 +50,20 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Configure generated files
+Makefile
+config.h
+config.log
+config.status
+libtool
+src/.deps/
+src/.libs/
+src/Makefile
+stamp-h1
+test/.deps/
+test/.libs/
+test/Makefile
+test/quic_client
+test/quic_server
+

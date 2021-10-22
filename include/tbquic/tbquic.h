@@ -1,5 +1,5 @@
-#ifndef __TB_QUIC_H__
-#define __TB_QUIC_H__
+#ifndef QUIC_INCLUDE_TBQUIC_TBQUIC_H_
+#define QUIC_INCLUDE_TBQUIC_TBQUIC_H_
 
 
 #endif

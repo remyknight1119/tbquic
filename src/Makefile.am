@@ -1,5 +1,5 @@
 lib_LTLIBRARIES = libtbquic.la
-libtbquic_la_SOURCES = core.c
+libtbquic_la_SOURCES = core.c quic.c mem.c stream_clnt,c stream_srvr.c
 libtbquic_la_LDFLAGS = -version-info 1
 
 AM_CPPFLAGS = -I$(srcdir)/../include -Istatem -Irecord

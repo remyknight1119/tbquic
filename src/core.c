@@ -1,7 +1,9 @@
 
 #include <tbquic/tbquic.h>
 
-int quic_init(void)
+#include "packet_format.h"
+
+int QuicInit(void)
 {
 	return 0;
 }

@@ -67,3 +67,6 @@ test/Makefile
 test/quic_client
 test/quic_server
 
+# Cscope files
+cscope.*
+tags

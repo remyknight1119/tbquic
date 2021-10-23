@@ -1,6 +1,8 @@
 #ifndef QUIC_SRC_STREAM_H_
 #define QUIC_SRC_STREAM_H_
 
+#include <tbquic/types.h>
+
 
 #define TBQUIC_STREAM_INITIATED_BY_SERVER 	0x01
 #define TBQUIC_STREAM_UNIDIRECTIONAL        0x02
@@ -22,5 +24,8 @@ enum {
 	TBQUIC_STREAM_STATE_RECV_RESET_RECVD,
 	TBQUIC_STREAM_STATE_RECV_RESET_READ,
 };
+
+int QuicConnect(QUIC *);
+int QuicAccept(QUIC *);
 
 #endif

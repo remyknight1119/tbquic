@@ -1,8 +1,9 @@
 #include <stdio.h>
-#include <tbquic/tbquic.h>
+
+#include <tbquic/quic.h>
 
 int main(void)
 {
     QuicInit();
-	return 0;
+    return 0;
 }

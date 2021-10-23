@@ -1,4 +1,6 @@
-
+/*
+ * Remy Lewis(remyknight1119@gmail.com)
+ */
 #include "mem.h"
 
 void *QuicMemMalloc(size_t size)

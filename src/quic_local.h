@@ -6,6 +6,9 @@
 #include <openssl/bio.h>
 #include <tbquic/quic.h>
 
+#include "statem.h"
+#include "buffer.h"
+
 struct QuicMethod {
     int (*quic_handshake)(QUIC *);
 };
@@ -16,10 +19,11 @@ struct QuicCtx {
 };
 
 struct Quic {
-    uint32_t state;
+    enum StreamState state;
     const QUIC_CTX *ctx;
     BIO *rbio;
     BIO *wbio;
+    QuicBufMem *buffer;
 };
 
 #endif

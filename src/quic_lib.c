@@ -5,7 +5,7 @@
 
 #include <tbquic/quic.h>
 
-#include "stream.h"
+#include "statem.h"
 #include "mem.h"
 
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
@@ -36,7 +36,7 @@ QUIC *QuicNew(void)
         return NULL;
     }
 
-    quic->state = TBQUIC_STREAM_STATE_READY;
+    quic->state = QUIC_STREAM_STATE_READY;
 
     return quic;
 }

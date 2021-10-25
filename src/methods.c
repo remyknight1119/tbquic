@@ -4,7 +4,7 @@
 
 #include "quic_local.h"
 
-#include "stream.h"
+#include "statem.h"
 
 static QUIC_METHOD QuicClientMeth = {
     .quic_handshake = QuicConnect,

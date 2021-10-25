@@ -15,5 +15,9 @@ void *QuicMemCalloc(size_t size)
 
 void QuicMemFree(void *ptr)
 {
+    if (ptr == NULL) {
+        return;
+    }
+
     free(ptr);
 }

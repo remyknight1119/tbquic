@@ -2,11 +2,13 @@
  * Remy Lewis(remyknight1119@gmail.com)
  */
 
-#include "stream.h"
+#include "statem.h"
 
 #include "quic_local.h"
 
-int QuicAccept(QUIC *)
+
+int QuicConnect(QUIC *quic)
 {
     return 0;
 }
+

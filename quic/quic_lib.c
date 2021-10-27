@@ -27,6 +27,33 @@ void QuicCtxFree(QUIC_CTX *ctx)
     QuicMemFree(ctx);
 }
 
+static int QuicBufInit(QUIC_BUFFER *qbuf, size_t len)
+{
+    BUF_MEM *buf = NULL;
+
+    buf = BUF_MEM_new();
+    if (buf == NULL) {
+        return -1;
+    }
+
+    if (!BUF_MEM_grow(buf, len)) {
+        goto out;
+    }
+
+    qbuf->buf = buf;
+
+    return 0;
+out:
+
+    BUF_MEM_free(buf);
+    return -1;
+}
+
+static void QuicBufFree(QUIC_BUFFER *qbuf)
+{
+    BUF_MEM_free(qbuf->buf);
+}
+
 QUIC *QuicNew(void)
 {
     QUIC *quic = NULL;
@@ -36,15 +63,35 @@ QUIC *QuicNew(void)
         return NULL;
     }
 
+    if (QuicBufInit(&quic->rbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
+        goto out;
+    }
+
+    if (QuicBufInit(&quic->plain_buffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
+        goto out;
+    }
+
+    if (QuicBufInit(&quic->wbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
+        goto out;
+    }
+
     quic->state = QUIC_STREAM_STATE_READY;
 
     return quic;
+out:
+
+    QuicFree(quic);
+    return NULL;
 }
 
 void QuicFree(QUIC *quic)
 {
     BIO_free_all(quic->rbio);
     BIO_free_all(quic->wbio);
+
+    QuicBufFree(&quic->wbuffer);
+    QuicBufFree(&quic->plain_buffer);
+    QuicBufFree(&quic->rbuffer);
 
     QuicMemFree(quic);
 }

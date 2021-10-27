@@ -3,22 +3,22 @@
 
 #include <stdint.h>
 
-#define TBQUIC_PACKET_HEADER_FORM_LPACKET 		0x01
-#define TBQUIC_PACKET_HEADER_FIXED              0x02
-#define TBQUIC_PACKET_HEADER_SPIN               0x04
-#define TBQUIC_PACKET_HEADER_KEY_PHASE 			0x20
-#define TBQUIC_PACKET_LPACKET_TYPE_MASK 		0x0c
-#define TBQUIC_PACKET_LPACKET_PLT_NUM_LEN_MASK 	0xc0
+#define QUIC_PACKET_HEADER_FORM_LPACKET         0x01
+#define QUIC_PACKET_HEADER_FIXED                0x02
+#define QUIC_PACKET_HEADER_SPIN                 0x04
+#define QUIC_PACKET_HEADER_KEY_PHASE 		    0x20
+#define QUIC_PACKET_LPACKET_TYPE_MASK 		    0x0c
+#define QUIC_PACKET_LPACKET_PLT_NUM_LEN_MASK 	0xc0
 
-#define LPACKET_TYPE_INITIAL 	0x00
-#define LPACKET_TYPE_0RTT 		0x01
-#define LPACKET_TYPE_HANDSHAKE 	0x02
-#define LPACKET_TYPE_RETRY 		0x03
+#define QUIC_LPACKET_TYPE_INITIAL 	    0x00
+#define QUIC_LPACKET_TYPE_0RTT 	        0x01
+#define QUIC_LPACKET_TYPE_HANDSHAKE 	0x02
+#define QUIC_LPACKET_TYPE_RETRY 		0x03
 
-#define TBQUIC_PACKET_HEADER_GET_TYPE(type) \
-    ((type & TBQUIC_PACKET_LPACKET_TYPE_MASK) >> 2)
-#define TBQUIC_PACKET_HEADER_GET_PKE_NUM_LEN(type) \
-    ((type & TBQUIC_PACKET_LPACKET_PLT_NUM_LEN_MASK) >> 6)
+#define QUIC_PACKET_HEADER_GET_TYPE(header) \
+    ((header->flags & QUIC_PACKET_LPACKET_TYPE_MASK) >> 2)
+#define QUIC_PACKET_HEADER_GET_PKE_NUM_LEN(header) \
+    ((header->flags & QUIC_PACKET_LPACKET_PLT_NUM_LEN_MASK) >> 6)
 
 typedef struct __attribute__ ((__packed__)) QuicPacketHeader {
 	uint8_t 	flags;

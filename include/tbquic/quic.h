@@ -4,6 +4,9 @@
 #include <openssl/bio.h>
 #include <tbquic/types.h>
 
+//MTU - IP Header - UDP Header
+#define QUIC_DATAGRAM_SIZE_MAX_DEF  (1500 - 20 - 8)
+
 extern int QuicInit(void);
 extern QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth);
 extern void QuicCtxFree(QUIC_CTX *ctx);

@@ -1,5 +1,5 @@
-#ifndef TBQUIC_SRC_QUIC_LOCAL_H_
-#define TBQUIC_SRC_QUIC_LOCAL_H_
+#ifndef TBQUIC_QUIC_QUIC_LOCAL_H_
+#define TBQUIC_QUIC_QUIC_LOCAL_H_
 
 #include <stdint.h>
 

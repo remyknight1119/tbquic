@@ -1,5 +1,5 @@
-#ifndef TBQUIC_SRC_PACKET_FORMAT_H_
-#define TBQUIC_SRC_PACKET_FORMAT_H_
+#ifndef TBQUIC_QUIC_PACKET_FORMAT_H_
+#define TBQUIC_QUIC_PACKET_FORMAT_H_
 
 #include <stdint.h>
 

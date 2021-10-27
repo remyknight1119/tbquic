@@ -1,5 +1,5 @@
-#ifndef TBQUIC_SRC_BUFFER_H_
-#define TBQUIC_SRC_BUFFER_H_
+#ifndef TBQUIC_QUIC_BUFFER_H_
+#define TBQUIC_QUIC_BUFFER_H_
 
 #include <stddef.h>
 

@@ -57,13 +57,10 @@ config.h
 config.log
 config.status
 libtool
-src/.deps/
-src/.libs/
-src/Makefile
+.deps/
+.libs/
+Makefile
 stamp-h1
-test/.deps/
-test/.libs/
-test/Makefile
 test/quic_client
 test/quic_server
 

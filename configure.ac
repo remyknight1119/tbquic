@@ -54,7 +54,7 @@ fi
 
 AC_CONFIG_FILES([
 				 Makefile
-				 src/Makefile
+				 quic/Makefile
 				 test/Makefile
 				 ])
 

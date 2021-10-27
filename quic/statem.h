@@ -1,5 +1,5 @@
-#ifndef QUIC_SRC_STATEM_H_
-#define QUIC_SRC_STATEM_H_
+#ifndef TBQUIC_QUIC_STATEM_H_
+#define TBQUIC_QUIC_STATEM_H_
 
 #include <stddef.h>
 #include <tbquic/types.h>

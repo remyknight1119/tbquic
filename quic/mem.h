@@ -1,5 +1,5 @@
-#ifndef TBQUIC_SRC_MEM_H_
-#define TBQUIC_SRC_MEM_H_
+#ifndef TBQUIC_QUIC_MEM_H_
+#define TBQUIC_QUIC_MEM_H_
 
 #include <stdlib.h>
 

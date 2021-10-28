@@ -10,8 +10,8 @@
 #include "packet_format.h"
 #include "packet_local.h"
 
-static int QuicServerReadyRead(QUIC *quic);
-static int QuicServerReadyWrite(QUIC *quic);
+static int QuicServerReadyRead(QUIC *);
+static int QuicServerReadyWrite(QUIC *);
 
 static QuicStateMachine ServerStateMachine[] = {
     {
@@ -27,17 +27,9 @@ static int QuicServerReadyRead(QUIC *quic)
 {
     RPacket pkt = {};
 
-    QuicPacketHeader *header = NULL;
-    int read_bytes = 0;
-
-    read_bytes = QuicReadBytes(quic);
-    if (read_bytes <= sizeof(*header)) {
+    if (QuicStreamRead(quic, &pkt) < 0) {
         return -1;
     }
-
-    header = (void *)QUIC_R_BUFFER_HEAD(quic);
-    RPacketBufInit(&pkt, (const unsigned char *)(header + 1),
-            read_bytes - sizeof(*header));
 
     return 0;
 }

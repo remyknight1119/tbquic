@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <tbquic/types.h>
 
+#include "packet_local.h"
 
 #define QUIC_STREAM_INITIATED_BY_SERVER     0x01
 #define QUIC_STREAM_UNIDIRECTIONAL          0x02
@@ -35,5 +36,6 @@ typedef struct StateMachine {
 int QuicStateMachineAct(QUIC *, QuicStateMachine *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
+int QuicStreamRead(QUIC *, RPacket *);
 
 #endif

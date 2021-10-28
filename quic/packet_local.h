@@ -4,6 +4,7 @@
 #include <openssl/buffer.h>
 
 typedef struct {
+	uint8_t flags;
     /* Pointer to where we are currently reading from */
     const unsigned char *curr;
     /* Number of bytes remaining */
@@ -15,9 +16,13 @@ typedef struct {
     size_t written;
 } WPacket;
 
-void RPacketBufInit(RPacket *pkt, const unsigned char *buf, size_t len);
-void RPacketForward(RPacket *pkt, size_t len);
-size_t RPacketRemaining(const RPacket *pkt);
-const unsigned char *RPacketData(const RPacket *pkt);
+void RPacketBufInit(RPacket *, const unsigned char *, size_t);
+void RPacketForward(RPacket *, size_t);
+size_t RPacketRemaining(const RPacket *);
+const unsigned char *RPacketData(const RPacket *);
+int RPacketPeekBytes(const RPacket *, const unsigned char **, size_t);
+int RPacketGetBytes(RPacket *, const unsigned char **, size_t);
+int RPacketPeekCopyBytes(const RPacket *, unsigned char *, size_t);
+int RPacketCopyBytes(RPacket *, unsigned char *, size_t);
 
 #endif

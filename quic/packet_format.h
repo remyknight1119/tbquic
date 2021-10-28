@@ -25,6 +25,7 @@ typedef struct __attribute__ ((__packed__)) QuicPacketHeader {
 	uint32_t 	version;
 	uint8_t 	dest_conn_id_len;
 	/* Destination Connection ID (0..160) */
+    uint8_t     dest_conn_id[0];
 	/* Source Connection ID Length (8) */
 	/* Source Connection ID (0..160) */
 	/* Type-Specific Payload (..) */

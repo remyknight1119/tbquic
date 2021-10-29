@@ -15,7 +15,7 @@
 #define QUIC_W_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->wbuffer)
 
 struct QuicMethod {
-    int (*quic_handshake)(QUIC *);
+    int (*handshake)(QUIC *);
 };
 
 
@@ -31,8 +31,10 @@ struct QuicBuffer {
 struct Quic {
     enum StreamState state;
     const QUIC_CTX *ctx;
+    const QUIC_METHOD *method;
     BIO *rbio;
     BIO *wbio;
+    int (*handshake)(QUIC *);
     QUIC_BUFFER rbuffer;
     QUIC_BUFFER plain_buffer;
     QUIC_BUFFER wbuffer;

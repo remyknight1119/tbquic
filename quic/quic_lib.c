@@ -54,7 +54,7 @@ static void QuicBufFree(QUIC_BUFFER *qbuf)
     BUF_MEM_free(qbuf->buf);
 }
 
-QUIC *QuicNew(void)
+QUIC *QuicNew(QUIC_CTX *ctx)
 {
     QUIC *quic = NULL;
 
@@ -76,12 +76,24 @@ QUIC *QuicNew(void)
     }
 
     quic->state = QUIC_STREAM_STATE_READY;
+    quic->handshake = ctx->method->handshake; 
+    quic->method = ctx->method;
+    quic->ctx = ctx;
 
     return quic;
 out:
 
     QuicFree(quic);
     return NULL;
+}
+
+int QuicDoHandshake(QUIC *quic)
+{
+    if (quic->handshake == NULL) {
+        return -1;
+    }
+
+    return quic->handshake(quic);
 }
 
 void QuicFree(QUIC *quic)

@@ -10,8 +10,11 @@
 extern int QuicInit(void);
 extern QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth);
 extern void QuicCtxFree(QUIC_CTX *ctx);
-extern QUIC *QuicNew(void);
+extern QUIC_METHOD *QuicClientMethod(void);
+extern QUIC_METHOD *QuicServerMethod(void);
+extern QUIC *QuicNew(QUIC_CTX *ctx);
 extern void QuicFree(QUIC *quic);
+extern int QuicDoHandshake(QUIC *quic);
 
 extern BIO *QUIC_get_rbio(const QUIC *quic);
 extern BIO *QUIC_get_wbio(const QUIC *quic);

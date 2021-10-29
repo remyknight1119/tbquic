@@ -7,11 +7,11 @@
 #include "statem.h"
 
 static QUIC_METHOD QuicClientMeth = {
-    .quic_handshake = QuicConnect,
+    .handshake = QuicConnect,
 }; 
 
 static QUIC_METHOD QuicServerMeth = {
-    .quic_handshake = QuicAccept,
+    .handshake = QuicAccept,
 }; 
 
 

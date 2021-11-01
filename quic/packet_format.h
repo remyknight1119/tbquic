@@ -3,32 +3,34 @@
 
 #include <stdint.h>
 
-#define QUIC_PACKET_HEADER_FORM_LPACKET         0x01
-#define QUIC_PACKET_HEADER_FIXED                0x02
+#include "packet_local.h"
+
+#define QUIC_PACKET_HEADER_FORM_LPACKET         0x80
+#define QUIC_PACKET_HEADER_FIXED                0x40
 #define QUIC_PACKET_HEADER_SPIN                 0x04
 #define QUIC_PACKET_HEADER_KEY_PHASE 		    0x20
-#define QUIC_PACKET_LPACKET_TYPE_MASK 		    0x0c
-#define QUIC_PACKET_LPACKET_PLT_NUM_LEN_MASK 	0xc0
+#define QUIC_PACKET_LPACKET_TYPE_MASK 		    0x30
+#define QUIC_PACKET_LPACKET_PLT_NUM_LEN_MASK 	0x03
 
 #define QUIC_LPACKET_TYPE_INITIAL 	    0x00
 #define QUIC_LPACKET_TYPE_0RTT 	        0x01
 #define QUIC_LPACKET_TYPE_HANDSHAKE 	0x02
 #define QUIC_LPACKET_TYPE_RETRY 		0x03
 
-#define QUIC_PACKET_HEADER_GET_TYPE(header) \
-    ((header->flags & QUIC_PACKET_LPACKET_TYPE_MASK) >> 2)
-#define QUIC_PACKET_HEADER_GET_PKE_NUM_LEN(header) \
-    ((header->flags & QUIC_PACKET_LPACKET_PLT_NUM_LEN_MASK) >> 6)
+#define QUIC_PACKET_IS_LONG_PACKET(flags) \
+    (flags & QUIC_PACKET_HEADER_FORM_LPACKET)
+#define QUIC_PACKET_HEADER_GET_TYPE(flags) \
+    ((flags & QUIC_PACKET_LPACKET_TYPE_MASK) >> 2)
+#define QUIC_PACKET_HEADER_GET_PKE_NUM_LEN(flags) \
+    ((flags & QUIC_PACKET_LPACKET_PLT_NUM_LEN_MASK) >> 6)
 
-typedef struct __attribute__ ((__packed__)) QuicPacketHeader {
-	uint8_t 	flags;
-	uint32_t 	version;
-	uint8_t 	dest_conn_id_len;
-	/* Destination Connection ID (0..160) */
-    uint8_t     dest_conn_id[0];
-	/* Source Connection ID Length (8) */
-	/* Source Connection ID (0..160) */
-	/* Type-Specific Payload (..) */
-} QuicPacketHeader;
+typedef int (*QuicPacketHandler)(Packet *);
+
+typedef struct LongPacketProcess {
+    uint8_t type;
+    QuicPacketHandler handler;
+} QuicLongPacketProcess;
+
+QuicPacketHandler QuicPacketHandlerFind(uint8_t);
 
 #endif

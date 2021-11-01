@@ -25,7 +25,7 @@ static QuicStateMachine ServerStateMachine[] = {
 
 static int QuicServerReadyRead(QUIC *quic)
 {
-    RPacket pkt = {};
+    Packet pkt = {};
 
     if (QuicStreamRead(quic, &pkt) < 0) {
         return -1;

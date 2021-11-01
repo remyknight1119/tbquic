@@ -133,7 +133,7 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 libtbquic_la_LIBADD =
 am_libtbquic_la_OBJECTS = core.lo quic_lib.lo mem.lo statem_clnt.lo \
 	statem_srvr.lo methods.lo statem.lo datagram.lo packet.lo \
-	statem_lib.lo
+	statem_lib.lo packet_format.lo
 libtbquic_la_OBJECTS = $(am_libtbquic_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -159,9 +159,10 @@ depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/core.Plo ./$(DEPDIR)/datagram.Plo \
 	./$(DEPDIR)/mem.Plo ./$(DEPDIR)/methods.Plo \
-	./$(DEPDIR)/packet.Plo ./$(DEPDIR)/quic_lib.Plo \
-	./$(DEPDIR)/statem.Plo ./$(DEPDIR)/statem_clnt.Plo \
-	./$(DEPDIR)/statem_lib.Plo ./$(DEPDIR)/statem_srvr.Plo
+	./$(DEPDIR)/packet.Plo ./$(DEPDIR)/packet_format.Plo \
+	./$(DEPDIR)/quic_lib.Plo ./$(DEPDIR)/statem.Plo \
+	./$(DEPDIR)/statem_clnt.Plo ./$(DEPDIR)/statem_lib.Plo \
+	./$(DEPDIR)/statem_srvr.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -327,7 +328,8 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 lib_LTLIBRARIES = libtbquic.la
 libtbquic_la_SOURCES = core.c quic_lib.c mem.c statem_clnt.c statem_srvr.c \
-						methods.c statem.c datagram.c packet.c statem_lib.c
+						methods.c statem.c datagram.c packet.c statem_lib.c \
+						packet_format.c
 
 libtbquic_la_LDFLAGS = -version-info 1
 AM_CPPFLAGS = -I$(srcdir)/../include -Istatem -Irecord
@@ -416,6 +418,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mem.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/methods.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/packet.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/packet_format.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_lib.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_clnt.Plo@am__quote@ # am--include-marker
@@ -591,6 +594,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/mem.Plo
 	-rm -f ./$(DEPDIR)/methods.Plo
 	-rm -f ./$(DEPDIR)/packet.Plo
+	-rm -f ./$(DEPDIR)/packet_format.Plo
 	-rm -f ./$(DEPDIR)/quic_lib.Plo
 	-rm -f ./$(DEPDIR)/statem.Plo
 	-rm -f ./$(DEPDIR)/statem_clnt.Plo
@@ -646,6 +650,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/mem.Plo
 	-rm -f ./$(DEPDIR)/methods.Plo
 	-rm -f ./$(DEPDIR)/packet.Plo
+	-rm -f ./$(DEPDIR)/packet_format.Plo
 	-rm -f ./$(DEPDIR)/quic_lib.Plo
 	-rm -f ./$(DEPDIR)/statem.Plo
 	-rm -f ./$(DEPDIR)/statem_clnt.Plo

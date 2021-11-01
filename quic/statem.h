@@ -36,6 +36,6 @@ typedef struct StateMachine {
 int QuicStateMachineAct(QUIC *, QuicStateMachine *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
-int QuicStreamRead(QUIC *, RPacket *);
+int QuicStreamRead(QUIC *, Packet *);
 
 #endif

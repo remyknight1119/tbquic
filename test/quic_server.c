@@ -139,10 +139,13 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                             goto out;
                         }
                         QUIC_set_bio(quic, rbio, wbio);
-                        rbio = NULL;
-                        wbio = NULL;
+                    } else {
+                        rbio = QUIC_get_rbio(quic);
                     }
 
+                    BIO_write(rbio, quic_data, rlen);
+                    rbio = NULL;
+                    wbio = NULL;
                     if (handshake_done == 0) {
                         ret = QuicDoHandshake(quic);
                         if (ret < 0) {

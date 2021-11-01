@@ -6,7 +6,7 @@
 
 #include <string.h>
 
-void RPacketBufInit(RPacket *pkt, const unsigned char *buf, size_t len)
+void RPacketBufInit(RPacket *pkt, const uint8_t *buf, size_t len)
 {
     pkt->curr = buf;
     pkt->remaining = len;
@@ -26,13 +26,13 @@ size_t RPacketRemaining(const RPacket *pkt)
     return pkt->remaining;
 }
 
-const unsigned char *RPacketData(const RPacket *pkt)
+const uint8_t *RPacketData(const RPacket *pkt)
 {
     return pkt->curr;
 }
 
 /* Peek ahead at 1 byte from |pkt| and store the value in |*data| */
-int RPacketPeek1(const RPacket *pkt, unsigned char *data)
+int RPacketPeek1(const RPacket *pkt, uint8_t *data)
 {
     if (!RPacketRemaining(pkt)) {
         return -1;
@@ -44,7 +44,7 @@ int RPacketPeek1(const RPacket *pkt, unsigned char *data)
 }
 
 /* Get 1 byte from |pkt| and store the value in |*data| */
-int RPacketGet1(RPacket *pkt, unsigned char *data)
+int RPacketGet1(RPacket *pkt, uint8_t *data)
 {
     if (RPacketPeek1(pkt, data) < 0) {
         return -1;
@@ -61,7 +61,7 @@ int RPacketGet1(RPacket *pkt, unsigned char *data)
  * caller should not free this data directly (it will be freed when the
  * underlying buffer gets freed
  */
-int RPacketPeekBytes(const RPacket *pkt, const unsigned char **data, 
+int RPacketPeekBytes(const RPacket *pkt, const uint8_t **data, 
         size_t len)
 {
     if (RPacketRemaining(pkt) < len) {
@@ -79,7 +79,7 @@ int RPacketPeekBytes(const RPacket *pkt, const unsigned char **data,
  * not free this data directly (it will be freed when the underlying buffer gets
  * freed
  */
-int RPacketGetBytes(RPacket *pkt, const unsigned char **data, size_t len)
+int RPacketGetBytes(RPacket *pkt, const uint8_t **data, size_t len)
 {
     if (RPacketPeekBytes(pkt, data, len) < 0) {
         return -1;
@@ -91,7 +91,7 @@ int RPacketGetBytes(RPacket *pkt, const unsigned char **data, size_t len)
 }
 
 /* Peek ahead at |len| bytes from |pkt| and copy them to |data| */
-int RPacketPeekCopyBytes(const RPacket *pkt, unsigned char *data, size_t len)
+int RPacketPeekCopyBytes(const RPacket *pkt, uint8_t *data, size_t len)
 {
     if (RPacketRemaining(pkt) < len) {
         return -1;
@@ -106,7 +106,7 @@ int RPacketPeekCopyBytes(const RPacket *pkt, unsigned char *data, size_t len)
  * Read |len| bytes from |pkt| and copy them to |data|.
  * The caller is responsible for ensuring that |data| can hold |len| bytes.
  */
-int RPacketCopyBytes(RPacket *pkt, unsigned char *data, size_t len)
+int RPacketCopyBytes(RPacket *pkt, uint8_t *data, size_t len)
 {
     if (RPacketPeekCopyBytes(pkt, data, len) < 0) {
         return -1;

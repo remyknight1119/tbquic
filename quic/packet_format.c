@@ -75,10 +75,11 @@ static int QuicVariableLengthValueEncode(uint8_t *buf, size_t blen,
     }
     var = (void *)buf;
     var->prefix = prefix;
-    shift = (1 << (prefix - 1))*8;
-    var->value = ((length & (0x3F << shift)) >> shift);
+    shift = (len - 1) * 8;
+    var->value = (length >> shift) & 0x3F;
     for (i = 1; i < len; i++) {
-        buf[i] = (length & (0xFF << (len - i - 1)));
+        shift = (len - i - 1)*8;
+        buf[i] = (length >> shift) & 0xFF;
     }
 
     return 0;

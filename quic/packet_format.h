@@ -43,6 +43,7 @@ typedef union {
 
 bool QuicIsLittleEndianBitOrder(void);
 QuicPacketHandler QuicPacketHandlerFind(uint8_t);
+int QuicVariableLengthEncode(uint8_t *buf, size_t blen, uint64_t length);
 int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length);
 
 #endif

@@ -11,7 +11,6 @@
 
 int QuicStreamRead(QUIC *quic, Packet *packet)
 {
-    QuicPacketHandler handler = NULL;
     int read_bytes = 0;
 
     read_bytes = QuicReadBytes(quic);
@@ -22,13 +21,8 @@ int QuicStreamRead(QUIC *quic, Packet *packet)
         return -1;
     }
 
-    printf("read %d, f = %x, type = %x\n", read_bytes, packet->flags, QUIC_PACKET_HEADER_GET_TYPE(packet->flags));
-    handler = QuicPacketHandlerFind(packet->flags);
-    if (handler == NULL) {
-        return -1;
-    }
-
-    return handler(packet);
+    printf("read %d\n", read_bytes);
+    return QuicPacketParse(packet);
 }
 
 

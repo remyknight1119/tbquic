@@ -6,59 +6,65 @@
 
 #include "common.h"
 
-static int QuicInitPacketHandler(Packet *);
-static int Quic0RttPacketHandler(Packet *);
-static int QuicHandshakePacketHandler(Packet *);
-static int QuicRetryPacketHandler(Packet *);
+static int QuicInitPacketPaser(Packet *, QuicLPacketFlags);
+static int Quic0RttPacketPaser(Packet *, QuicLPacketFlags);
+static int QuicHandshakePacketPaser(Packet *, QuicLPacketFlags);
+static int QuicRetryPacketPaser(Packet *, QuicLPacketFlags);
 
-static QuicLongPacketProcess LPacketProcess[] = {
+static QuicLongPacketParse LPacketPaser[] = {
     {
         .type = QUIC_LPACKET_TYPE_INITIAL,
-        .handler = QuicInitPacketHandler,
+        .parser = QuicInitPacketPaser,
     },
     {
         .type = QUIC_LPACKET_TYPE_0RTT,
-        .handler = Quic0RttPacketHandler,
+        .parser = Quic0RttPacketPaser,
     },
     {
         .type = QUIC_LPACKET_TYPE_HANDSHAKE,
-        .handler = QuicHandshakePacketHandler,
+        .parser = QuicHandshakePacketPaser,
     },
     {
         .type = QUIC_LPACKET_TYPE_RETRY,
-        .handler = QuicRetryPacketHandler,
+        .parser = QuicRetryPacketPaser,
     },
 };
 
-#define LPACKET_HANDLER_NUM     QUIC_ARRAY_SIZE(LPacketProcess) 
+#define LPACKET_PARSER_NUM     QUIC_ARRAY_SIZE(LPacketPaser) 
 
-static QuicPacketHandler QuicLongPacketHandlerFind(uint8_t flags)
+static int QuicLongPacketDoParse(Packet *pkt)
 {
+    QuicLPacketFlags lflags;
     uint8_t type = 0;
     int i = 0;
 
-    type = QUIC_PACKET_HEADER_GET_TYPE(flags);
-    for (i = 0; i < LPACKET_HANDLER_NUM; i++) {
-        if (LPacketProcess[i].type == type) {
-            return LPacketProcess[i].handler;
+    lflags.value = pkt->flags;
+    type = lflags.lpacket_type;
+    for (i = 0; i < LPACKET_PARSER_NUM; i++) {
+        if (LPacketPaser[i].type == type) {
+            return LPacketPaser[i].parser(pkt, lflags);
         }
     }
 
-    return NULL;
+    return -1;
 }
 
-static QuicPacketHandler QuicShortPacketHandlerFind(uint8_t flags)
+static int QuicShortPacketDoParse(Packet *pkt)
 {
-    return NULL;
+    return -1;
 }
 
-QuicPacketHandler QuicPacketHandlerFind(uint8_t flags)
+int QuicPacketParse(Packet *pkt)
 {
-    if (QUIC_PACKET_IS_LONG_PACKET(flags)) {
-        return QuicLongPacketHandlerFind(flags);
+    QuicPacketFlags pflags;
+
+    pflags.value = pkt->flags;
+    printf("f = %d, s = %d\n", pflags.header_form, (int)sizeof(pflags));
+    if (QUIC_PACKET_IS_LONG_PACKET(pflags)) {
+        return QuicLongPacketDoParse(pkt);
     }
 
-    return QuicShortPacketHandlerFind(flags);
+    return QuicShortPacketDoParse(pkt);
 }
 
 static int QuicVariableLengthValueEncode(uint8_t *buf, size_t blen,
@@ -158,7 +164,7 @@ static int QuicPacketHeaderParse(Packet *pkt)
     return 0;
 }
 
-static int QuicInitPacketHandler(Packet *pkt)
+static int QuicInitPacketPaser(Packet *pkt, QuicLPacketFlags flags)
 {
     int pkt_num_len = 0;
 
@@ -166,23 +172,23 @@ static int QuicInitPacketHandler(Packet *pkt)
         return -1;
     }
 
-    pkt_num_len = pkt->flags & QUIC_LPACKET_PKT_NUM_LEN_MASK;
+    pkt_num_len = flags.packet_num_len;
     printf("IIIint, pkt_num_len = %d\n", pkt_num_len);
 
     return 0;
 }
 
-static int Quic0RttPacketHandler(Packet *pkt)
+static int Quic0RttPacketPaser(Packet *pkt, QuicLPacketFlags flags)
 {
     return 0;
 }
 
-static int QuicHandshakePacketHandler(Packet *pkt)
+static int QuicHandshakePacketPaser(Packet *pkt, QuicLPacketFlags flags)
 {
     return 0;
 }
 
-static int QuicRetryPacketHandler(Packet *pkt)
+static int QuicRetryPacketPaser(Packet *pkt, QuicLPacketFlags flags)
 {
     return 0;
 }

@@ -32,7 +32,7 @@ const uint8_t *RPacketData(const RPacket *pkt)
 }
 
 /* Peek ahead at 1 byte from |pkt| and store the value in |*data| */
-int RPacketPeek1(const RPacket *pkt, uint8_t *data)
+int RPacketPeek1(const RPacket *pkt, uint32_t *data)
 {
     if (!RPacketRemaining(pkt)) {
         return -1;
@@ -44,7 +44,7 @@ int RPacketPeek1(const RPacket *pkt, uint8_t *data)
 }
 
 /* Get 1 byte from |pkt| and store the value in |*data| */
-int RPacketGet1(RPacket *pkt, uint8_t *data)
+int RPacketGet1(RPacket *pkt, uint32_t *data)
 {
     if (RPacketPeek1(pkt, data) < 0) {
         return -1;

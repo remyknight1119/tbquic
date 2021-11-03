@@ -18,10 +18,13 @@ typedef struct {
 typedef struct {
 	uint8_t flags;
 	uint8_t	dest_conn_id_len;
-    const uint8_t *dest_conn_id;
 	uint8_t	source_conn_id_len;
+    const uint8_t *dest_conn_id;
     const uint8_t *source_conn_id;
     uint32_t version;
+    uint32_t pkt_num;
+    uint64_t token_len;
+    const uint8_t *token;
     RPacket frame;
 } Packet;
 
@@ -33,8 +36,8 @@ int RPacketPeekBytes(const RPacket *, const uint8_t **, size_t);
 int RPacketGetBytes(RPacket *, const uint8_t **, size_t);
 int RPacketPeekCopyBytes(const RPacket *, uint8_t *, size_t);
 int RPacketCopyBytes(RPacket *, uint8_t *, size_t);
-int RPacketPeek1(const RPacket *, uint8_t *);
-int RPacketGet1(RPacket *, uint8_t *);
+int RPacketPeek1(const RPacket *, uint32_t *);
+int RPacketGet1(RPacket *, uint32_t *);
 int RPacketPeek4(const RPacket *, uint32_t *);
 int RPacketGet4(RPacket *, uint32_t *);
 

@@ -59,7 +59,6 @@ int QuicPacketParse(Packet *pkt)
     QuicPacketFlags pflags;
 
     pflags.value = pkt->flags;
-    printf("f = %d, s = %d\n", pflags.header_form, (int)sizeof(pflags));
     if (QUIC_PACKET_IS_LONG_PACKET(pflags)) {
         return QuicLongPacketDoParse(pkt);
     }
@@ -112,14 +111,15 @@ int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length)
 {
     QuicVarLenFirstByte var = {};
     uint8_t prefix = 0;
-    uint8_t v = 0;
     uint8_t len = 0;
+    uint32_t v = 0;
     int i = 0;
 
-    if (RPacketGet1(pkt,  &var.var) < 0) {
+    if (RPacketGet1(pkt,  &v) < 0) {
         return -1;
     }
 
+    var.var = v;
     prefix = var.prefix;
     len = 1 << prefix;
 
@@ -137,14 +137,17 @@ int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length)
 
 static int QuicPacketHeaderParse(Packet *pkt)
 {
+    uint32_t len = 0;
+
     if (RPacketGet4(&pkt->frame,  &pkt->version) < 0) {
         return -1;
     }
 
-    if (RPacketGet1(&pkt->frame,  &pkt->dest_conn_id_len) < 0) {
+    if (RPacketGet1(&pkt->frame,  &len) < 0) {
         return -1;
     }
 
+    pkt->dest_conn_id_len = len;
     if (pkt->dest_conn_id_len == 0) {
         return -1;
     }
@@ -152,10 +155,11 @@ static int QuicPacketHeaderParse(Packet *pkt)
     pkt->dest_conn_id = RPacketData(&pkt->frame);
     RPacketForward(&pkt->frame, pkt->dest_conn_id_len);
 
-    if (RPacketGet1(&pkt->frame,  &pkt->source_conn_id_len) < 0) {
+    if (RPacketGet1(&pkt->frame,  &len) < 0) {
         return -1;
     }
 
+    pkt->source_conn_id_len = len;
     if (pkt->source_conn_id_len != 0) {
         pkt->source_conn_id = RPacketData(&pkt->frame);
         RPacketForward(&pkt->frame, pkt->source_conn_id_len);
@@ -166,9 +170,30 @@ static int QuicPacketHeaderParse(Packet *pkt)
 
 static int QuicInitPacketPaser(Packet *pkt, QuicLPacketFlags flags)
 {
+    RPacket *frame = NULL;
+    uint64_t length = 0;
     int pkt_num_len = 0;
 
     if (QuicPacketHeaderParse(pkt) < 0) {
+        return -1;
+    }
+
+    frame = &pkt->frame;
+    if (QuicVariableLengthDecode(frame, &pkt->token_len) < 0) {
+        return -1;
+    }
+
+    if (pkt->token_len != 0) {
+        pkt->token = RPacketData(&pkt->frame);
+        RPacketForward(&pkt->frame, pkt->token_len);
+    }
+
+    if (QuicVariableLengthDecode(frame, &length) < 0) {
+        return -1;
+    }
+
+    if (length != RPacketRemaining(frame)) {
+        printf("length(%lu) not match remaining(%lu)!\n", length, RPacketRemaining(frame));
         return -1;
     }
 

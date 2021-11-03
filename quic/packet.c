@@ -56,6 +56,40 @@ int RPacketGet1(RPacket *pkt, uint8_t *data)
 }
 
 /*
+ * Peek ahead at 4 bytes in reverse network order from |pkt| and store the value
+ * in |*data|
+ */
+int RPacketPeek4(const RPacket *pkt, uint32_t *data)
+{
+    if (RPacketRemaining(pkt) < 4) {
+        return 0;
+    }
+
+    *data = *pkt->curr;
+    *data |= ((uint32_t)(*(pkt->curr + 1))) << 8;
+    *data |= ((uint32_t)(*(pkt->curr + 2))) << 16;
+    *data |= ((uint32_t)(*(pkt->curr + 3))) << 24;
+
+    return 1;
+}
+
+/* Equivalent of c2l */
+/*
+ * Get 4 bytes in reverse network order from |pkt| and store the value in
+ * |*data|
+ */
+int RPacketGet4(RPacket *pkt, uint32_t *data)
+{
+    if (!RPacketPeek4(pkt, data)) {
+        return 0;
+    }
+
+    RPacketForward(pkt, 4);
+
+    return 1;
+}
+
+/*
  * Peek ahead at |len| bytes from the |pkt| and store a pointer to them in
  * |*data|. This just points at the underlying buffer that |pkt| is using. The
  * caller should not free this data directly (it will be freed when the

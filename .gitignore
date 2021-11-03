@@ -63,6 +63,7 @@ Makefile
 stamp-h1
 test/quic_client
 test/quic_server
+test/quic_test
 
 # Cscope files
 cscope.*

@@ -61,9 +61,113 @@ QuicPacketHandler QuicPacketHandlerFind(uint8_t flags)
     return QuicShortPacketHandlerFind(flags);
 }
 
+static int QuicVariableLengthValueEncode(uint8_t *buf, size_t blen,
+        uint64_t length, uint8_t prefix)
+{
+    QuicVarLenFirstByte *var = NULL;
+    uint8_t len = 0;
+    uint8_t shift = 0;
+    int i = 0;
+
+    len = (1 << prefix);
+    if (len > blen) {
+        return -1;
+    }
+    var = (void *)buf;
+    var->prefix = prefix;
+    shift = (1 << (prefix - 1))*8;
+    var->value = ((length & (0x3F << shift)) >> shift);
+    for (i = 1; i < len; i++) {
+        buf[i] = (length & (0xFF << (len - i - 1)));
+    }
+
+    return 0;
+}
+
+int QuicVariableLengthEncode(uint8_t *buf, size_t blen, uint64_t length)
+{
+    uint8_t prefix = 0;
+
+    if ((length >> 62) > 0) {
+        return -1;
+    }
+
+    for (prefix = 3; prefix > 0; prefix--) {
+        if ((length >> ((1 << (prefix - 1))*8 - 2)) > 0) {
+            break;
+        }
+    }
+
+    return QuicVariableLengthValueEncode(buf, blen, length, prefix);
+}
+
+int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length)
+{
+    QuicVarLenFirstByte var = {};
+    uint8_t prefix = 0;
+    uint8_t v = 0;
+    uint8_t len = 0;
+    int i = 0;
+
+    if (RPacketGet1(pkt,  &var.var) < 0) {
+        return -1;
+    }
+
+    prefix = var.prefix;
+    len = 1 << prefix;
+
+    *length = var.value;
+
+    for (i = 1; i < len; i++) {
+        if (RPacketGet1(pkt,  &v) < 0) {
+            return -1;
+        }
+        *length = (*length << 8) + v;
+    }
+
+    return 0;
+}
+
+static int QuicPacketHeaderParse(Packet *pkt)
+{
+    if (RPacketGet4(&pkt->frame,  &pkt->version) < 0) {
+        return -1;
+    }
+
+    if (RPacketGet1(&pkt->frame,  &pkt->dest_conn_id_len) < 0) {
+        return -1;
+    }
+
+    if (pkt->dest_conn_id_len == 0) {
+        return -1;
+    }
+
+    pkt->dest_conn_id = RPacketData(&pkt->frame);
+    RPacketForward(&pkt->frame, pkt->dest_conn_id_len);
+
+    if (RPacketGet1(&pkt->frame,  &pkt->source_conn_id_len) < 0) {
+        return -1;
+    }
+
+    if (pkt->source_conn_id_len != 0) {
+        pkt->source_conn_id = RPacketData(&pkt->frame);
+        RPacketForward(&pkt->frame, pkt->source_conn_id_len);
+    }
+
+    return 0;
+}
+
 static int QuicInitPacketHandler(Packet *pkt)
 {
-    printf("IIIint\n");
+    int pkt_num_len = 0;
+
+    if (QuicPacketHeaderParse(pkt) < 0) {
+        return -1;
+    }
+
+    pkt_num_len = pkt->flags & QUIC_LPACKET_PKT_NUM_LEN_MASK;
+    printf("IIIint, pkt_num_len = %d\n", pkt_num_len);
+
     return 0;
 }
 

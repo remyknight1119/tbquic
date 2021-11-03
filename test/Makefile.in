@@ -88,7 +88,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = quic_client$(EXEEXT) quic_server$(EXEEXT)
+bin_PROGRAMS = quic_client$(EXEEXT) quic_server$(EXEEXT) \
+	quic_test$(EXEEXT)
 subdir = test
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
@@ -114,6 +115,9 @@ am__v_lt_1 =
 am_quic_server_OBJECTS = quic_server.$(OBJEXT)
 quic_server_OBJECTS = $(am_quic_server_OBJECTS)
 quic_server_DEPENDENCIES = $(srcdir)/../quic/libtbquic.la
+am_quic_test_OBJECTS = quic_test.$(OBJEXT)
+quic_test_OBJECTS = $(am_quic_test_OBJECTS)
+quic_test_DEPENDENCIES = $(srcdir)/../quic/libtbquic.la
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -130,7 +134,7 @@ DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/quic_client.Po \
-	./$(DEPDIR)/quic_server.Po
+	./$(DEPDIR)/quic_server.Po ./$(DEPDIR)/quic_test.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -150,8 +154,10 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(quic_client_SOURCES) $(quic_server_SOURCES)
-DIST_SOURCES = $(quic_client_SOURCES) $(quic_server_SOURCES)
+SOURCES = $(quic_client_SOURCES) $(quic_server_SOURCES) \
+	$(quic_test_SOURCES)
+DIST_SOURCES = $(quic_client_SOURCES) $(quic_server_SOURCES) \
+	$(quic_test_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -296,9 +302,11 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 quic_client_SOURCES = quic_client.c
 quic_server_SOURCES = quic_server.c
+quic_test_SOURCES = quic_test.c
 quic_client_LDADD = $(srcdir)/../quic/libtbquic.la
 quic_server_LDADD = $(srcdir)/../quic/libtbquic.la
-AM_CPPFLAGS = -I$(srcdir)/../include -lm
+quic_test_LDADD = $(srcdir)/../quic/libtbquic.la
+AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/../quic -lm
 AM_CFLAGS = -Wall -Werror
 all: all-am
 
@@ -391,6 +399,10 @@ quic_server$(EXEEXT): $(quic_server_OBJECTS) $(quic_server_DEPENDENCIES) $(EXTRA
 	@rm -f quic_server$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(quic_server_OBJECTS) $(quic_server_LDADD) $(LIBS)
 
+quic_test$(EXEEXT): $(quic_test_OBJECTS) $(quic_test_DEPENDENCIES) $(EXTRA_quic_test_DEPENDENCIES) 
+	@rm -f quic_test$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(quic_test_OBJECTS) $(quic_test_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -399,6 +411,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_client.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_server.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_test.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -562,6 +575,7 @@ clean-am: clean-binPROGRAMS clean-generic clean-libtool mostlyclean-am
 distclean: distclean-am
 		-rm -f ./$(DEPDIR)/quic_client.Po
 	-rm -f ./$(DEPDIR)/quic_server.Po
+	-rm -f ./$(DEPDIR)/quic_test.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -609,6 +623,7 @@ installcheck-am:
 maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/quic_client.Po
 	-rm -f ./$(DEPDIR)/quic_server.Po
+	-rm -f ./$(DEPDIR)/quic_test.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

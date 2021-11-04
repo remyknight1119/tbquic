@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <tbquic/types.h>
+
 #include "packet_local.h"
 
 #define QUIC_LPACKET_TYPE_INITIAL 	    0x00
@@ -14,7 +16,7 @@
 #define QUIC_PACKET_IS_LONG_PACKET(flags) (flags.header_form)
 
 typedef union LPacketFlags QuicLPacketFlags; 
-typedef int (*QuicLPacketPaser)(Packet *, QuicLPacketFlags);
+typedef int (*QuicLPacketPaser)(QUIC *, RPacket *, QuicLPacketFlags);
 
 typedef struct {
     uint8_t type;
@@ -49,7 +51,19 @@ typedef union {
     };
 } QuicVarLenFirstByte;
 
-int QuicPacketParse(Packet *pkt);
+typedef struct {
+	uint8_t flags;
+	uint8_t	dest_conn_id_len;
+	uint8_t	source_conn_id_len;
+    const uint8_t *dest_conn_id;
+    const uint8_t *source_conn_id;
+    uint32_t version;
+    uint32_t pkt_num;
+    uint64_t token_len;
+    const uint8_t *token;
+} LPacketHeader;
+
+int QuicPacketParse(QUIC *quic, RPacket *pkt, uint8_t flags);
 int QuicVariableLengthEncode(uint8_t *buf, size_t blen, uint64_t length);
 int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length);
 

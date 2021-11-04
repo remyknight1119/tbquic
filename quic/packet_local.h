@@ -15,19 +15,6 @@ typedef struct {
     size_t written;
 } WPacket;
 
-typedef struct {
-	uint8_t flags;
-	uint8_t	dest_conn_id_len;
-	uint8_t	source_conn_id_len;
-    const uint8_t *dest_conn_id;
-    const uint8_t *source_conn_id;
-    uint32_t version;
-    uint32_t pkt_num;
-    uint64_t token_len;
-    const uint8_t *token;
-    RPacket frame;
-} Packet;
-
 void RPacketBufInit(RPacket *, const uint8_t *, size_t);
 void RPacketForward(RPacket *, size_t);
 size_t RPacketRemaining(const RPacket *);

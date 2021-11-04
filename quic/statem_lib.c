@@ -9,22 +9,21 @@
 #include "packet_local.h"
 #include "quic_local.h"
 
-int QuicStreamRead(QUIC *quic, Packet *packet)
+int QuicStreamRead(QUIC *quic, RPacket *pkt)
 {
     uint32_t flags = 0;
     int read_bytes = 0;
 
     read_bytes = QuicReadBytes(quic);
-    RPacketBufInit(&packet->frame, (const uint8_t *)QUIC_R_BUFFER_HEAD(quic),
+    RPacketBufInit(pkt, (const uint8_t *)QUIC_R_BUFFER_HEAD(quic),
             read_bytes);
 
-    if (RPacketGet1(&packet->frame, &flags) < 0) {
+    if (RPacketGet1(pkt, &flags) < 0) {
         return -1;
     }
 
-    packet->flags = flags;
     printf("read %d\n", read_bytes);
-    return QuicPacketParse(packet);
+    return QuicPacketParse(quic, pkt, flags);
 }
 
 

@@ -5,11 +5,12 @@
 #include "packet_format.h"
 
 #include "common.h"
+#include "quic_local.h"
 
-static int QuicInitPacketPaser(Packet *, QuicLPacketFlags);
-static int Quic0RttPacketPaser(Packet *, QuicLPacketFlags);
-static int QuicHandshakePacketPaser(Packet *, QuicLPacketFlags);
-static int QuicRetryPacketPaser(Packet *, QuicLPacketFlags);
+static int QuicInitPacketPaser(QUIC *, RPacket *, QuicLPacketFlags);
+static int Quic0RttPacketPaser(QUIC *, RPacket *, QuicLPacketFlags);
+static int QuicHandshakePacketPaser(QUIC *, RPacket *, QuicLPacketFlags);
+static int QuicRetryPacketPaser(QUIC *, RPacket *, QuicLPacketFlags);
 
 static QuicLongPacketParse LPacketPaser[] = {
     {
@@ -32,38 +33,76 @@ static QuicLongPacketParse LPacketPaser[] = {
 
 #define LPACKET_PARSER_NUM     QUIC_ARRAY_SIZE(LPacketPaser) 
 
-static int QuicLongPacketDoParse(Packet *pkt)
+static int QuicLPacketHeaderParse(LPacketHeader *h, RPacket *pkt)
 {
+    uint32_t len = 0;
+
+    if (RPacketGet4(pkt, &h->version) < 0) {
+        return -1;
+    }
+
+    if (RPacketGet1(pkt, &len) < 0) {
+        return -1;
+    }
+
+    h->dest_conn_id_len = len;
+    if (h->dest_conn_id_len == 0) {
+        return -1;
+    }
+
+    h->dest_conn_id = RPacketData(pkt);
+    RPacketForward(pkt, h->dest_conn_id_len);
+
+    if (RPacketGet1(pkt,  &len) < 0) {
+        return -1;
+    }
+
+    h->source_conn_id_len = len;
+    if (h->source_conn_id_len != 0) {
+        h->source_conn_id = RPacketData(pkt);
+        RPacketForward(pkt, h->source_conn_id_len);
+    }
+
+    return 0;
+}
+
+static int QuicLongPacketDoParse(QUIC *quic, RPacket *pkt, uint8_t flags)
+{
+    LPacketHeader h = {};
     QuicLPacketFlags lflags;
     uint8_t type = 0;
     int i = 0;
 
-    lflags.value = pkt->flags;
+    if (QuicLPacketHeaderParse(&h, pkt) < 0) {
+        return -1;
+    }
+
+    lflags.value = flags;
     type = lflags.lpacket_type;
     for (i = 0; i < LPACKET_PARSER_NUM; i++) {
         if (LPacketPaser[i].type == type) {
-            return LPacketPaser[i].parser(pkt, lflags);
+            return LPacketPaser[i].parser(quic, pkt, lflags);
         }
     }
 
     return -1;
 }
 
-static int QuicShortPacketDoParse(Packet *pkt)
+static int QuicShortPacketDoParse(QUIC *quic, RPacket *pkt, uint8_t flags)
 {
     return -1;
 }
 
-int QuicPacketParse(Packet *pkt)
+int QuicPacketParse(QUIC *quic, RPacket *pkt, uint8_t flags)
 {
     QuicPacketFlags pflags;
 
-    pflags.value = pkt->flags;
+    pflags.value = flags;
     if (QUIC_PACKET_IS_LONG_PACKET(pflags)) {
-        return QuicLongPacketDoParse(pkt);
+        return QuicLongPacketDoParse(quic, pkt, flags);
     }
 
-    return QuicShortPacketDoParse(pkt);
+    return QuicShortPacketDoParse(quic, pkt, flags);
 }
 
 static int QuicVariableLengthValueEncode(uint8_t *buf, size_t blen,
@@ -135,85 +174,47 @@ int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length)
     return 0;
 }
 
-static int QuicPacketHeaderParse(Packet *pkt)
+static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
 {
-    uint32_t len = 0;
-
-    if (RPacketGet4(&pkt->frame,  &pkt->version) < 0) {
-        return -1;
-    }
-
-    if (RPacketGet1(&pkt->frame,  &len) < 0) {
-        return -1;
-    }
-
-    pkt->dest_conn_id_len = len;
-    if (pkt->dest_conn_id_len == 0) {
-        return -1;
-    }
-
-    pkt->dest_conn_id = RPacketData(&pkt->frame);
-    RPacketForward(&pkt->frame, pkt->dest_conn_id_len);
-
-    if (RPacketGet1(&pkt->frame,  &len) < 0) {
-        return -1;
-    }
-
-    pkt->source_conn_id_len = len;
-    if (pkt->source_conn_id_len != 0) {
-        pkt->source_conn_id = RPacketData(&pkt->frame);
-        RPacketForward(&pkt->frame, pkt->source_conn_id_len);
-    }
-
-    return 0;
-}
-
-static int QuicInitPacketPaser(Packet *pkt, QuicLPacketFlags flags)
-{
-    RPacket *frame = NULL;
+    uint64_t token_len = 0;
     uint64_t length = 0;
     int pkt_num_len = 0;
 
-    if (QuicPacketHeaderParse(pkt) < 0) {
+    if (QuicVariableLengthDecode(pkt, &token_len) < 0) {
         return -1;
     }
 
-    frame = &pkt->frame;
-    if (QuicVariableLengthDecode(frame, &pkt->token_len) < 0) {
+    if (token_len != 0) {
+        //token = RPacketData(pkt);
+        RPacketForward(pkt, token_len);
+    }
+
+    if (QuicVariableLengthDecode(pkt, &length) < 0) {
         return -1;
     }
 
-    if (pkt->token_len != 0) {
-        pkt->token = RPacketData(&pkt->frame);
-        RPacketForward(&pkt->frame, pkt->token_len);
-    }
-
-    if (QuicVariableLengthDecode(frame, &length) < 0) {
-        return -1;
-    }
-
-    if (length != RPacketRemaining(frame)) {
-        printf("length(%lu) not match remaining(%lu)!\n", length, RPacketRemaining(frame));
+    if (length != RPacketRemaining(pkt)) {
+        printf("length(%lu) not match remaining(%lu)!\n", length, RPacketRemaining(pkt));
         return -1;
     }
 
     pkt_num_len = flags.packet_num_len;
-    printf("IIIint, pkt_num_len = %d\n", pkt_num_len);
+    printf("IIIint, f = %x, pkt_num_len = %d, r = %d\n", flags.value, pkt_num_len, flags.reserved_bits);
 
     return 0;
 }
 
-static int Quic0RttPacketPaser(Packet *pkt, QuicLPacketFlags flags)
+static int Quic0RttPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
 {
     return 0;
 }
 
-static int QuicHandshakePacketPaser(Packet *pkt, QuicLPacketFlags flags)
+static int QuicHandshakePacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
 {
     return 0;
 }
 
-static int QuicRetryPacketPaser(Packet *pkt, QuicLPacketFlags flags)
+static int QuicRetryPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
 {
     return 0;
 }

@@ -105,6 +105,7 @@ void QuicFree(QUIC *quic)
     QuicBufFree(&quic->plain_buffer);
     QuicBufFree(&quic->rbuffer);
 
+    QuicMemFree(quic->peer_dcid.cid);
     QuicMemFree(quic);
 }
 

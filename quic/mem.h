@@ -3,8 +3,8 @@
 
 #include <stdlib.h>
 
-void *QuicMemMalloc(size_t size);
-void *QuicMemCalloc(size_t size);
-void QuicMemFree(void *ptr);
+void *QuicMemMalloc(size_t);
+void *QuicMemCalloc(size_t);
+void QuicMemFree(void *);
 
 #endif

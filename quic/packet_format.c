@@ -4,28 +4,40 @@
 
 #include "packet_format.h"
 
+#include <string.h>
+#include <arpa/inet.h>
+
 #include "common.h"
+#include "mem.h"
 #include "quic_local.h"
 
-static int QuicInitPacketPaser(QUIC *, RPacket *, QuicLPacketFlags);
-static int Quic0RttPacketPaser(QUIC *, RPacket *, QuicLPacketFlags);
-static int QuicHandshakePacketPaser(QUIC *, RPacket *, QuicLPacketFlags);
-static int QuicRetryPacketPaser(QUIC *, RPacket *, QuicLPacketFlags);
+static int QuicInitPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
+static int Quic0RttPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
+static int QuicHandshakePacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
+static int QuicRetryPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
 
 static QuicLongPacketParse LPacketPaser[] = {
     {
+        .min_version = QUIC_VERSION_1,
+        .max_version = QUIC_VERSION_1,
         .type = QUIC_LPACKET_TYPE_INITIAL,
         .parser = QuicInitPacketPaser,
     },
     {
+        .min_version = QUIC_VERSION_1,
+        .max_version = QUIC_VERSION_1,
         .type = QUIC_LPACKET_TYPE_0RTT,
         .parser = Quic0RttPacketPaser,
     },
     {
+        .min_version = QUIC_VERSION_1,
+        .max_version = QUIC_VERSION_1,
         .type = QUIC_LPACKET_TYPE_HANDSHAKE,
         .parser = QuicHandshakePacketPaser,
     },
     {
+        .min_version = QUIC_VERSION_1,
+        .max_version = QUIC_VERSION_1,
         .type = QUIC_LPACKET_TYPE_RETRY,
         .parser = QuicRetryPacketPaser,
     },
@@ -33,23 +45,27 @@ static QuicLongPacketParse LPacketPaser[] = {
 
 #define LPACKET_PARSER_NUM     QUIC_ARRAY_SIZE(LPacketPaser) 
 
-static int QuicLPacketHeaderParse(LPacketHeader *h, RPacket *pkt)
+static int QuicLPacketHeaderParse(QUIC *quic, QuicLPacketHeader *h, RPacket *pkt)
 {
+    uint32_t version = 0;
     uint32_t len = 0;
 
-    if (RPacketGet4(pkt, &h->version) < 0) {
+    if (RPacketGet4(pkt, &version) < 0) {
         return -1;
     }
+
+    h->version = ntohl(version);
 
     if (RPacketGet1(pkt, &len) < 0) {
         return -1;
     }
 
-    h->dest_conn_id_len = len;
-    if (h->dest_conn_id_len == 0) {
+    if ((h->version == QUIC_VERSION_1 && len > QUIC_MAX_CID_LENGTH) ||
+            len == 0) {
         return -1;
     }
 
+    h->dest_conn_id_len = len;
     h->dest_conn_id = RPacketData(pkt);
     RPacketForward(pkt, h->dest_conn_id_len);
 
@@ -68,20 +84,24 @@ static int QuicLPacketHeaderParse(LPacketHeader *h, RPacket *pkt)
 
 static int QuicLongPacketDoParse(QUIC *quic, RPacket *pkt, uint8_t flags)
 {
-    LPacketHeader h = {};
-    QuicLPacketFlags lflags;
+    QuicLongPacketParse *p = NULL;
+    QuicLPacketHeader h = {};
+    uint32_t version = 0;
     uint8_t type = 0;
     int i = 0;
 
-    if (QuicLPacketHeaderParse(&h, pkt) < 0) {
+    if (QuicLPacketHeaderParse(quic, &h, pkt) < 0) {
         return -1;
     }
 
-    lflags.value = flags;
-    type = lflags.lpacket_type;
+    version = h.version;
+    h.flags.value = flags;
+    type = h.flags.lpacket_type;
     for (i = 0; i < LPACKET_PARSER_NUM; i++) {
-        if (LPacketPaser[i].type == type) {
-            return LPacketPaser[i].parser(quic, pkt, lflags);
+        p = &LPacketPaser[i];
+        if (p->type == type && p->min_version <= version &&
+                version <= p->max_version) {
+            return p->parser(quic, pkt, &h);
         }
     }
 
@@ -174,12 +194,23 @@ int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length)
     return 0;
 }
 
-static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
     uint64_t token_len = 0;
     uint64_t length = 0;
     int pkt_num_len = 0;
 
+    if (quic->peer_dcid.cid != NULL) {
+        return -1;
+    }
+
+    quic->peer_dcid.cid = QuicMemMalloc(h->dest_conn_id_len);
+    if (quic->peer_dcid.cid == NULL) {
+        return -1;
+    }
+    quic->peer_dcid.len = h->dest_conn_id_len;
+    memcpy(quic->peer_dcid.cid, h->dest_conn_id, quic->peer_dcid.len);
+ 
     if (QuicVariableLengthDecode(pkt, &token_len) < 0) {
         return -1;
     }
@@ -198,23 +229,23 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
         return -1;
     }
 
-    pkt_num_len = flags.packet_num_len;
-    printf("IIIint, f = %x, pkt_num_len = %d, r = %d\n", flags.value, pkt_num_len, flags.reserved_bits);
+    pkt_num_len = h->flags.packet_num_len;
+    printf("IIIint, f = %x, pkt_num_len = %d, r = %d\n", h->flags.value, pkt_num_len, h->flags.reserved_bits);
 
     return 0;
 }
 
-static int Quic0RttPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+static int Quic0RttPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
     return 0;
 }
 
-static int QuicHandshakePacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+static int QuicHandshakePacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
     return 0;
 }
 
-static int QuicRetryPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+static int QuicRetryPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
     return 0;
 }

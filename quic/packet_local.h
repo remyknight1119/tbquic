@@ -12,7 +12,9 @@ typedef struct {
 
 typedef struct {
     BUF_MEM *buf;
+    size_t curr;
     size_t written;
+    size_t maxsize;
 } WPacket;
 
 void RPacketBufInit(RPacket *, const uint8_t *, size_t);
@@ -25,7 +27,16 @@ int RPacketPeekCopyBytes(const RPacket *, uint8_t *, size_t);
 int RPacketCopyBytes(RPacket *, uint8_t *, size_t);
 int RPacketPeek1(const RPacket *, uint32_t *);
 int RPacketGet1(RPacket *, uint32_t *);
+int RPacketPeek2(const RPacket *, uint32_t *);
+int RPacketGet2(RPacket *, uint32_t *);
+int RPacketPeek3(const RPacket *, uint32_t *);
+int RPacketGet3(RPacket *, uint32_t *);
 int RPacketPeek4(const RPacket *, uint32_t *);
 int RPacketGet4(RPacket *, uint32_t *);
+void WPacketBufInit(WPacket *, BUF_MEM *);
+int WPacketPut1(WPacket *, uint32_t);
+int WPacketPut2(WPacket *, uint32_t);
+int WPacketPut3(WPacket *, uint32_t);
+int WPacketPut4(WPacket *, uint32_t);
 
 #endif

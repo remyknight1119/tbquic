@@ -48,13 +48,14 @@ static const QuicSalt *QuicSaltFind(const QuicSalt *salt, size_t num,
 
 /*
  * Compute the initial secrets given Connection ID "cid".
- *
  */
-static int QuicDeriveInitialSecret(const QUIC_CID *cid, uint8_t *init_secret,
-        uint32_t version)
+static int QuicDeriveInitialSecret(const QUIC_CID *cid, uint8_t *client_secret,
+        uint8_t *server_secret, uint32_t version)
 {
     const QuicSalt *salt = NULL;
     uint8_t secret[HASH_SHA2_256_LENGTH];
+    static const uint8_t client_label[] = "client in ";
+    static const uint8_t server_label[] = "server in ";
     size_t secret_len = 0;
 
     salt = QuicSaltFind(handshake_salt, QUIC_HANDSHAKE_SALT_NUM, version);
@@ -67,15 +68,28 @@ static int QuicDeriveInitialSecret(const QUIC_CID *cid, uint8_t *init_secret,
         return -1;
     }
 
+    if (QuicTLS13HkdfExpand(EVP_sha256(), secret, sizeof(secret),
+                        client_label, sizeof(client_label),
+                        client_secret, HASH_SHA2_256_LENGTH) < 0) {
+        return -1;
+    }
+
+    if (QuicTLS13HkdfExpand(EVP_sha256(), secret, sizeof(secret),
+                        server_label, sizeof(server_label),
+                        server_secret, HASH_SHA2_256_LENGTH) < 0) {
+        return -1;
+    }
+
     return 0;
 }
 
-
 int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 {
-    uint8_t init_secret[HASH_SHA2_256_LENGTH];
+    uint8_t client_secret[HASH_SHA2_256_LENGTH];
+    uint8_t server_secret[HASH_SHA2_256_LENGTH];
     
-    if (QuicDeriveInitialSecret(&quic->peer_dcid, init_secret, version) < 0) {
+    if (QuicDeriveInitialSecret(&quic->peer_dcid, client_secret, server_secret,
+                version) < 0) {
         return -1;
     }
 

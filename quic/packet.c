@@ -5,6 +5,9 @@
 #include "packet_local.h"
 
 #include <string.h>
+#include <stdint.h>
+
+#define DEFAULT_BUF_SIZE    256
 
 void RPacketBufInit(RPacket *pkt, const uint8_t *buf, size_t len)
 {
@@ -31,28 +34,76 @@ const uint8_t *RPacketData(const RPacket *pkt)
     return pkt->curr;
 }
 
-/* Peek ahead at 1 byte from |pkt| and store the value in |*data| */
-int RPacketPeek1(const RPacket *pkt, uint32_t *data)
+static int RPacketPeekData(const RPacket *pkt, uint32_t *data, size_t len)
 {
-    if (!RPacketRemaining(pkt)) {
+    int i = 0;
+
+    if (RPacketRemaining(pkt) < len) {
         return -1;
     }
 
     *data = *pkt->curr;
 
+    for (i = 1; i < len; i++) {
+        *data |= ((uint32_t)(*(pkt->curr + i))) << 8*i;
+    }
+
     return 0;
+}
+
+static int RPacketGetData(RPacket *pkt, uint32_t *data, size_t len)
+{
+    if (RPacketPeekData(pkt, data, len) < 0) {
+        return -1;
+    }
+
+    RPacketForward(pkt, len);
+
+    return 0;
+}
+
+/* Peek ahead at 1 byte from |pkt| and store the value in |*data| */
+int RPacketPeek1(const RPacket *pkt, uint32_t *data)
+{
+    return RPacketPeekData(pkt, data, 1);
 }
 
 /* Get 1 byte from |pkt| and store the value in |*data| */
 int RPacketGet1(RPacket *pkt, uint32_t *data)
 {
-    if (RPacketPeek1(pkt, data) < 0) {
-        return -1;
-    }
+    return RPacketGetData(pkt, data, 1);
+}
 
-    RPacketForward(pkt, 1);
+/*
+ * Peek ahead at 2 bytes in network order from |pkt| and store the value in
+ * |*data|
+ */
+int RPacketPeek2(const RPacket *pkt, uint32_t *data)
+{
+    return RPacketPeekData(pkt, data, 2);
+}
 
-    return 0;
+/* Equivalent of n2s */
+/* Get 2 bytes in network order from |pkt| and store the value in |*data| */
+int RPacketGet2(RPacket *pkt, uint32_t *data)
+{
+    return RPacketGetData(pkt, data, 2);
+}
+
+/*
+ * Peek ahead at 3 bytes in network order from |pkt| and store the value in
+ * |*data|
+ */
+int PacketPeek3(const RPacket *pkt, uint32_t *data)
+{
+    return RPacketPeekData(pkt, data, 3);
+}
+
+/* Equivalent of n2l3 */
+/* Get 3 bytes in network order from |pkt| and store the value in |*data| */
+int PacketGet3(RPacket *pkt, uint32_t *data)
+{
+    return RPacketGetData(pkt, data, 3);
 }
 
 /*
@@ -61,16 +112,7 @@ int RPacketGet1(RPacket *pkt, uint32_t *data)
  */
 int RPacketPeek4(const RPacket *pkt, uint32_t *data)
 {
-    if (RPacketRemaining(pkt) < 4) {
-        return 0;
-    }
-
-    *data = *pkt->curr;
-    *data |= ((uint32_t)(*(pkt->curr + 1))) << 8;
-    *data |= ((uint32_t)(*(pkt->curr + 2))) << 16;
-    *data |= ((uint32_t)(*(pkt->curr + 3))) << 24;
-
-    return 1;
+    return RPacketPeekData(pkt, data, 4);
 }
 
 /* Equivalent of c2l */
@@ -80,13 +122,7 @@ int RPacketPeek4(const RPacket *pkt, uint32_t *data)
  */
 int RPacketGet4(RPacket *pkt, uint32_t *data)
 {
-    if (!RPacketPeek4(pkt, data)) {
-        return 0;
-    }
-
-    RPacketForward(pkt, 4);
-
-    return 1;
+    return RPacketGetData(pkt, data, 4);
 }
 
 /*
@@ -151,4 +187,124 @@ int RPacketCopyBytes(RPacket *pkt, uint8_t *data, size_t len)
     return 0;
 }
 
+void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)
+{
+    pkt->buf = buf;
+    pkt->curr = 0;
+    pkt->written = 0;
+    pkt->maxsize = buf->length;
+}
 
+static uint8_t *WPacket_get_curr(WPacket *pkt)
+{
+    return (uint8_t *)pkt->buf->data + pkt->curr;
+}
+
+int WPacketReserveBytes(WPacket *pkt, size_t len, uint8_t **allocbytes)
+{
+    if (pkt->maxsize - pkt->written < len) {
+        return -1;
+    }
+
+    if (pkt->buf->length - pkt->written < len) {
+        size_t newlen;
+        size_t reflen;
+
+        reflen = (len > pkt->buf->length) ? len : pkt->buf->length;
+
+        if (reflen > SIZE_MAX / 2) {
+            newlen = SIZE_MAX;
+        } else {
+            newlen = reflen * 2;
+            if (newlen < DEFAULT_BUF_SIZE) {
+                newlen = DEFAULT_BUF_SIZE;
+            }
+        }
+        if (BUF_MEM_grow(pkt->buf, newlen) == 0) {
+            return -1;
+        }
+    }
+
+    if (allocbytes != NULL) {
+        *allocbytes = WPacket_get_curr(pkt);
+    }
+
+    return 0;
+}
+
+int WPacketAllocateBytes(WPacket *pkt, size_t len, uint8_t **allocbytes)
+{
+    if (WPacketReserveBytes(pkt, len, allocbytes) < 0) {
+        return -1;
+    }
+
+    pkt->written += len;
+    pkt->curr += len;
+
+    return 0;
+}
+
+int WPacketMemcpy(WPacket *pkt, const void *src, size_t len)
+{
+    uint8_t *dest;
+
+    if (len == 0) {
+        return 0;
+    }
+
+    if (WPacketAllocateBytes(pkt, len, &dest) < 0) {
+        return -1;
+    }
+
+    memcpy(dest, src, len);
+
+    return 1;
+}
+
+/* Store the |value| of length |len| at location |data| */
+static int WPacketPutValue(uint8_t *data, size_t value, size_t len)
+{
+    for (data += len - 1; len > 0; len--) {
+        *data = (uint8_t)(value & 0xFF);
+        data--;
+        value >>= 8;
+    }
+
+    /* Check whether we could fit the value in the assigned number of bytes */
+    if (value > 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int WPacketPutBytes(WPacket *pkt, uint32_t val, size_t size)
+{
+    uint8_t *data = NULL;
+
+    if (WPacketAllocateBytes(pkt, size, &data) < 0) {
+        return -1;
+    }
+    
+    return WPacketPutValue(data, val, size);
+}
+
+int WPacketPut1(WPacket *pkt, uint32_t val)
+{
+    return WPacketPutBytes(pkt, val, 1);
+}
+
+int WPacketPut2(WPacket *pkt, uint32_t val)
+{
+    return WPacketPutBytes(pkt, val, 2);
+}
+
+int WPacketPut3(WPacket *pkt, uint32_t val)
+{
+    return WPacketPutBytes(pkt, val, 3);
+}
+
+int WPacketPut4(WPacket *pkt, uint32_t val)
+{
+    return WPacketPutBytes(pkt, val, 4);
+}

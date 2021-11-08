@@ -17,7 +17,9 @@
  * Although the QUIC SCID/DCID length field can store at most 255, v1 limits the
  * CID length to 20.
  */
-#define QUIC_MAX_CID_LENGTH  20
+#define QUIC_MAX_CID_LENGTH     20
+#define QUIC_SAMPLE_LEN     16
+#define QUIC_MACKET_NUM_MAX_LEN     4
 
 #define QUIC_PACKET_IS_LONG_PACKET(flags) (flags.header_form)
 

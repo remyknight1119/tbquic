@@ -99,31 +99,66 @@ uint8_t *HkdfExpand(const EVP_MD *evp_md, const uint8_t *prk, size_t prk_len,
 
 int TLS13HkdfExpand(const EVP_MD *md, const uint8_t *secret,
                         size_t secret_len, const uint8_t *label,
-                        size_t labellen, const uint8_t *data,
-                        size_t datalen, uint8_t *out,
-                        size_t outlen)
+                        size_t label_len, const uint8_t *data,
+                        size_t data_len, uint8_t *out,
+                        size_t out_len)
 {
     BUF_MEM *buf = NULL;
     WPacket pkt = {};
     static const unsigned char label_prefix[] = "tls13 ";
+    uint8_t label_prefix_len = sizeof(label_prefix) - 1;
+    uint8_t label_vector_len = 0;
     size_t buf_len = 0;
+    int ret = -1;
 
     if ((buf = BUF_MEM_new()) == NULL) {
         goto out;
     }
 
     buf_len = sizeof(uint16_t) + sizeof(uint8_t) + (sizeof(label_prefix) - 1) +
-                labellen + sizeof(uint8_t) + datalen;
+                label_len + sizeof(uint8_t) + data_len;
     if (BUF_MEM_grow(buf, buf_len) == 0) {
         goto out;
     }
 
     WPacketBufInit(&pkt, buf);
 
-    return 0;
+    if (WPacketPut2(&pkt, out_len) < 0) {
+        goto out;
+    }
+
+    label_vector_len = label_prefix_len + label_len;
+    if (WPacketPut1(&pkt, label_vector_len) < 0) {
+        goto out;
+    }
+
+    if (WPacketMemcpy(&pkt, label_prefix, label_prefix_len) < 0) {
+        goto out;
+    }
+
+    if (WPacketMemcpy(&pkt, label, label_len) < 0) {
+        goto out;
+    }
+
+    if (WPacketPut1(&pkt, data_len) < 0) {
+        goto out;
+    }
+
+    if (data != NULL) {
+        if (WPacketMemcpy(&pkt, data, data_len) < 0) {
+            goto out;
+        }
+    }
+
+    if (HkdfExpand(md, secret, secret_len, (const uint8_t *)buf->data,
+                buf->length, out, out_len) == NULL) {
+        goto out;
+    }
+
+    ret = 0;
 out:
     BUF_MEM_free(buf);
-    return -1;
+    return ret;
 }
 
 int QuicTLS13HkdfExpand(const EVP_MD *md, const uint8_t *secret,

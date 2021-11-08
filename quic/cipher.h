@@ -5,6 +5,9 @@
 
 #include <stdint.h>
 
-int QuicCreateInitialDecoders(QUIC *quic, uint32_t version);
+#define AES_KEY_MAX_SIZE    32
+
+int QuicCreateInitialDecoders(QUIC *, uint32_t);
+int QuicCipherEncrypt(QUIC_CIPHER *, uint8_t *, int *, const uint8_t *, int);
 
 #endif

@@ -10,6 +10,7 @@
 #include "common.h"
 #include "mem.h"
 #include "quic_local.h"
+#include "cipher.h"
 
 static int QuicInitPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
 static int Quic0RttPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
@@ -194,8 +195,53 @@ int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length)
     return 0;
 }
 
+int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
+                            RPacket *pkt, uint8_t bits_mask)
+{
+    const uint8_t *pkt_num_start = NULL;
+    uint8_t sample[QUIC_SAMPLE_LEN] = {};
+    uint8_t mask[QUIC_SAMPLE_LEN] = {};
+    uint8_t pkn_bytes[QUIC_MACKET_NUM_MAX_LEN] = {};
+    uint8_t packet0 = 0;
+    uint8_t pkt_num_len = 0;
+    int mask_len = 0;
+
+    if (hp_cipher->cipher.ctx == NULL) {
+        return -1;
+    }
+
+    if (RPacketRemaining(pkt) < QUIC_MACKET_NUM_MAX_LEN + sizeof(sample)) {
+        return -1;
+    }
+
+    pkt_num_start = RPacketData(pkt);
+    memcpy(sample, pkt_num_start + QUIC_MACKET_NUM_MAX_LEN, sizeof(sample));
+
+    if (QuicCipherEncrypt(&hp_cipher->cipher, mask, &mask_len, sample,
+                sizeof(sample)) < 0) {
+        return -1;
+    }
+
+    packet0 = flags ^ (mask[0] & bits_mask);
+    pkt_num_len = (packet0 & 0x3) + 1;
+
+    if (RPacketCopyBytes(pkt, pkn_bytes, pkt_num_len) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int QuicDecryptInitPacketHeader(QuicHPCipher *hp_cipher, uint8_t flags,
+                                uint32_t *pkt_num, RPacket *pkt)
+{
+    return QuicDecryptHeader(hp_cipher, flags, pkt_num, pkt, 0xFF);
+}
+
 static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
+    QUIC_CIPHERS *cipher = NULL;
     uint64_t token_len = 0;
     uint64_t length = 0;
     int pkt_num_len = 0;
@@ -225,7 +271,20 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     }
 
     if (length != RPacketRemaining(pkt)) {
-        printf("length(%lu) not match remaining(%lu)!\n", length, RPacketRemaining(pkt));
+        printf("length(%lu) not match remaining(%lu)!\n",
+                length, RPacketRemaining(pkt));
+        return -1;
+    }
+
+    if (QuicCreateInitialDecoders(quic, h->version) < 0) {
+        printf("Create Initial Decoders failed!\n");
+        return -1;
+    }
+
+    cipher = quic->server ?
+        &quic->client_init_ciphers : &quic->server_init_ciphers;
+    if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, h->flags.value,
+                &h->pkt_num, pkt) < 0) {
         return -1;
     }
 

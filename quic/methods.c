@@ -18,10 +18,10 @@ static QUIC_METHOD QuicServerMeth = {
 
 QUIC_METHOD *QuicClientMethod(void)
 {
-  return &QuicClientMeth;
+    return &QuicClientMeth;
 }
 
 QUIC_METHOD *QuicServerMethod(void)
 {
-  return &QuicServerMeth;
+    return &QuicServerMeth;
 }

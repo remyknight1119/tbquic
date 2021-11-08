@@ -41,5 +41,6 @@ static int QuicServerReadyWrite(QUIC *quic)
 
 int QuicAccept(QUIC *quic)
 {
+    quic->server = 1;
     return QuicStateMachineAct(quic, ServerStateMachine, QUIC_SERVER_STATEM_NUM);
 }

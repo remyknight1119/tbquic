@@ -38,5 +38,6 @@ int WPacketPut1(WPacket *, uint32_t);
 int WPacketPut2(WPacket *, uint32_t);
 int WPacketPut3(WPacket *, uint32_t);
 int WPacketPut4(WPacket *, uint32_t);
+int WPacketMemcpy(WPacket *, const void *src, size_t len);
 
 #endif

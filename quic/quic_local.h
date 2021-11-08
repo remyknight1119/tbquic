@@ -19,7 +19,7 @@
 #define QUIC_W_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->wbuffer)
 
 struct QuicCipher {
-    void *c;
+    EVP_CIPHER_CTX *ctx;
 };
 
 typedef struct {
@@ -35,7 +35,6 @@ typedef struct {
     QuicHPCipher hp_cipher;
     QuicPPCipher pp_cipher;
 } QUIC_CIPHERS;
-
 
 struct QuicMethod {
     int (*handshake)(QUIC *);
@@ -57,6 +56,7 @@ typedef struct {
 
 struct Quic {
     QUIC_STREAM_STATE state;
+    uint8_t server:1;
     const QUIC_CTX *ctx;
     const QUIC_METHOD *method;
     BIO *rbio;
@@ -66,7 +66,11 @@ struct Quic {
     QUIC_BUFFER plain_buffer;
     QUIC_BUFFER wbuffer;
     QUIC_CID peer_dcid;
-    QUIC_CIPHERS ciphers;
+    QUIC_CIPHERS client_init_ciphers;
+    QUIC_CIPHERS server_init_ciphers;
+    QUIC_CIPHERS zero_rtt_ciphers;
+    QUIC_CIPHERS client_handshake_ciphers;
+    QUIC_CIPHERS server_handshake_ciphers;
 };
 
 

@@ -115,7 +115,8 @@ am__v_lt_1 =
 am_quic_server_OBJECTS = quic_server.$(OBJEXT)
 quic_server_OBJECTS = $(am_quic_server_OBJECTS)
 quic_server_DEPENDENCIES = $(srcdir)/../quic/libtbquic.la
-am_quic_test_OBJECTS = quic_test.$(OBJEXT)
+am_quic_test_OBJECTS = quic_test.$(OBJEXT) format.$(OBJEXT) \
+	crypto.$(OBJEXT)
 quic_test_OBJECTS = $(am_quic_test_OBJECTS)
 quic_test_DEPENDENCIES = $(srcdir)/../quic/libtbquic.la
 AM_V_P = $(am__v_P_@AM_V@)
@@ -133,8 +134,9 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/quic_client.Po \
-	./$(DEPDIR)/quic_server.Po ./$(DEPDIR)/quic_test.Po
+am__depfiles_remade = ./$(DEPDIR)/crypto.Po ./$(DEPDIR)/format.Po \
+	./$(DEPDIR)/quic_client.Po ./$(DEPDIR)/quic_server.Po \
+	./$(DEPDIR)/quic_test.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -302,7 +304,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 quic_client_SOURCES = quic_client.c
 quic_server_SOURCES = quic_server.c
-quic_test_SOURCES = quic_test.c
+quic_test_SOURCES = quic_test.c format.c crypto.c
 quic_client_LDADD = $(srcdir)/../quic/libtbquic.la
 quic_server_LDADD = $(srcdir)/../quic/libtbquic.la
 quic_test_LDADD = $(srcdir)/../quic/libtbquic.la
@@ -409,6 +411,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crypto.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_client.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_server.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_test.Po@am__quote@ # am--include-marker
@@ -573,7 +577,9 @@ clean: clean-am
 clean-am: clean-binPROGRAMS clean-generic clean-libtool mostlyclean-am
 
 distclean: distclean-am
-		-rm -f ./$(DEPDIR)/quic_client.Po
+		-rm -f ./$(DEPDIR)/crypto.Po
+	-rm -f ./$(DEPDIR)/format.Po
+	-rm -f ./$(DEPDIR)/quic_client.Po
 	-rm -f ./$(DEPDIR)/quic_server.Po
 	-rm -f ./$(DEPDIR)/quic_test.Po
 	-rm -f Makefile
@@ -621,7 +627,9 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-		-rm -f ./$(DEPDIR)/quic_client.Po
+		-rm -f ./$(DEPDIR)/crypto.Po
+	-rm -f ./$(DEPDIR)/format.Po
+	-rm -f ./$(DEPDIR)/quic_client.Po
 	-rm -f ./$(DEPDIR)/quic_server.Po
 	-rm -f ./$(DEPDIR)/quic_test.Po
 	-rm -f Makefile

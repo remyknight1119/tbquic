@@ -205,6 +205,7 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
     uint8_t packet0 = 0;
     uint8_t pkt_num_len = 0;
     int mask_len = 0;
+    int i = 0;
 
     if (hp_cipher->cipher.ctx == NULL) {
         return -1;
@@ -229,9 +230,12 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
         return -1;
     }
 
+    for (i = 0; i < pkt_num_len; i++) {
+        *pkt_num |= (pkn_bytes[i] & mask[i + 1]) << (8 * (pkt_num_len - i - 1));
+    }
+
     return 0;
 }
-
 
 int QuicDecryptInitPacketHeader(QuicHPCipher *hp_cipher, uint8_t flags,
                                 uint32_t *pkt_num, RPacket *pkt)

@@ -12,6 +12,8 @@
 
 uint8_t *HkdfExtract(const EVP_MD *, const uint8_t *, size_t, const uint8_t *,
                         size_t, uint8_t *, size_t *);
+uint8_t *HkdfExpand(const EVP_MD *, const uint8_t *, size_t, const uint8_t *,
+                        size_t, uint8_t *, size_t);
 int QuicTLS13HkdfExpand(const EVP_MD *, const uint8_t *, size_t,
                         const uint8_t *, size_t, uint8_t *, size_t);
 

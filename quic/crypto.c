@@ -32,8 +32,8 @@ uint8_t *HkdfExpand(const EVP_MD *evp_md, const uint8_t *prk, size_t prk_len,
 {
     HMAC_CTX *hmac;
     uint8_t *ret = NULL;
+    unsigned char prev[EVP_MAX_MD_SIZE] = {};
     uint8_t i;
-    unsigned char prev[EVP_MAX_MD_SIZE];
 
     size_t done_len = 0, dig_len = EVP_MD_size(evp_md);
 

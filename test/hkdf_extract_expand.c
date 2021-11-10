@@ -13,17 +13,18 @@
 
 #include "crypto.h"
 #include "common.h"
+#include "quic_local.h"
 
 #define QUIC_CRYPTO_TEST_PRK_MAX_LEN    64
 #define QUIC_CRYPTO_TEST_OKM_MAX_LEN    256
 
 typedef struct {
     int digest_id;
-    QuicData salt;
-    QuicData ikm;
-    QuicData info;
-    QuicData prk;
-    QuicData okm;
+    QUIC_DATA salt;
+    QUIC_DATA ikm;
+    QUIC_DATA info;
+    QUIC_DATA prk;
+    QUIC_DATA okm;
 } QuicHkdfTest;
 
 static uint8_t salt1[] = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C";
@@ -252,7 +253,7 @@ static QuicHkdfTest QuicHkdfTestCases[] = {
 
 #define QUIC_HKDF_TEST_NUM QUIC_ARRAY_SIZE(QuicHkdfTestCases)
 
-int QuicHkdfExtractTest(void)
+int QuicHkdfExtractExpandTest(void)
 {
     QuicHkdfTest *tcase = NULL;
     const EVP_MD *md = NULL;
@@ -305,6 +306,6 @@ int QuicHkdfExtractTest(void)
     }
 
     printf("All %lu testcases of HKDF passed\n", QUIC_HKDF_TEST_NUM);
-    return 0;
+    return QUIC_HKDF_TEST_NUM;
 }
 

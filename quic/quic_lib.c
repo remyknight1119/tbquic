@@ -7,6 +7,7 @@
 
 #include "statem.h"
 #include "mem.h"
+#include "log.h"
 
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
@@ -90,6 +91,7 @@ out:
 int QuicDoHandshake(QUIC *quic)
 {
     if (quic->handshake == NULL) {
+        QUIC_LOG("Handshake not set\n");
         return -1;
     }
 
@@ -105,7 +107,7 @@ void QuicFree(QUIC *quic)
     QuicBufFree(&quic->plain_buffer);
     QuicBufFree(&quic->rbuffer);
 
-    QuicMemFree(quic->peer_dcid.cid);
+    QuicMemFree(quic->peer_dcid.data);
     QuicMemFree(quic);
 }
 

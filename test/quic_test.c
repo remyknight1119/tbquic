@@ -21,11 +21,19 @@ typedef struct FuncTest {
 static QuicFuncTest TestFuncs[] = {
     {
         .test = QuicVariableLengthDecodeTest,
-        .err_msg = "Varibale Length Decode"
+        .err_msg = "Varibale Length Decode",
     },
     {
-        .test = QuicHkdfExtractTest,
-        .err_msg = "HKDF Extract"
+        .test = QuicHkdfExtractExpandTest,
+        .err_msg = "HKDF Extract and Expand",
+    },
+    {
+        .test = QuicHkdfExpandLabel,
+        .err_msg = "HKDF Expand Label",
+    },
+    {
+        .test = QuicPktFormatTest,
+        .err_msg = "Packet Format",
     },
 };
 
@@ -73,19 +81,24 @@ uint32_t QuicUintOrderTrans(uint32_t value)
 int main(void)
 {
     int passed = 0;
+    int ok_num = 0;
     int i = 0;
+    int ret = 0;
 
     QuicInit();
 
     for (i = 0; i < QUIC_FUNC_TEST_NUM; i++) {
-        if (TestFuncs[i].test() < 0) {
+        ret = TestFuncs[i].test();
+        if (ret < 0) {
             fprintf(stderr, "%s failed\n", TestFuncs[i].err_msg);
         } else {
             passed++;
+            ok_num += ret;
         }
     }
 
-    fprintf(stdout, "%d/%lu testcases passed!\n", passed, QUIC_FUNC_TEST_NUM);
+    fprintf(stdout, "%d/%lu Function test passed! Total passed case number"
+            " is %d\n", passed, QUIC_FUNC_TEST_NUM, ok_num);
     return 0;
 }
 

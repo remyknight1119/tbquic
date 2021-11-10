@@ -16,15 +16,15 @@ typedef struct {
     uint32_t version;
 } QuicSalt;
 
-static const uint8_t handshake_salt_v1[] = {
-    0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3, 0x4d, 0x17,
-    0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad, 0xcc, 0xbb, 0x7f, 0x0a
-};
+
+static const uint8_t handshake_salt_v1[] =
+    "\x38\x76\x2C\xF7\xF5\x59\x34\xB3\x4D\x17"
+    "\x9A\xE6\xA4\xC8\x0C\xAD\xCC\xBB\x7F\x0A";
 
 static const QuicSalt handshake_salt[] = {
     {
         .salt = handshake_salt_v1,
-        .salt_len = sizeof(handshake_salt_v1),
+        .salt_len = sizeof(handshake_salt_v1) - 1,
         .version = QUIC_VERSION_1,
     },
 };
@@ -49,13 +49,13 @@ static const QuicSalt *QuicSaltFind(const QuicSalt *salt, size_t num,
 /*
  * Compute the initial secrets given Connection ID "cid".
  */
-static int QuicDeriveInitialSecrets(const QUIC_CID *cid, uint8_t *client_secret,
+static int QuicDeriveInitialSecrets(const QUIC_DATA *cid, uint8_t *client_secret,
         uint8_t *server_secret, uint32_t version)
 {
     const QuicSalt *salt = NULL;
     uint8_t secret[HASH_SHA2_256_LENGTH];
-    static const uint8_t client_label[] = "client in ";
-    static const uint8_t server_label[] = "server in ";
+    static const uint8_t client_label[] = "client in";
+    static const uint8_t server_label[] = "server in";
     size_t secret_len = 0;
 
     salt = QuicSaltFind(handshake_salt, QUIC_HANDSHAKE_SALT_NUM, version);
@@ -63,19 +63,19 @@ static int QuicDeriveInitialSecrets(const QUIC_CID *cid, uint8_t *client_secret,
         return -1;
     }
 
-    if (HkdfExtract(EVP_sha256(), salt->salt, salt->salt_len, cid->cid,
+    if (HkdfExtract(EVP_sha256(), salt->salt, salt->salt_len, cid->data,
                     cid->len, secret, &secret_len) == NULL) {
         return -1;
     }
 
-    if (QuicTLS13HkdfExpand(EVP_sha256(), secret, sizeof(secret),
-                        client_label, sizeof(client_label),
+    if (QuicTLS13HkdfExpandLabel(EVP_sha256(), secret, sizeof(secret),
+                        client_label, sizeof(client_label) - 1,
                         client_secret, HASH_SHA2_256_LENGTH) < 0) {
         return -1;
     }
 
-    if (QuicTLS13HkdfExpand(EVP_sha256(), secret, sizeof(secret),
-                        server_label, sizeof(server_label),
+    if (QuicTLS13HkdfExpandLabel(EVP_sha256(), secret, sizeof(secret),
+                        server_label, sizeof(server_label) - 1,
                         server_secret, HASH_SHA2_256_LENGTH) < 0) {
         return -1;
     }
@@ -116,8 +116,8 @@ static int QuicHPCipherPrepare(QuicHPCipher *cipher, const EVP_MD *md,
     }
 
     if (secret != NULL) {
-        if (QuicTLS13HkdfExpand(md, secret, EVP_MD_size(md), quic_hp_label,
-                    sizeof(quic_hp_label), key, key_len) < 0) {
+        if (QuicTLS13HkdfExpandLabel(md, secret, EVP_MD_size(md), quic_hp_label,
+                    sizeof(quic_hp_label) - 1, key, key_len) < 0) {
             return -1;
         }
     }
@@ -139,13 +139,14 @@ static int QuicPPCipherPrepare(QuicPPCipher *cipher, const EVP_MD *md,
     }
 
     if (secret != NULL) {
-        if (QuicTLS13HkdfExpand(md, secret, EVP_MD_size(md), quic_key_label,
-                    sizeof(quic_key_label), key, key_len) < 0) {
+        if (QuicTLS13HkdfExpandLabel(md, secret, EVP_MD_size(md),
+                    quic_key_label, sizeof(quic_key_label) - 1,
+                    key, key_len) < 0) {
             return -1;
         }
 
-        if (QuicTLS13HkdfExpand(md, secret, EVP_MD_size(md), quic_iv_label,
-                    sizeof(quic_iv_label), cipher->iv, sizeof(cipher->iv))
+        if (QuicTLS13HkdfExpandLabel(md, secret, EVP_MD_size(md), quic_iv_label,
+                    sizeof(quic_iv_label) - 1, cipher->iv, sizeof(cipher->iv))
                 < 0) {
             return -1;
         }

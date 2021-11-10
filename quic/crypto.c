@@ -97,12 +97,21 @@ uint8_t *HkdfExpand(const EVP_MD *evp_md, const uint8_t *prk, size_t prk_len,
     return ret;
 }
 
-int TLS13HkdfExpand(const EVP_MD *md, const uint8_t *secret,
+int TLS13HkdfExpandLabel(const EVP_MD *md, const uint8_t *secret,
                         size_t secret_len, const uint8_t *label,
                         size_t label_len, const uint8_t *data,
                         size_t data_len, uint8_t *out,
                         size_t out_len)
 {
+    /* RFC 8446 Section 7.1:
+     * HKDF-Expand-Label(Secret, Label, Context, Length) =
+     *      HKDF-Expand(Secret, HkdfLabel, Length)
+     * struct {
+     *     uint16 length = Length;
+     *     opaque label<7..255> = "tls13 " + Label; // "tls13 " is label prefix.
+     *     opaque context<0..255> = Context;
+     * } HkdfLabel;
+     */
     BUF_MEM *buf = NULL;
     WPacket pkt = {};
     static const unsigned char label_prefix[] = "tls13 ";
@@ -161,11 +170,11 @@ out:
     return ret;
 }
 
-int QuicTLS13HkdfExpand(const EVP_MD *md, const uint8_t *secret,
+int QuicTLS13HkdfExpandLabel(const EVP_MD *md, const uint8_t *secret,
                         size_t secret_len, const uint8_t *label,
                         size_t labellen, uint8_t *out, size_t outlen)
 {
-    return TLS13HkdfExpand(md, secret, secret_len, label, labellen, NULL, 0,
-                            out, outlen);
+    return TLS13HkdfExpandLabel(md, secret, secret_len, label, labellen, NULL,
+                                0, out, outlen);
 }
 

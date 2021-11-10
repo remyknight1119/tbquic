@@ -12,23 +12,9 @@ typedef union UdpConnKey {
 	struct sockaddr_in6  	addr6;
 } QuicUdpConnKey;
 
-typedef struct {
-    uint8_t *data;
-    size_t len;
-} QuicData;
-
-static inline void QuicPrint(uint8_t *data, size_t len)
-{
-    int i = 0;
-
-    for (i = 0; i < len; i++) {
-        fprintf(stdout, "%02x", data[i]);
-    }
-
-    fprintf(stdout, "\nlen = %lu\n", len);
-}
-
 int QuicVariableLengthDecodeTest(void);
-int QuicHkdfExtractTest(void);
+int QuicHkdfExtractExpandTest(void);
+int QuicHkdfExpandLabel(void);
+int QuicPktFormatTest(void);
 
 #endif

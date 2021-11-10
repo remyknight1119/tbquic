@@ -50,9 +50,9 @@ struct QuicBuffer {
 };
 
 typedef struct {
-    uint8_t len;
-    uint8_t *cid;
-} QUIC_CID;
+    uint8_t *data;
+    size_t len;
+} QUIC_DATA;
 
 struct Quic {
     QUIC_STREAM_STATE state;
@@ -65,7 +65,7 @@ struct Quic {
     QUIC_BUFFER rbuffer;
     QUIC_BUFFER plain_buffer;
     QUIC_BUFFER wbuffer;
-    QUIC_CID peer_dcid;
+    QUIC_DATA peer_dcid;
     QUIC_CIPHERS client_init_ciphers;
     QUIC_CIPHERS server_init_ciphers;
     QUIC_CIPHERS zero_rtt_ciphers;

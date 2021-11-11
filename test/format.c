@@ -54,3 +54,18 @@ int QuicVariableLengthDecodeTest(void)
     return 4;
 }
 
+int QuicPktNumberDecodeTest(void)
+{
+    uint64_t curr_num = 0xa82f30ea;
+    uint64_t num = 0;
+    uint64_t result = 0xa82f9b32;
+    uint32_t value = 0x9b32;
+
+    num = QuicPktNumberDecode(curr_num, value, 16);
+    if (num != result) {
+        return -1;
+    }
+
+    return 1;
+}
+

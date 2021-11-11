@@ -16,5 +16,6 @@ int QuicVariableLengthDecodeTest(void);
 int QuicHkdfExtractExpandTest(void);
 int QuicHkdfExpandLabel(void);
 int QuicPktFormatTest(void);
+int QuicPktNumberDecodeTest(void);
 
 #endif

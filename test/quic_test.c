@@ -35,6 +35,10 @@ static QuicFuncTest TestFuncs[] = {
         .test = QuicPktFormatTest,
         .err_msg = "Packet Format",
     },
+    {
+        .test = QuicPktNumberDecodeTest,
+        .err_msg = "PKT Number Decode",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_ARRAY_SIZE(TestFuncs)

@@ -11,6 +11,7 @@
 #include "quic_local.h"
 #include "packet_local.h"
 #include "packet_format.h"
+#include "common.h"
 
 static uint8_t client_iv[] = "\xFA\x04\x4B\x2F\x42\xA3\xFD\x3B\x46\xFB\x25\x5C";
 static uint8_t server_iv[] = "\x0A\xC1\x49\x3C\xA1\x90\x58\x53\xB0\xBB\xA0\x3E";
@@ -91,6 +92,7 @@ static uint8_t client_init_packet[] =
     "\x8B\x4C\x8D\x16\x9A\x44\xE5\x5C\x88\xD4\xA9\xA7\xF9\x47\x42\x41"
     "\xE2\x21\xAF\x44\x86\x00\x18\xAB\x08\x56\x97\x2E\x19\x4C\xD9\x34";
 
+
 int QuicPktFormatTest(void)
 {
     QUIC_CTX *ctx = NULL;
@@ -131,15 +133,20 @@ int QuicPktFormatTest(void)
         goto out;
     }
 
-    if (memcmp(client_iv, quic->client_init_ciphers.pp_cipher.iv,
+    if (memcmp(client_iv, quic->initial.client.ciphers.pp_cipher.iv,
                 sizeof(client_iv) - 1) != 0) {
         printf("Client IV incorrect\n");
         goto out;
     }
 
-    if (memcmp(server_iv, quic->server_init_ciphers.pp_cipher.iv,
+    if (memcmp(server_iv, quic->initial.server.ciphers.pp_cipher.iv,
                 sizeof(server_iv) - 1) != 0) {
         printf("Server IV incorrect\n");
+        goto out;
+    }
+
+    if (quic->initial.client.pkt_num != 2) {
+        printf("PKT number incorrect\n");
         goto out;
     }
 

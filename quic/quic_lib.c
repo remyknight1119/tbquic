@@ -8,6 +8,7 @@
 #include "statem.h"
 #include "mem.h"
 #include "log.h"
+#include "cipher.h"
 
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
@@ -77,7 +78,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     }
 
     quic->state = QUIC_STREAM_STATE_READY;
-    quic->handshake = ctx->method->handshake; 
+    quic->do_handshake = ctx->method->handshake; 
     quic->method = ctx->method;
     quic->ctx = ctx;
 
@@ -90,12 +91,12 @@ out:
 
 int QuicDoHandshake(QUIC *quic)
 {
-    if (quic->handshake == NULL) {
+    if (quic->do_handshake == NULL) {
         QUIC_LOG("Handshake not set\n");
         return -1;
     }
 
-    return quic->handshake(quic);
+    return quic->do_handshake(quic);
 }
 
 void QuicFree(QUIC *quic)
@@ -108,6 +109,13 @@ void QuicFree(QUIC *quic)
     QuicBufFree(&quic->rbuffer);
 
     QuicMemFree(quic->peer_dcid.data);
+
+    QuicCipherCtxFree(&quic->initial.client.ciphers);
+    QuicCipherCtxFree(&quic->initial.server.ciphers);
+    QuicCipherCtxFree(&quic->zero_rtt.ciphers);
+    QuicCipherCtxFree(&quic->handshake.client.ciphers);
+    QuicCipherCtxFree(&quic->handshake.server.ciphers);
+
     QuicMemFree(quic);
 }
 

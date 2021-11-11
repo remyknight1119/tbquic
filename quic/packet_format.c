@@ -202,13 +202,57 @@ int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length)
     return 0;
 }
 
+/*
+ * RFC 9000
+ * A.3.  Sample Packet Number Decoding Algorithm
+ * @largest_pn is the largest packet number that has been successfully
+ *     processed in the current packet number space.
+ * @truncated_pn is the value of the Packet Number field.
+ * @pn_nbits is the number of bits in the Packet Number field (8, 16,
+      24, or 32).
+ */
+
+//(1 << 62)
+#define LEFT_SHIFT_62 0x4000000000000000
+
+uint64_t QuicPktNumberDecode(uint64_t largest_pn, uint32_t truncated_pn,
+                                uint8_t pn_nbits)
+{
+    uint64_t expected_pn = largest_pn + 1;
+    uint64_t pn_win = 1 << pn_nbits;
+    uint64_t pn_hwin = pn_win / 2;
+    uint64_t pn_mask = pn_win - 1;
+    // The incoming packet number should be greater than
+    // expected_pn - pn_hwin and less than or equal to
+    // expected_pn + pn_hwin
+    //
+    // This means we cannot just strip the trailing bits from
+    // expected_pn and add the truncated_pn because that might
+    // yield a value outside the window.
+    //
+    // The following code calculates a candidate value and
+    // makes sure it's within the packet number window.
+    // Note the extra checks to prevent overflow and underflow.
+    uint64_t candidate_pn = (expected_pn & ~pn_mask) | truncated_pn;
+
+    if (candidate_pn <= expected_pn - pn_hwin &&
+            candidate_pn < (LEFT_SHIFT_62 - pn_win)) {
+         return candidate_pn + pn_win;
+    }
+
+    if (candidate_pn > expected_pn + pn_hwin && candidate_pn >= pn_win) {
+        return candidate_pn - pn_win;
+    }
+
+    return candidate_pn;
+}
+
 int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
-                            RPacket *pkt, uint8_t bits_mask)
+                            uint8_t *p_num_len, RPacket *pkt, uint8_t bits_mask)
 {
     const uint8_t *pkt_num_start = NULL;
     uint8_t sample[QUIC_SAMPLE_LEN] = {};
-    uint8_t mask[QUIC_SAMPLE_LEN] = {};
-//    uint8_t mask[] = "\x43\x7b\x9a\xec\x36";
+    uint8_t mask[QUIC_SAMPLE_LEN*2] = {};
     uint8_t pkn_bytes[QUIC_MACKET_NUM_MAX_LEN] = {};
     uint8_t packet0 = 0;
     uint8_t pkt_num_len = 0;
@@ -240,26 +284,31 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
         return -1;
     }
 
+    QuicPrint((void *)pkn_bytes, pkt_num_len);
     for (i = 0; i < pkt_num_len; i++) {
-        *pkt_num |= (pkn_bytes[i] & mask[i + 1]) << (8 * (pkt_num_len - i - 1));
+        *pkt_num |= (pkn_bytes[i] ^ mask[i + 1]) << (8 * (pkt_num_len - i - 1));
     }
 
+    *p_num_len = pkt_num_len;
     QuicPrint((void *)pkt_num, sizeof(*pkt_num));
     return 0;
 }
 
 int QuicDecryptInitPacketHeader(QuicHPCipher *hp_cipher, uint8_t flags,
-                                uint32_t *pkt_num, RPacket *pkt)
+                                uint32_t *pkt_num, uint8_t *pkt_num_len,
+                                RPacket *pkt)
 {
-    return QuicDecryptHeader(hp_cipher, flags, pkt_num, pkt, 0x0F);
+    return QuicDecryptHeader(hp_cipher, flags, pkt_num, pkt_num_len,
+                                pkt, 0x0F);
 }
 
 static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
+    QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
     uint64_t token_len = 0;
     uint64_t length = 0;
-    int pkt_num_len = 0;
+    uint64_t pkt_num = 0;
 
     if (quic->peer_dcid.data != NULL) {
         QUIC_LOG("Peer CID exist!\n");
@@ -300,16 +349,29 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
         return -1;
     }
 
-    cipher = quic->server ?
-        &quic->client_init_ciphers : &quic->server_init_ciphers;
+    initial = quic->server ?
+        &quic->initial.client : &quic->initial.server;
+    cipher = &initial->ciphers;
     if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, h->flags.value,
-                &h->pkt_num, pkt) < 0) {
+                &h->pkt_num, &h->pkt_num_len, pkt) < 0) {
         QUIC_LOG("Decrypt Initial packet header failed!\n");
         return -1;
     }
 
-    pkt_num_len = h->flags.packet_num_len;
-    printf("IIIint, f = %x, pkt_num_len = %d, r = %d\n", h->flags.value, pkt_num_len, h->flags.reserved_bits);
+    pkt_num = QuicPktNumberDecode(initial->pkt_num, h->pkt_num,
+                                h->pkt_num_len*8);
+    if ((int)(initial->pkt_num - pkt_num) > 0) {
+        QUIC_LOG("PKT number invalid!\n");
+        return -1;
+    }
+
+    if (initial->pkt_num == pkt_num && pkt_num != 0) {
+        QUIC_LOG("PKT number invalid!\n");
+        return -1;
+    }
+
+    initial->pkt_num = pkt_num;
+    printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h->pkt_num, initial->pkt_num);
 
     return 0;
 }

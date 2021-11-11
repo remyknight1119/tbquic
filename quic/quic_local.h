@@ -31,10 +31,10 @@ typedef struct {
     uint8_t       iv[TLS13_AEAD_NONCE_LENGTH];
 } QuicPPCipher;
 
-typedef struct {
+struct QuicCiphers {
     QuicHPCipher hp_cipher;
     QuicPPCipher pp_cipher;
-} QUIC_CIPHERS;
+};
 
 struct QuicMethod {
     int (*handshake)(QUIC *);
@@ -54,6 +54,11 @@ typedef struct {
     size_t len;
 } QUIC_DATA;
 
+typedef struct {
+    QUIC_CIPHERS ciphers;
+    uint64_t pkt_num;
+} QuicCipherSpace;
+
 struct Quic {
     QUIC_STREAM_STATE state;
     uint8_t server:1;
@@ -61,16 +66,22 @@ struct Quic {
     const QUIC_METHOD *method;
     BIO *rbio;
     BIO *wbio;
-    int (*handshake)(QUIC *);
+    int (*do_handshake)(QUIC *);
     QUIC_BUFFER rbuffer;
     QUIC_BUFFER plain_buffer;
     QUIC_BUFFER wbuffer;
     QUIC_DATA peer_dcid;
-    QUIC_CIPHERS client_init_ciphers;
-    QUIC_CIPHERS server_init_ciphers;
-    QUIC_CIPHERS zero_rtt_ciphers;
-    QUIC_CIPHERS client_handshake_ciphers;
-    QUIC_CIPHERS server_handshake_ciphers;
+    struct {
+        QuicCipherSpace client;
+        QuicCipherSpace server;
+    } initial;
+    struct {
+        QUIC_CIPHERS ciphers;
+    } zero_rtt;
+    struct {
+        QuicCipherSpace client;
+        QuicCipherSpace server;
+    } handshake;
 };
 
 

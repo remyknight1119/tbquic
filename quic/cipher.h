@@ -9,5 +9,6 @@
 
 int QuicCreateInitialDecoders(QUIC *, uint32_t);
 int QuicCipherEncrypt(QUIC_CIPHER *, uint8_t *, int *, const uint8_t *, int);
+void QuicCipherCtxFree(QUIC_CIPHERS *);
 
 #endif

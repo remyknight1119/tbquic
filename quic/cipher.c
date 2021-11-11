@@ -179,12 +179,12 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
      * Packet numbers are protected with AES128-CTR,
      * initial packets are protected with AEAD_AES_128_GCM.
      */
-    if (QuicCiphersPrepare(&quic->client_init_ciphers, EVP_sha256(),
+    if (QuicCiphersPrepare(&quic->initial.client.ciphers, EVP_sha256(),
                 client_secret) < 0) {
         return -1;
     }
 
-    if (QuicCiphersPrepare(&quic->server_init_ciphers, EVP_sha256(),
+    if (QuicCiphersPrepare(&quic->initial.server.ciphers, EVP_sha256(),
                 server_secret) < 0) {
         return -1;
     }
@@ -195,16 +195,26 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 int QuicCipherEncrypt(QUIC_CIPHER *cipher, uint8_t *out, int *outl,
                         const uint8_t *in, int inl)
 {
+    int len = 0;
+
     if (EVP_EncryptUpdate(cipher->ctx, (unsigned char *)out, outl,
                             (const unsigned char *)in, inl) == 0) {
         return -1;
     }
 
-    if (EVP_EncryptFinal(cipher->ctx, (unsigned char *)out, outl) == 0) {
+    if (EVP_EncryptFinal(cipher->ctx, (unsigned char *)&out[*outl],
+                &len) == 0) {
         return -1;
     }
+
+    *outl += len;
 
     return 0;
 }
 
+void QuicCipherCtxFree(QUIC_CIPHERS *ciphers)
+{
+    EVP_CIPHER_CTX_free(ciphers->hp_cipher.cipher.ctx);
+    EVP_CIPHER_CTX_free(ciphers->pp_cipher.cipher.ctx);
+}
 

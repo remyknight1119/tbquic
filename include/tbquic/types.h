@@ -6,5 +6,6 @@ typedef struct QuicCtx QUIC_CTX;
 typedef struct Quic QUIC;
 typedef struct QuicBuffer QUIC_BUFFER;
 typedef struct QuicCipher QUIC_CIPHER;
+typedef struct QuicCiphers QUIC_CIPHERS;
 
 #endif

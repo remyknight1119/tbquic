@@ -19,6 +19,7 @@
 #define QUIC_W_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->wbuffer)
 
 struct QuicCipher {
+    int cipher_nid;
     EVP_CIPHER_CTX *ctx;
 };
 

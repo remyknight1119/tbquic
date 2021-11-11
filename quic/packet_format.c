@@ -256,7 +256,7 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
     uint8_t pkn_bytes[QUIC_MACKET_NUM_MAX_LEN] = {};
     uint8_t packet0 = 0;
     uint8_t pkt_num_len = 0;
-    int mask_len = 0;
+    size_t mask_len = 0;
     int i = 0;
 
     if (hp_cipher->cipher.ctx == NULL) {
@@ -270,7 +270,7 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
     pkt_num_start = RPacketData(pkt);
     memcpy(sample, pkt_num_start + QUIC_MACKET_NUM_MAX_LEN, sizeof(sample));
 
-    if (QuicCipherEncrypt(&hp_cipher->cipher, mask, &mask_len, sample,
+    if (QuicDoCipher(&hp_cipher->cipher, mask, &mask_len, sample,
                 sizeof(sample)) < 0) {
         return -1;
     }
@@ -278,19 +278,15 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
     packet0 = flags ^ (mask[0] & bits_mask);
     pkt_num_len = (packet0 & 0x3) + 1;
 
-    QuicPrint(mask, sizeof(mask));
-    printf("packet0 = %x, pkt num len = %d, m len = %d\n", packet0, pkt_num_len, mask_len);
     if (RPacketCopyBytes(pkt, pkn_bytes, pkt_num_len) < 0) {
         return -1;
     }
 
-    QuicPrint((void *)pkn_bytes, pkt_num_len);
     for (i = 0; i < pkt_num_len; i++) {
         *pkt_num |= (pkn_bytes[i] ^ mask[i + 1]) << (8 * (pkt_num_len - i - 1));
     }
 
     *p_num_len = pkt_num_len;
-    QuicPrint((void *)pkt_num, sizeof(*pkt_num));
     return 0;
 }
 
@@ -306,6 +302,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
+    QUIC_BUFFER *buffer = NULL;
     uint64_t token_len = 0;
     uint64_t length = 0;
     uint64_t pkt_num = 0;
@@ -371,8 +368,17 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     }
 
     initial->pkt_num = pkt_num;
-    printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h->pkt_num, initial->pkt_num);
 
+    QuicPrint(RPacketData(pkt), RPacketRemaining(pkt));
+    buffer = &quic->plain_buffer;
+    if (QuicDoCipher(&cipher->hp_cipher.cipher, (uint8_t *)buffer->buf->data,
+                &buffer->data_len, RPacketData(pkt),
+                RPacketRemaining(pkt)) < 0) {
+        return -1;
+    }
+
+    QuicPrint((uint8_t *)buffer->buf->data, buffer->data_len);
+    printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h->pkt_num, initial->pkt_num);
     return 0;
 }
 

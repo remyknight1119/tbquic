@@ -4,6 +4,7 @@
 #include "quic_local.h"
 
 #include <tbquic/quic.h>
+#include <tbquic/cipher.h>
 
 #include "statem.h"
 #include "mem.h"
@@ -56,6 +57,58 @@ static void QuicBufFree(QUIC_BUFFER *qbuf)
     BUF_MEM_free(qbuf->buf);
 }
 
+static int QUIC_set_cipher(QUIC_CIPHER *cipher, uint32_t alg)
+{
+    int nid = 0;
+
+    nid = QuicCipherNidFind(alg);
+    if (nid < 0) {
+        return -1;
+    }
+
+    cipher->cipher_nid = nid;
+    return 0;
+}
+
+static int QUIC_set_hp_ciphers_nid(QUIC_CIPHERS *ciphers, uint32_t alg)
+{
+    return QUIC_set_cipher(&ciphers->hp_cipher.cipher, alg);
+}
+
+static int QUIC_set_hp_cipher_space_nid(QuicCipherSpace *space, uint32_t alg)
+{
+    return QUIC_set_hp_ciphers_nid(&space->ciphers, alg);
+}
+
+int QUIC_set_initial_hp_cipher(QUIC *quic, uint32_t alg)
+{
+    if (QUIC_set_hp_cipher_space_nid(&quic->initial.client, alg) < 0) {
+        return -1;
+    }
+
+    return QUIC_set_hp_cipher_space_nid(&quic->initial.server, alg);
+}
+
+static int QUIC_set_pp_ciphers_nid(QUIC_CIPHERS *ciphers, uint32_t alg)
+{
+    return QUIC_set_cipher(&ciphers->pp_cipher.cipher, alg);
+}
+
+static int QUIC_set_pp_cipher_space_nid(QuicCipherSpace *space, uint32_t alg)
+{
+    return QUIC_set_pp_ciphers_nid(&space->ciphers, alg);
+}
+
+int QUIC_set_initial_pp_cipher(QUIC *quic, uint32_t alg)
+{
+    if (QUIC_set_pp_cipher_space_nid(&quic->initial.client, alg) < 0) {
+        return -1;
+    }
+
+    return QUIC_set_pp_cipher_space_nid(&quic->initial.server, alg);
+}
+
+
 QUIC *QuicNew(QUIC_CTX *ctx)
 {
     QUIC *quic = NULL;
@@ -81,6 +134,13 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->do_handshake = ctx->method->handshake; 
     quic->method = ctx->method;
     quic->ctx = ctx;
+    if (QUIC_set_initial_hp_cipher(quic, QUIC_ALG_AES_128_ECB) < 0) {
+        goto out;
+    }
+
+    if (QUIC_set_initial_pp_cipher(quic, QUIC_ALG_AES_128_GCM) < 0) {
+        goto out;
+    }
 
     return quic;
 out:

@@ -4,6 +4,7 @@
 
 #include "cipher.h"
 
+#include <string.h>
 #include <openssl/evp.h>
 #include <openssl/obj_mac.h>
 #include <tbquic/cipher.h>
@@ -12,6 +13,7 @@
 #include "crypto.h"
 #include "common.h"
 #include "evp.h"
+#include "log.h"
 
 typedef struct {
     const uint8_t *salt;
@@ -30,6 +32,15 @@ static const int algorithm_cipher_nid[QUIC_ALG_MAX] = {
     [QUIC_ALG_AES_192_CCM] = NID_aes_192_ccm,
     [QUIC_ALG_AES_256_CCM] = NID_aes_256_ccm,
     [QUIC_ALG_CHACHA20] = NID_chacha20,
+};
+
+static const uint32_t algorithm_tag_len[QUIC_ALG_MAX] = {
+    [QUIC_ALG_AES_128_GCM] = EVP_GCM_TLS_TAG_LEN,
+    [QUIC_ALG_AES_192_GCM] = EVP_GCM_TLS_TAG_LEN,
+    [QUIC_ALG_AES_256_GCM] = EVP_GCM_TLS_TAG_LEN,
+    [QUIC_ALG_AES_128_CCM] = EVP_CCM_TLS_TAG_LEN,
+    [QUIC_ALG_AES_192_CCM] = EVP_CCM_TLS_TAG_LEN,
+    [QUIC_ALG_AES_256_CCM] = EVP_CCM_TLS_TAG_LEN,
 };
 
 static const uint8_t handshake_salt_v1[] =
@@ -68,6 +79,15 @@ int QuicCipherNidFind(uint32_t alg)
     }
 
     return algorithm_cipher_nid[alg];
+}
+
+int QuicCipherGetTagLen(uint32_t alg)
+{
+    if (alg >= QUIC_ALG_MAX) {
+        return -1;
+    }
+
+    return algorithm_tag_len[alg];
 }
 
 /*
@@ -109,7 +129,7 @@ static int QuicDeriveInitialSecrets(const QUIC_DATA *cid, uint8_t *client_secret
 
 static int QuicCipherDoPrepare(QUIC_CIPHER *cipher, const EVP_CIPHER *c,
                                 uint8_t *secret, const uint8_t *key,
-                                const uint8_t *iv, int enc)
+                                int enc)
 {
     cipher->ctx = EVP_CIPHER_CTX_new();
     if (cipher->ctx == NULL) {
@@ -120,7 +140,20 @@ static int QuicCipherDoPrepare(QUIC_CIPHER *cipher, const EVP_CIPHER *c,
         return 0;
     }
 
-    return QuicEvpCipherInit(cipher->ctx, c, key, iv, enc);
+    cipher->enc = enc;
+    return QuicEvpCipherInit(cipher->ctx, c, key, NULL, enc);
+}
+
+static const EVP_CIPHER *QuicFindCipherByAlg(uint32_t alg)
+{
+    int nid = 0;
+
+    nid = QuicCipherNidFind(alg);
+    if (nid < 0) {
+        return NULL;
+    }
+
+    return EVP_get_cipherbynid(nid);
 }
 
 static int QuicHPCipherPrepare(QuicHPCipher *cipher, const EVP_MD *md,
@@ -131,7 +164,7 @@ static int QuicHPCipherPrepare(QuicHPCipher *cipher, const EVP_MD *md,
     static const uint8_t quic_hp_label[] = "quic hp";
     int key_len = 0;
 
-    c = EVP_get_cipherbynid(cipher->cipher.cipher_nid);
+    c = QuicFindCipherByAlg(cipher->cipher.cipher_alg);
     if (c == NULL) {
         return -1;
     }
@@ -148,7 +181,7 @@ static int QuicHPCipherPrepare(QuicHPCipher *cipher, const EVP_MD *md,
         }
     }
 
-    return QuicCipherDoPrepare(&cipher->cipher, c, secret, key, NULL,
+    return QuicCipherDoPrepare(&cipher->cipher, c, secret, key,
                                 QUIC_EVP_ENCRYPT);
 }
 
@@ -161,7 +194,7 @@ static int QuicPPCipherPrepare(QuicPPCipher *cipher, const EVP_MD *md,
     static const uint8_t quic_iv_label[] = "quic iv";
     int key_len = 0;
 
-    c = EVP_get_cipherbynid(cipher->cipher.cipher_nid);
+    c = QuicFindCipherByAlg(cipher->cipher.cipher_alg);
     if (c == NULL) {
         return -1;
     }
@@ -185,7 +218,7 @@ static int QuicPPCipherPrepare(QuicPPCipher *cipher, const EVP_MD *md,
         }
     }
 
-    return QuicCipherDoPrepare(&cipher->cipher, c, secret, key, cipher->iv, enc);
+    return QuicCipherDoPrepare(&cipher->cipher, c, secret, key, enc);
 }
 
 int QuicCiphersPrepare(QUIC_CIPHERS *ciphers, const EVP_MD *md,
@@ -203,6 +236,8 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 {
     uint8_t client_secret[HASH_SHA2_256_LENGTH];
     uint8_t server_secret[HASH_SHA2_256_LENGTH];
+    int client_action = 0;
+    int server_action = 0;
     
     if (QuicDeriveInitialSecrets(&quic->peer_dcid, client_secret, server_secret,
                 version) < 0) {
@@ -213,13 +248,15 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
      * Packet numbers are protected with AES128-CTR,
      * initial packets are protected with AEAD_AES_128_GCM.
      */
+    client_action = quic->server ? QUIC_EVP_DECRYPT : QUIC_EVP_ENCRYPT;
+    server_action = quic->server ? QUIC_EVP_ENCRYPT : QUIC_EVP_DECRYPT;
     if (QuicCiphersPrepare(&quic->initial.client.ciphers, EVP_sha256(),
-                client_secret, QUIC_EVP_DECRYPT) < 0) {
+                client_secret, client_action) < 0) {
         return -1;
     }
 
     if (QuicCiphersPrepare(&quic->initial.server.ciphers, EVP_sha256(),
-                server_secret, QUIC_EVP_ENCRYPT) < 0) {
+                server_secret, server_action) < 0) {
         return -1;
     }
 
@@ -232,10 +269,12 @@ int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,
     size_t len = 0;
 
     if (QuicEvpCipherUpdate(cipher->ctx, out, outl, in, inl) < 0) {
+        QUIC_LOG("Cipher Update failed\n");
         return -1;
     }
 
     if (QuicEvpCipherFinal(cipher->ctx, &out[*outl], &len) < 0) {
+        QUIC_LOG("Cipher Final failed\n");
         return -1;
     }
 
@@ -244,9 +283,14 @@ int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,
     return 0;
 }
 
+static void QuicCipherFree(QUIC_CIPHER *cipher)
+{
+    EVP_CIPHER_CTX_free(cipher->ctx);
+}
+
 void QuicCipherCtxFree(QUIC_CIPHERS *ciphers)
 {
-    EVP_CIPHER_CTX_free(ciphers->hp_cipher.cipher.ctx);
-    EVP_CIPHER_CTX_free(ciphers->pp_cipher.cipher.ctx);
+    QuicCipherFree(&ciphers->hp_cipher.cipher);
+    QuicCipherFree(&ciphers->pp_cipher.cipher);
 }
 

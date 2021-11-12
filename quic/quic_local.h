@@ -8,34 +8,14 @@
 #include <tbquic/quic.h>
 
 #include "statem.h"
+#include "cipher.h"
 
 #define QUIC_VERSION_1      0x01
-
-#define TLS13_AEAD_NONCE_LENGTH     12
 
 #define QUIC_BUFFER_HEAD(buffer) buffer.buf->data
 #define QUIC_R_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->rbuffer)
 #define QUIC_P_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->plain_buffer)
 #define QUIC_W_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->wbuffer)
-
-struct QuicCipher {
-    int cipher_nid;
-    EVP_CIPHER_CTX *ctx;
-};
-
-typedef struct {
-    QUIC_CIPHER   cipher;  /**< Header protection cipher. */
-} QuicHPCipher;
-
-typedef struct {
-    QUIC_CIPHER   cipher;  /**< Packet protection cipher. */
-    uint8_t       iv[TLS13_AEAD_NONCE_LENGTH];
-} QuicPPCipher;
-
-struct QuicCiphers {
-    QuicHPCipher hp_cipher;
-    QuicPPCipher pp_cipher;
-};
 
 struct QuicMethod {
     int (*handshake)(QUIC *);

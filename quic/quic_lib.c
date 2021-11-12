@@ -57,55 +57,52 @@ static void QuicBufFree(QUIC_BUFFER *qbuf)
     BUF_MEM_free(qbuf->buf);
 }
 
-static int QUIC_set_cipher(QUIC_CIPHER *cipher, uint32_t alg)
+static int QUIC_set_cipher_alg(QUIC_CIPHER *cipher, uint32_t alg)
 {
-    int nid = 0;
-
-    nid = QuicCipherNidFind(alg);
-    if (nid < 0) {
+    if (alg >= QUIC_ALG_MAX) {
         return -1;
     }
 
-    cipher->cipher_nid = nid;
+    cipher->cipher_alg = alg;
     return 0;
 }
 
-static int QUIC_set_hp_ciphers_nid(QUIC_CIPHERS *ciphers, uint32_t alg)
+static int QUIC_set_hp_ciphers_alg(QUIC_CIPHERS *ciphers, uint32_t alg)
 {
-    return QUIC_set_cipher(&ciphers->hp_cipher.cipher, alg);
+    return QUIC_set_cipher_alg(&ciphers->hp_cipher.cipher, alg);
 }
 
-static int QUIC_set_hp_cipher_space_nid(QuicCipherSpace *space, uint32_t alg)
+static int QUIC_set_hp_cipher_space_alg(QuicCipherSpace *space, uint32_t alg)
 {
-    return QUIC_set_hp_ciphers_nid(&space->ciphers, alg);
+    return QUIC_set_hp_ciphers_alg(&space->ciphers, alg);
 }
 
 int QUIC_set_initial_hp_cipher(QUIC *quic, uint32_t alg)
 {
-    if (QUIC_set_hp_cipher_space_nid(&quic->initial.client, alg) < 0) {
+    if (QUIC_set_hp_cipher_space_alg(&quic->initial.client, alg) < 0) {
         return -1;
     }
 
-    return QUIC_set_hp_cipher_space_nid(&quic->initial.server, alg);
+    return QUIC_set_hp_cipher_space_alg(&quic->initial.server, alg);
 }
 
-static int QUIC_set_pp_ciphers_nid(QUIC_CIPHERS *ciphers, uint32_t alg)
+static int QUIC_set_pp_ciphers_alg(QUIC_CIPHERS *ciphers, uint32_t alg)
 {
-    return QUIC_set_cipher(&ciphers->pp_cipher.cipher, alg);
+    return QUIC_set_cipher_alg(&ciphers->pp_cipher.cipher, alg);
 }
 
-static int QUIC_set_pp_cipher_space_nid(QuicCipherSpace *space, uint32_t alg)
+static int QUIC_set_pp_cipher_space_alg(QuicCipherSpace *space, uint32_t alg)
 {
-    return QUIC_set_pp_ciphers_nid(&space->ciphers, alg);
+    return QUIC_set_pp_ciphers_alg(&space->ciphers, alg);
 }
 
 int QUIC_set_initial_pp_cipher(QUIC *quic, uint32_t alg)
 {
-    if (QUIC_set_pp_cipher_space_nid(&quic->initial.client, alg) < 0) {
+    if (QUIC_set_pp_cipher_space_alg(&quic->initial.client, alg) < 0) {
         return -1;
     }
 
-    return QUIC_set_pp_cipher_space_nid(&quic->initial.server, alg);
+    return QUIC_set_pp_cipher_space_alg(&quic->initial.server, alg);
 }
 
 

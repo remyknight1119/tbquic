@@ -6,5 +6,6 @@
 void *QuicMemMalloc(size_t);
 void *QuicMemCalloc(size_t);
 void QuicMemFree(void *);
+void *QuicMemDup(const void *, size_t);
 
 #endif

@@ -3,6 +3,8 @@
  */
 #include "mem.h"
 
+#include <string.h>
+
 void *QuicMemMalloc(size_t size)
 {
     return malloc(size);
@@ -21,3 +23,17 @@ void QuicMemFree(void *ptr)
 
     free(ptr);
 }
+
+void *QuicMemDup(const void *ptr, size_t size)
+{
+    void *m = NULL;
+    
+    m = QuicMemMalloc(size);
+    if (m == NULL) {
+        return NULL;
+    }
+
+    memcpy(m, ptr, size);
+    return m;
+}
+

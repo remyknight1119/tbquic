@@ -5,11 +5,13 @@
 #include "packet_format.h"
 
 #include <string.h>
+#include <assert.h>
 #include <arpa/inet.h>
 
 #include "common.h"
 #include "mem.h"
 #include "quic_local.h"
+#include "evp.h"
 #include "cipher.h"
 #include "log.h"
 
@@ -247,8 +249,15 @@ uint64_t QuicPktNumberDecode(uint64_t largest_pn, uint32_t truncated_pn,
     return candidate_pn;
 }
 
+static int QuicHPDoCipher(QuicHPCipher *cipher, uint8_t *out, size_t *outl,
+                        const uint8_t *in, size_t inl)
+{
+    return QuicDoCipher(&cipher->cipher, out, outl, in, inl);
+}
+
 int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
-                            uint8_t *p_num_len, RPacket *pkt, uint8_t bits_mask)
+                            uint8_t *p_num_len, uint8_t *first_byte,
+                            RPacket *pkt, uint8_t bits_mask)
 {
     const uint8_t *pkt_num_start = NULL;
     uint8_t sample[QUIC_SAMPLE_LEN] = {};
@@ -256,6 +265,7 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
     uint8_t pkn_bytes[QUIC_MACKET_NUM_MAX_LEN] = {};
     uint8_t packet0 = 0;
     uint8_t pkt_num_len = 0;
+    size_t sample_len = sizeof(sample);
     size_t mask_len = 0;
     int i = 0;
 
@@ -263,20 +273,22 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
         return -1;
     }
 
-    if (RPacketRemaining(pkt) < QUIC_MACKET_NUM_MAX_LEN + sizeof(sample)) {
+    if (RPacketRemaining(pkt) < QUIC_MACKET_NUM_MAX_LEN + sample_len) {
         return -1;
     }
 
     pkt_num_start = RPacketData(pkt);
-    memcpy(sample, pkt_num_start + QUIC_MACKET_NUM_MAX_LEN, sizeof(sample));
+    memcpy(sample, pkt_num_start + QUIC_MACKET_NUM_MAX_LEN, sample_len);
 
-    if (QuicDoCipher(&hp_cipher->cipher, mask, &mask_len, sample,
-                sizeof(sample)) < 0) {
+    if (QuicHPDoCipher(hp_cipher, mask, &mask_len, sample, sample_len) < 0) {
         return -1;
     }
 
     packet0 = flags ^ (mask[0] & bits_mask);
     pkt_num_len = (packet0 & 0x3) + 1;
+    if (first_byte != NULL) {
+        *first_byte = packet0;
+    }
 
     if (RPacketCopyBytes(pkt, pkn_bytes, pkt_num_len) < 0) {
         return -1;
@@ -292,10 +304,94 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
 
 int QuicDecryptInitPacketHeader(QuicHPCipher *hp_cipher, uint8_t flags,
                                 uint32_t *pkt_num, uint8_t *pkt_num_len,
-                                RPacket *pkt)
+                                uint8_t *first_byte, RPacket *pkt)
 {
     return QuicDecryptHeader(hp_cipher, flags, pkt_num, pkt_num_len,
-                                pkt, 0x0F);
+                                first_byte, pkt, 0x0F);
+}
+
+static int QuicPktNumberWrite(uint32_t pkt_num, uint8_t *buf, uint8_t len)
+{
+    int i = 0;
+
+    if (len > sizeof(pkt_num)) {
+        return -1;
+    }
+
+    for (i = 0; i < len; i++) {
+        buf[len - 1 - i] = (pkt_num >> (8 * i)) & 0xFF;
+    }
+
+    return 0;
+}
+
+static int QuicDecryptMessage(QuicPPCipher *cipher, uint8_t *out, size_t *outl,
+                                uint8_t first_byte, uint64_t pkt_num,
+                                uint8_t pkt_num_len, const RPacket *pkt)
+{
+    QUIC_CIPHER *c = NULL;
+    uint8_t *head = NULL;
+    const uint8_t *data = NULL;
+    uint8_t nonce[TLS13_AEAD_NONCE_LENGTH] = {};
+    size_t data_len = 0;
+    int tag_len = 0;
+    int offset = 0;
+    int i = 0;
+
+    data_len = RPacketRemaining(pkt);
+    offset = RPacketTotalLen(pkt) - data_len;
+    assert(offset > 0);
+
+    head = QuicMemDup(RPacketHead(pkt), offset);
+    if (head == NULL) {
+        QUIC_LOG("Memory Duplicate failed\n");
+        return -1;
+    }
+
+    head[0] = first_byte;
+    QuicPktNumberWrite(pkt_num, head + offset - pkt_num_len, pkt_num_len);
+    c = &cipher->cipher;
+    memcpy(nonce, cipher->iv, sizeof(nonce));
+    for (i = 0; i < 8; i++) {
+        nonce[sizeof(nonce) - 1 - i] ^= (pkt_num >> 8 * i) & 0xFF;
+    }
+
+    if (QuicEvpCipherInit(c->ctx, NULL, NULL, nonce, c->enc) < 0) {
+        QUIC_LOG("Cipher Init failed\n");
+        return -1;
+    }
+
+    tag_len = QuicCipherGetTagLen(c->cipher_alg);
+    if (tag_len < 0) {
+        QUIC_LOG("Get tag len failed\n");
+        return -1;
+    }
+
+    if (data_len < tag_len) {
+        QUIC_LOG("Data len too small\n");
+        return -1;
+    }
+
+    data = RPacketData(pkt);
+    if (tag_len > 0) {
+        if (QUIC_EVP_CIPHER_gcm_set_tag(c->ctx, tag_len,
+                        (void *)&data[data_len - tag_len]) < 0) {
+            QUIC_LOG("Set GCM tag failed\n");
+            return -1;
+        }
+    }
+
+    if (QUIC_EVP_CIPHER_set_iv_len(c->ctx, sizeof(nonce)) < 0) {
+        QUIC_LOG("Set IV len failed\n");
+        return -1;
+    }
+
+    if (QuicEvpCipherUpdate(c->ctx, NULL, outl, head, offset) < 0) {
+        QUIC_LOG("Cipher Update failed\n");
+        return -1;
+    }
+
+    return QuicDoCipher(&cipher->cipher, out, outl, data, data_len - tag_len);
 }
 
 static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
@@ -306,6 +402,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     uint64_t token_len = 0;
     uint64_t length = 0;
     uint64_t pkt_num = 0;
+    uint8_t first_byte = 0;
 
     if (quic->peer_dcid.data != NULL) {
         QUIC_LOG("Peer CID exist!\n");
@@ -350,7 +447,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
         &quic->initial.client : &quic->initial.server;
     cipher = &initial->ciphers;
     if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, h->flags.value,
-                &h->pkt_num, &h->pkt_num_len, pkt) < 0) {
+                &h->pkt_num, &h->pkt_num_len, &first_byte, pkt) < 0) {
         QUIC_LOG("Decrypt Initial packet header failed!\n");
         return -1;
     }
@@ -369,15 +466,13 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 
     initial->pkt_num = pkt_num;
 
-    QuicPrint(RPacketData(pkt), RPacketRemaining(pkt));
     buffer = &quic->plain_buffer;
-    if (QuicDoCipher(&cipher->hp_cipher.cipher, (uint8_t *)buffer->buf->data,
-                &buffer->data_len, RPacketData(pkt),
-                RPacketRemaining(pkt)) < 0) {
+    if (QuicDecryptMessage(&cipher->pp_cipher, (uint8_t *)buffer->buf->data,
+                &buffer->data_len, first_byte, h->pkt_num, h->pkt_num_len,
+                pkt) < 0) {
         return -1;
     }
 
-    QuicPrint((uint8_t *)buffer->buf->data, buffer->data_len);
     printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h->pkt_num, initial->pkt_num);
     return 0;
 }

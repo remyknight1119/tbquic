@@ -11,7 +11,9 @@
 
 void RPacketBufInit(RPacket *pkt, const uint8_t *buf, size_t len)
 {
+    pkt->head = buf;
     pkt->curr = buf;
+    pkt->total_len = len;
     pkt->remaining = len;
 }
 
@@ -19,6 +21,16 @@ void RPacketForward(RPacket *pkt, size_t len)
 {
     pkt->curr += len;
     pkt->remaining -= len;
+}
+
+size_t RPacketTotalLen(const RPacket *pkt)
+{
+    return pkt->total_len;
+}
+
+const uint8_t *RPacketHead(const RPacket *pkt)
+{
+    return pkt->head;
 }
 
 /*

@@ -7,9 +7,19 @@
 //MTU - IP Header - UDP Header
 #define QUIC_DATAGRAM_SIZE_MAX_DEF  (1500 - 20 - 8)
 
+enum {
+    QUIC_FILE_TYPE_ASN1,
+    QUIC_FILE_TYPE_PEM,
+    QUIC_FILE_TYPE_MAX,
+};
+
 extern int QuicInit(void);
 extern QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth);
 extern void QuicCtxFree(QUIC_CTX *ctx);
+extern int QuicCtxUsePrivateKeyFile(QUIC_CTX *ctx, const char *file,
+                                    uint32_t type);
+extern int QuicCtxUseCertificate_File(QUIC_CTX *ctx, const char *file,
+                                        uint32_t type);
 extern QUIC_METHOD *QuicClientMethod(void);
 extern QUIC_METHOD *QuicServerMethod(void);
 extern QUIC *QuicNew(QUIC_CTX *ctx);

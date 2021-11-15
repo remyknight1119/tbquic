@@ -11,6 +11,7 @@
 #include "log.h"
 #include "cipher.h"
 
+
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
     QUIC_CTX *ctx = NULL;
@@ -21,40 +22,24 @@ QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
     }
 
     ctx->method = meth;
+	ctx->tls_ctx = SSL_CTX_new(TLS_server_method());
+	if (ctx->tls_ctx == NULL) {
+        goto out;
+    }
+
+    SSL_CTX_set_min_proto_version(ctx->tls_ctx, TLS1_3_VERSION);
+    SSL_CTX_set_max_proto_version(ctx->tls_ctx, TLS1_3_VERSION);
 
     return ctx;
+out:
+    QuicCtxFree(ctx);
+    return NULL;
 }
 
 void QuicCtxFree(QUIC_CTX *ctx)
 {
+    SSL_CTX_free(ctx->tls_ctx);
     QuicMemFree(ctx);
-}
-
-static int QuicBufInit(QUIC_BUFFER *qbuf, size_t len)
-{
-    BUF_MEM *buf = NULL;
-
-    buf = BUF_MEM_new();
-    if (buf == NULL) {
-        return -1;
-    }
-
-    if (!BUF_MEM_grow(buf, len)) {
-        goto out;
-    }
-
-    qbuf->buf = buf;
-
-    return 0;
-out:
-
-    BUF_MEM_free(buf);
-    return -1;
-}
-
-static void QuicBufFree(QUIC_BUFFER *qbuf)
-{
-    BUF_MEM_free(qbuf->buf);
 }
 
 static int QUIC_set_cipher_alg(QUIC_CIPHER *cipher, uint32_t alg)
@@ -115,6 +100,25 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         return NULL;
     }
 
+    quic->tls = SSL_new(ctx->tls_ctx);
+    if (quic->tls == NULL) {
+        goto out;
+    }
+
+    quic->tls_rbio = BIO_new(BIO_s_mem());
+    if (quic->tls_rbio == NULL) {
+        goto out;
+    }
+
+    quic->tls_wbio = BIO_new(BIO_s_mem());
+    if (quic->tls_wbio == NULL) {
+        goto out;
+    }
+
+    SSL_set_bio(quic->tls, quic->tls_rbio, quic->tls_wbio);
+    BIO_up_ref(quic->tls_rbio);
+    BIO_up_ref(quic->tls_wbio);
+
     if (QuicBufInit(&quic->rbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
         goto out;
     }
@@ -124,6 +128,10 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     }
 
     if (QuicBufInit(&quic->wbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
+        goto out;
+    }
+
+    if (QuicBufInit(&quic->crypto_fbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
         goto out;
     }
 
@@ -158,9 +166,14 @@ int QuicDoHandshake(QUIC *quic)
 
 void QuicFree(QUIC *quic)
 {
+    SSL_free(quic->tls);
+
+    BIO_free_all(quic->tls_rbio);
+    BIO_free_all(quic->tls_wbio);
     BIO_free_all(quic->rbio);
     BIO_free_all(quic->wbio);
 
+    QuicBufFree(&quic->crypto_fbuffer);
     QuicBufFree(&quic->wbuffer);
     QuicBufFree(&quic->plain_buffer);
     QuicBufFree(&quic->rbuffer);

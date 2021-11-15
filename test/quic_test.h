@@ -6,11 +6,16 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#define ARRAY_SIZE(array)    (sizeof(array)/sizeof(array[0]))
+
 typedef union UdpConnKey {
 	struct sockaddr 		addr;
 	struct sockaddr_in  	addr4;
 	struct sockaddr_in6  	addr6;
 } QuicUdpConnKey;
+
+extern char *quic_cert;
+extern char *quic_key;
 
 int QuicVariableLengthDecodeTest(void);
 int QuicHkdfExtractExpandTest(void);

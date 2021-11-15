@@ -4,11 +4,12 @@
 #include <stdint.h>
 
 #include <openssl/bio.h>
-#include <openssl/buffer.h>
+#include <openssl/ssl.h>
 #include <tbquic/quic.h>
 
 #include "statem.h"
 #include "cipher.h"
+#include "buffer.h"
 
 #define QUIC_VERSION_1      0x01
 
@@ -23,11 +24,7 @@ struct QuicMethod {
 
 struct QuicCtx {
     const QUIC_METHOD *method;
-};
-
-struct QuicBuffer {
-    BUF_MEM *buf;
-    size_t data_len;
+    SSL_CTX *tls_ctx;
 };
 
 typedef struct {
@@ -47,10 +44,17 @@ struct Quic {
     const QUIC_METHOD *method;
     BIO *rbio;
     BIO *wbio;
+    SSL *tls;
+    BIO *tls_rbio;
+    BIO *tls_wbio;
     int (*do_handshake)(QUIC *);
+    /* Read Buffer */
     QUIC_BUFFER rbuffer;
+    /* Write Buffer */
     QUIC_BUFFER plain_buffer;
     QUIC_BUFFER wbuffer;
+    /* Crypto Frame Buffer */
+    QUIC_BUFFER crypto_fbuffer;
     QUIC_DATA peer_dcid;
     struct {
         QuicCipherSpace client;

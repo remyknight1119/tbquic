@@ -3,6 +3,9 @@
 
 #define QUIC_ARRAY_SIZE(array)    (sizeof(array)/sizeof(array[0]))
 
+#define QUIC_LT(a, b) ((int)(a - b) < 0)
+#define QUIC_GT(a, b) ((int)(a - b) > 0)
+
 static inline void QuicPrint(const uint8_t *data, size_t len)
 {
     int i = 0;

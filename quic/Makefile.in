@@ -133,7 +133,8 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 libtbquic_la_LIBADD =
 am_libtbquic_la_OBJECTS = core.lo quic_lib.lo mem.lo statem_clnt.lo \
 	statem_srvr.lo methods.lo statem.lo datagram.lo packet.lo \
-	statem_lib.lo packet_format.lo cipher.lo crypto.lo evp.lo
+	statem_lib.lo packet_format.lo cipher.lo crypto.lo evp.lo \
+	frame.lo buffer.lo cert_and_key.lo
 libtbquic_la_OBJECTS = $(am_libtbquic_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -157,9 +158,11 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/cipher.Plo ./$(DEPDIR)/core.Plo \
-	./$(DEPDIR)/crypto.Plo ./$(DEPDIR)/datagram.Plo \
-	./$(DEPDIR)/evp.Plo ./$(DEPDIR)/mem.Plo \
+am__depfiles_remade = ./$(DEPDIR)/buffer.Plo \
+	./$(DEPDIR)/cert_and_key.Plo ./$(DEPDIR)/cipher.Plo \
+	./$(DEPDIR)/core.Plo ./$(DEPDIR)/crypto.Plo \
+	./$(DEPDIR)/datagram.Plo ./$(DEPDIR)/evp.Plo \
+	./$(DEPDIR)/frame.Plo ./$(DEPDIR)/mem.Plo \
 	./$(DEPDIR)/methods.Plo ./$(DEPDIR)/packet.Plo \
 	./$(DEPDIR)/packet_format.Plo ./$(DEPDIR)/quic_lib.Plo \
 	./$(DEPDIR)/statem.Plo ./$(DEPDIR)/statem_clnt.Plo \
@@ -330,7 +333,8 @@ top_srcdir = @top_srcdir@
 lib_LTLIBRARIES = libtbquic.la
 libtbquic_la_SOURCES = core.c quic_lib.c mem.c statem_clnt.c statem_srvr.c \
 						methods.c statem.c datagram.c packet.c statem_lib.c \
-						packet_format.c cipher.c crypto.c evp.c
+						packet_format.c cipher.c crypto.c evp.c frame.c \
+						buffer.c cert_and_key.c
 
 libtbquic_la_LDFLAGS = -version-info 1
 AM_CPPFLAGS = -I$(srcdir)/../include -Istatem -Irecord
@@ -414,11 +418,14 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/buffer.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cert_and_key.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cipher.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/core.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crypto.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/datagram.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/evp.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/frame.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mem.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/methods.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/packet.Plo@am__quote@ # am--include-marker
@@ -593,11 +600,14 @@ clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 	mostlyclean-am
 
 distclean: distclean-am
-		-rm -f ./$(DEPDIR)/cipher.Plo
+		-rm -f ./$(DEPDIR)/buffer.Plo
+	-rm -f ./$(DEPDIR)/cert_and_key.Plo
+	-rm -f ./$(DEPDIR)/cipher.Plo
 	-rm -f ./$(DEPDIR)/core.Plo
 	-rm -f ./$(DEPDIR)/crypto.Plo
 	-rm -f ./$(DEPDIR)/datagram.Plo
 	-rm -f ./$(DEPDIR)/evp.Plo
+	-rm -f ./$(DEPDIR)/frame.Plo
 	-rm -f ./$(DEPDIR)/mem.Plo
 	-rm -f ./$(DEPDIR)/methods.Plo
 	-rm -f ./$(DEPDIR)/packet.Plo
@@ -652,11 +662,14 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-		-rm -f ./$(DEPDIR)/cipher.Plo
+		-rm -f ./$(DEPDIR)/buffer.Plo
+	-rm -f ./$(DEPDIR)/cert_and_key.Plo
+	-rm -f ./$(DEPDIR)/cipher.Plo
 	-rm -f ./$(DEPDIR)/core.Plo
 	-rm -f ./$(DEPDIR)/crypto.Plo
 	-rm -f ./$(DEPDIR)/datagram.Plo
 	-rm -f ./$(DEPDIR)/evp.Plo
+	-rm -f ./$(DEPDIR)/frame.Plo
 	-rm -f ./$(DEPDIR)/mem.Plo
 	-rm -f ./$(DEPDIR)/methods.Plo
 	-rm -f ./$(DEPDIR)/packet.Plo

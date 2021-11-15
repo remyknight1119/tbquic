@@ -14,6 +14,7 @@
 #include "evp.h"
 #include "cipher.h"
 #include "log.h"
+#include "frame.h"
 
 static int QuicInitPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
 static int Quic0RttPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
@@ -399,6 +400,8 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
     QUIC_BUFFER *buffer = NULL;
+    QUIC_BUFFER *crypto_buf = &quic->crypto_fbuffer;
+    RPacket frame = {};
     uint64_t token_len = 0;
     uint64_t length = 0;
     uint64_t pkt_num = 0;
@@ -428,7 +431,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     }
 
     if (QuicVariableLengthDecode(pkt, &length) < 0) {
-        QUIC_LOG("Length decodd failed!\n");
+        QUIC_LOG("Length decode failed!\n");
         return -1;
     }
 
@@ -473,7 +476,17 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
         return -1;
     }
 
+    RPacketBufInit(&frame, (uint8_t *)buffer->buf->data, buffer->data_len);
     printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h->pkt_num, initial->pkt_num);
+    if (QuicFrameDoParser(quic, &frame) < 0) {
+        return -1;
+    }
+
+    if (crypto_buf->data_len == 0) {
+        return -1;
+    }
+
+    QuicPrint(QuicBufData(crypto_buf), crypto_buf->data_len);
     return 0;
 }
 

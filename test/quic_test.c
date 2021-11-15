@@ -7,6 +7,7 @@
 #include <tbquic/quic.h>
 
 #include <stdio.h>
+#include <getopt.h>
 #include <arpa/inet.h>
 
 #include "packet_format.h"
@@ -18,7 +19,10 @@ typedef struct FuncTest {
     char *err_msg;
 } QuicFuncTest;
 
-static QuicFuncTest TestFuncs[] = {
+char *quic_cert;
+char *quic_key;
+
+static QuicFuncTest test_funcs[] = {
     {
         .test = QuicVariableLengthDecodeTest,
         .err_msg = "Varibale Length Decode",
@@ -41,7 +45,7 @@ static QuicFuncTest TestFuncs[] = {
     },
 };
 
-#define QUIC_FUNC_TEST_NUM QUIC_ARRAY_SIZE(TestFuncs)
+#define QUIC_FUNC_TEST_NUM QUIC_ARRAY_SIZE(test_funcs)
 
 static uint8_t QuicBitsOrderTrans(uint8_t value)
 {
@@ -82,19 +86,78 @@ uint32_t QuicUintOrderTrans(uint32_t value)
     return v;
 }
 
-int main(void)
+static const char *program_version = "1.0.0";//PACKAGE_STRING;
+
+static const struct option long_opts[] = {
+    {"help", 0, 0, 'H'},
+    {"certificate", 0, 0, 'c'},
+    {"key", 0, 0, 'k'},
+    {0, 0, 0, 0}
+};
+
+static const char *options[] = {
+    "--certificate  		-c	certificate file\n",	
+    "--key      		    -k	key file\n",	
+    "--help         		-H	Print help information\n",	
+};
+
+static void help(void)
+{
+    int     index;
+
+    fprintf(stdout, "Version: %s\n", program_version);
+
+    fprintf(stdout, "\nOptions:\n");
+    for (index = 0; index < ARRAY_SIZE(options); index++) {
+        fprintf(stdout, "  %s", options[index]);
+    }
+}
+
+static const char *optstring = "Ha:p:c:k:";
+
+
+int main(int argc, char **argv)
 {
     int passed = 0;
     int ok_num = 0;
     int i = 0;
+    int c = 0;
     int ret = 0;
+
+    while ((c = getopt_long(argc, argv, optstring, long_opts, NULL)) != -1) {
+        switch (c) {
+            case 'H':
+                help();
+                return 0;
+            case 'c':
+                quic_cert = optarg;
+                break;
+            case 'k':
+                quic_key = optarg;
+                break;
+
+            default:
+                help();
+                return -1;
+        }
+    }
+
+    if (quic_cert == NULL) {
+        fprintf(stderr, "please input certificate file by -c\n");
+        return -1;
+    }
+
+    if (quic_key == NULL) {
+        fprintf(stderr, "please input key file by -k\n");
+        return -1;
+    }
 
     QuicInit();
 
     for (i = 0; i < QUIC_FUNC_TEST_NUM; i++) {
-        ret = TestFuncs[i].test();
+        ret = test_funcs[i].test();
         if (ret < 0) {
-            fprintf(stderr, "%s failed\n", TestFuncs[i].err_msg);
+            fprintf(stderr, "%s failed\n", test_funcs[i].err_msg);
         } else {
             passed++;
             ok_num += ret;

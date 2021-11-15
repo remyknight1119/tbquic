@@ -145,6 +145,16 @@ int QuicPktFormatTest(void)
     rbio = NULL;
     wbio = NULL;
 
+    if (QuicCtxUsePrivateKeyFile(ctx, quic_key, QUIC_FILE_TYPE_PEM) < 0) {
+        printf("Use Private Key file %s failed\n", quic_key);
+        goto out;
+    }
+
+    if (QuicCtxUseCertificate_File(ctx, quic_cert, QUIC_FILE_TYPE_PEM) < 0) {
+        printf("Use Private Cert file %s failed\n", quic_cert);
+        goto out;
+    }
+
     ret = QuicDoHandshake(quic);
     if (ret < 0) {
         printf("Do Handshake failed\n");

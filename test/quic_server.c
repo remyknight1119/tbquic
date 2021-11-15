@@ -18,8 +18,6 @@
 #define TEST_EVENT_MAX_NUM   10
 #define QUIC_RECORD_MAX_LEN  1500
 
-#define ARRAY_SIZE(array)    (sizeof(array)/sizeof(array[0]))
-
 static const char *program_version = "1.0.0";//PACKAGE_STRING;
 
 static const struct option long_opts[] = {

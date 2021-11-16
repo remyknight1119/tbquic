@@ -239,7 +239,7 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
     int client_action = 0;
     int server_action = 0;
     
-    if (QuicDeriveInitialSecrets(&quic->peer_dcid, client_secret, server_secret,
+    if (QuicDeriveInitialSecrets(&quic->cid, client_secret, server_secret,
                 version) < 0) {
         return -1;
     }
@@ -248,8 +248,8 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
      * Packet numbers are protected with AES128-CTR,
      * initial packets are protected with AEAD_AES_128_GCM.
      */
-    client_action = quic->server ? QUIC_EVP_DECRYPT : QUIC_EVP_ENCRYPT;
-    server_action = quic->server ? QUIC_EVP_ENCRYPT : QUIC_EVP_DECRYPT;
+    client_action = QUIC_IS_SERVER(quic) ? QUIC_EVP_DECRYPT : QUIC_EVP_ENCRYPT;
+    server_action = QUIC_IS_SERVER(quic) ? QUIC_EVP_ENCRYPT : QUIC_EVP_DECRYPT;
     if (QuicCiphersPrepare(&quic->initial.client.ciphers, EVP_sha256(),
                 client_secret, client_action) < 0) {
         return -1;

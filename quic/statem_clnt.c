@@ -9,7 +9,6 @@
 
 int QuicConnect(QUIC *quic)
 {
-    quic->server = 0;
     return 0;
 }
 

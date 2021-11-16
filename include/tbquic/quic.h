@@ -13,6 +13,13 @@ enum {
     QUIC_FILE_TYPE_MAX,
 };
 
+enum {
+    QUIC_ERROR_NONE,
+    QUIC_ERROR_WANT_READ,
+    QUIC_ERROR_WANT_WRITE,
+    QUIC_ERROR_WANT_ASYNC,
+};
+
 extern int QuicInit(void);
 extern QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth);
 extern void QuicCtxFree(QUIC_CTX *ctx);

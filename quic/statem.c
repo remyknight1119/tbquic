@@ -4,12 +4,16 @@
 
 #include "statem.h"
 
+#include <openssl/err.h>
 #include "quic_local.h"
+#include "log.h"
+
+#define QUIC_TLS_ERR_STR_BUF_LEN    512
 
 int QuicStateMachineAct(QUIC *quic, QuicStateMachine *statem, size_t num)
 {
-    int     i = 0;
-    int     ret = 0;
+    int i = 0;
+    int ret = 0;
 
     for (i = 0; i < num; i++) {
         if (quic->state != statem[i].state) {
@@ -29,3 +33,4 @@ int QuicStateMachineAct(QUIC *quic, QuicStateMachine *statem, size_t num)
 
     return -1;
 }
+

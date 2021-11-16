@@ -33,10 +33,6 @@ int QuicCtxUsePrivateKeyFile(QUIC_CTX *ctx, const char *file, uint32_t type)
         return -1;
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx->tls_ctx, file, file_type) == 0) {
-        return -1;
-    }
-
     return 0;
 }
 
@@ -46,10 +42,6 @@ int QuicCtxUseCertificate_File(QUIC_CTX *ctx, const char *file, uint32_t type)
 
     file_type = QuicFindFileType(type);
     if (file_type < 0) {
-        return -1;
-    }
-
-    if (SSL_CTX_use_certificate_file(ctx->tls_ctx, file, file_type) < 0) {
         return -1;
     }
 

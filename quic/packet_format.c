@@ -15,6 +15,7 @@
 #include "cipher.h"
 #include "log.h"
 #include "frame.h"
+#include "tls.h"
 
 static int QuicInitPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
 static int Quic0RttPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
@@ -70,6 +71,11 @@ static int QuicLPacketHeaderParse(QUIC *quic, QuicLPacketHeader *h, RPacket *pkt
     if ((h->version == QUIC_VERSION_1 && len > QUIC_MAX_CID_LENGTH) ||
             len == 0) {
         QUIC_LOG("CID len is too long(%u)\n", len);
+        return -1;
+    }
+
+    if (len < QUIC_MIN_CID_LENGTH) {
+        QUIC_LOG("CID len is too short(%u)\n", len);
         return -1;
     }
 
@@ -400,25 +406,27 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
     QUIC_BUFFER *buffer = NULL;
-    QUIC_BUFFER *crypto_buf = &quic->crypto_fbuffer;
+    QUIC_BUFFER *crypto_buf = &quic->wbuffer;
     RPacket frame = {};
     uint64_t token_len = 0;
     uint64_t length = 0;
     uint64_t pkt_num = 0;
     uint8_t first_byte = 0;
+    int ret = 0;
 
-    if (quic->peer_dcid.data != NULL) {
-        QUIC_LOG("Peer CID exist!\n");
+    if (quic->cid.data == NULL) {
+        quic->cid.data = QuicMemMalloc(h->dest_conn_id_len);
+        if (quic->cid.data == NULL) {
+            QUIC_LOG("Peer CID malloc failed!\n");
+            return -1;
+        }
+        quic->cid.len = h->dest_conn_id_len;
+        memcpy(quic->cid.data, h->dest_conn_id, quic->cid.len);
+    } else if (quic->cid.len != h->dest_conn_id_len ||
+            memcmp(quic->cid.data, h->dest_conn_id, quic->cid.len) != 0) {
+        QUIC_LOG("DCID not match!\n");
         return -1;
     }
-
-    quic->peer_dcid.data = QuicMemMalloc(h->dest_conn_id_len);
-    if (quic->peer_dcid.data == NULL) {
-        QUIC_LOG("Peer CID malloc failed!\n");
-        return -1;
-    }
-    quic->peer_dcid.len = h->dest_conn_id_len;
-    memcpy(quic->peer_dcid.data, h->dest_conn_id, quic->peer_dcid.len);
  
     if (QuicVariableLengthDecode(pkt, &token_len) < 0) {
         QUIC_LOG("Token len decode failed!\n");
@@ -446,7 +454,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
         return -1;
     }
 
-    initial = quic->server ?
+    initial = QUIC_IS_SERVER(quic) ?
         &quic->initial.client : &quic->initial.server;
     cipher = &initial->ciphers;
     if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, h->flags.value,
@@ -477,7 +485,6 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     }
 
     RPacketBufInit(&frame, (uint8_t *)buffer->buf->data, buffer->data_len);
-    printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h->pkt_num, initial->pkt_num);
     if (QuicFrameDoParser(quic, &frame) < 0) {
         return -1;
     }
@@ -487,6 +494,15 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     }
 
     QuicPrint(QuicBufData(crypto_buf), crypto_buf->data_len);
+
+    ret = QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
+            crypto_buf->data_len);
+    if (ret < 0) {
+        QUIC_LOG("SSL handshake failed!\n");
+        return -1;
+    }
+
+    printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h->pkt_num, initial->pkt_num);
     return 0;
 }
 

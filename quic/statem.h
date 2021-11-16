@@ -14,7 +14,7 @@
 #define QUIC_STREAM_CLIENT_INITIATED_UNIDIRECTIONAL     QUIC_STREAM_UNIDIRECTIONAL
 #define QUIC_STREAM_SERVER_INITIATED_UNIDIRECTIONAL     (QUIC_STREAM_INITIATED_BY_SERVER|QUIC_STREAM_UNIDIRECTIONAL)
 
-typedef enum StreamState {
+typedef enum {
 	QUIC_STREAM_STATE_READY = 0,
 	QUIC_STREAM_STATE_SEND,
 	QUIC_STREAM_STATE_RECV,
@@ -25,10 +25,18 @@ typedef enum StreamState {
 	QUIC_STREAM_STATE_RECV_RESET_SEND,
 	QUIC_STREAM_STATE_RECV_RESET_RECVD,
 	QUIC_STREAM_STATE_RECV_RESET_READ,
-} QUIC_STREAM_STATE;
+} QuicStreamState;
+
+/* Read-Write state */
+typedef enum {
+	QUIC_NOTHING = 0,
+	QUIC_READING,
+	QUIC_WRITING,
+    QUIC_ASYNC_PAUSED,
+} QuicReadWriteState;
 
 typedef struct {
-    enum StreamState state;
+    QuicStreamState state;
     int (*read)(QUIC *);
     int (*write)(QUIC *);
 } QuicStateMachine;

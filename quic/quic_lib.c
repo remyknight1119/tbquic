@@ -22,23 +22,18 @@ QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
     }
 
     ctx->method = meth;
-	ctx->tls_ctx = SSL_CTX_new(TLS_server_method());
-	if (ctx->tls_ctx == NULL) {
-        goto out;
-    }
-
-    SSL_CTX_set_min_proto_version(ctx->tls_ctx, TLS1_3_VERSION);
-    SSL_CTX_set_max_proto_version(ctx->tls_ctx, TLS1_3_VERSION);
+    ctx->mtu = QUIC_DATAGRAM_SIZE_MAX_DEF;
 
     return ctx;
+#if 0
 out:
     QuicCtxFree(ctx);
     return NULL;
+#endif
 }
 
 void QuicCtxFree(QUIC_CTX *ctx)
 {
-    SSL_CTX_free(ctx->tls_ctx);
     QuicMemFree(ctx);
 }
 
@@ -100,24 +95,17 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         return NULL;
     }
 
-    quic->tls = SSL_new(ctx->tls_ctx);
-    if (quic->tls == NULL) {
+    quic->state = QUIC_STREAM_STATE_READY;
+    quic->rwstate = QUIC_NOTHING; 
+    quic->do_handshake = ctx->method->quic_handshake; 
+    quic->method = ctx->method;
+    quic->quic_server = ctx->method->server;
+    quic->mtu = ctx->mtu;
+    quic->ctx = ctx;
+
+    if (QuicTlsInit(&quic->tls, ctx->method) < 0) {
         goto out;
     }
-
-    quic->tls_rbio = BIO_new(BIO_s_mem());
-    if (quic->tls_rbio == NULL) {
-        goto out;
-    }
-
-    quic->tls_wbio = BIO_new(BIO_s_mem());
-    if (quic->tls_wbio == NULL) {
-        goto out;
-    }
-
-    SSL_set_bio(quic->tls, quic->tls_rbio, quic->tls_wbio);
-    BIO_up_ref(quic->tls_rbio);
-    BIO_up_ref(quic->tls_wbio);
 
     if (QuicBufInit(&quic->rbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
         goto out;
@@ -131,14 +119,6 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         goto out;
     }
 
-    if (QuicBufInit(&quic->crypto_fbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
-        goto out;
-    }
-
-    quic->state = QUIC_STREAM_STATE_READY;
-    quic->do_handshake = ctx->method->handshake; 
-    quic->method = ctx->method;
-    quic->ctx = ctx;
     if (QUIC_set_initial_hp_cipher(quic, QUIC_ALG_AES_128_ECB) < 0) {
         goto out;
     }
@@ -166,19 +146,14 @@ int QuicDoHandshake(QUIC *quic)
 
 void QuicFree(QUIC *quic)
 {
-    SSL_free(quic->tls);
-
-    BIO_free_all(quic->tls_rbio);
-    BIO_free_all(quic->tls_wbio);
     BIO_free_all(quic->rbio);
     BIO_free_all(quic->wbio);
 
-    QuicBufFree(&quic->crypto_fbuffer);
     QuicBufFree(&quic->wbuffer);
     QuicBufFree(&quic->plain_buffer);
     QuicBufFree(&quic->rbuffer);
 
-    QuicMemFree(quic->peer_dcid.data);
+    QuicMemFree(quic->cid.data);
 
     QuicCipherCtxFree(&quic->initial.client.ciphers);
     QuicCipherCtxFree(&quic->initial.server.ciphers);

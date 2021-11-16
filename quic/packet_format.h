@@ -18,6 +18,8 @@
  * CID length to 20.
  */
 #define QUIC_MAX_CID_LENGTH     20
+//RFC 9000 7.2. Negotiating Connection IDs
+#define QUIC_MIN_CID_LENGTH     8
 #define QUIC_SAMPLE_LEN     16
 #define QUIC_MACKET_NUM_MAX_LEN     4
 

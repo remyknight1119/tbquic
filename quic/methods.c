@@ -5,13 +5,17 @@
 #include "quic_local.h"
 
 #include "statem.h"
+#include "tls.h"
 
 static QUIC_METHOD QuicClientMeth = {
-    .handshake = QuicConnect,
+    .quic_handshake = QuicConnect,
+    .tls_handshake = QuicTlsConnect,
 }; 
 
 static QUIC_METHOD QuicServerMeth = {
-    .handshake = QuicAccept,
+    .quic_handshake = QuicAccept,
+    .tls_handshake = QuicTlsAccept,
+    .server = 1,
 }; 
 
 

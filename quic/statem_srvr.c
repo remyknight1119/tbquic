@@ -13,15 +13,14 @@
 static int QuicServerReadyRead(QUIC *);
 static int QuicServerReadyWrite(QUIC *);
 
-static QuicStateMachine ServerStateMachine[] = {
-    {
-        .state = QUIC_STREAM_STATE_READY,
+static QuicStateMachine server_statem[QUIC_STATEM_MAX] = {
+    [QUIC_STATEM_READY] = {
         .read = QuicServerReadyRead,
         .write = QuicServerReadyWrite,
     },
 };
 
-#define QUIC_SERVER_STATEM_NUM QUIC_ARRAY_SIZE(ServerStateMachine)
+#define QUIC_SERVER_STATEM_NUM QUIC_ARRAY_SIZE(server_statem)
 
 static int QuicServerReadyRead(QUIC *quic)
 {
@@ -41,5 +40,5 @@ static int QuicServerReadyWrite(QUIC *quic)
 
 int QuicAccept(QUIC *quic)
 {
-    return QuicStateMachineAct(quic, ServerStateMachine, QUIC_SERVER_STATEM_NUM);
+    return QuicStateMachineAct(quic, server_statem, QUIC_SERVER_STATEM_NUM);
 }

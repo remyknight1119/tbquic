@@ -37,6 +37,7 @@ int RPacketPeek3(const RPacket *, uint32_t *);
 int RPacketGet3(RPacket *, uint32_t *);
 int RPacketPeek4(const RPacket *, uint32_t *);
 int RPacketGet4(RPacket *, uint32_t *);
+int RPacketTransfer(RPacket *, RPacket *, size_t);
 void WPacketBufInit(WPacket *, BUF_MEM *);
 int WPacketPut1(WPacket *, uint32_t);
 int WPacketPut2(WPacket *, uint32_t);

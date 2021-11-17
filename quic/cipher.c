@@ -236,10 +236,10 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 {
     uint8_t client_secret[HASH_SHA2_256_LENGTH];
     uint8_t server_secret[HASH_SHA2_256_LENGTH];
-    int client_action = 0;
-    int server_action = 0;
+    uint8_t *decrypt_secret = NULL;
+    uint8_t *encrypt_secret = NULL;
     
-    if (QuicDeriveInitialSecrets(&quic->cid, client_secret, server_secret,
+    if (QuicDeriveInitialSecrets(&quic->dcid, client_secret, server_secret,
                 version) < 0) {
         return -1;
     }
@@ -248,15 +248,21 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
      * Packet numbers are protected with AES128-CTR,
      * initial packets are protected with AEAD_AES_128_GCM.
      */
-    client_action = QUIC_IS_SERVER(quic) ? QUIC_EVP_DECRYPT : QUIC_EVP_ENCRYPT;
-    server_action = QUIC_IS_SERVER(quic) ? QUIC_EVP_ENCRYPT : QUIC_EVP_DECRYPT;
-    if (QuicCiphersPrepare(&quic->initial.client.ciphers, EVP_sha256(),
-                client_secret, client_action) < 0) {
+    if (QUIC_IS_SERVER(quic)) {
+        decrypt_secret = client_secret;
+        encrypt_secret = server_secret;
+    } else {
+        decrypt_secret = server_secret;
+        encrypt_secret = client_secret;
+    }
+
+    if (QuicCiphersPrepare(&quic->initial.decrypt.ciphers, EVP_sha256(),
+                decrypt_secret, QUIC_EVP_DECRYPT) < 0) {
         return -1;
     }
 
-    if (QuicCiphersPrepare(&quic->initial.server.ciphers, EVP_sha256(),
-                server_secret, server_action) < 0) {
+    if (QuicCiphersPrepare(&quic->initial.encrypt.ciphers, EVP_sha256(),
+                encrypt_secret, QUIC_EVP_ENCRYPT) < 0) {
         return -1;
     }
 
@@ -286,6 +292,7 @@ int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,
 static void QuicCipherFree(QUIC_CIPHER *cipher)
 {
     EVP_CIPHER_CTX_free(cipher->ctx);
+    cipher->ctx = NULL;
 }
 
 void QuicCipherCtxFree(QUIC_CIPHERS *ciphers)

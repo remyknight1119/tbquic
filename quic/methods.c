@@ -8,16 +8,16 @@
 #include "tls.h"
 
 static QUIC_METHOD QuicClientMeth = {
+    .version = QUIC_VERSION_1,
     .quic_handshake = QuicConnect,
-    .tls_handshake = QuicTlsConnect,
+    .tls_init = QuicTlsClientInit,
 }; 
 
 static QUIC_METHOD QuicServerMeth = {
+    .version = QUIC_VERSION_1,
     .quic_handshake = QuicAccept,
-    .tls_handshake = QuicTlsAccept,
-    .server = 1,
+    .tls_init = QuicTlsServerInit,
 }; 
-
 
 
 QUIC_METHOD *QuicClientMethod(void)

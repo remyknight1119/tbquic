@@ -59,11 +59,11 @@ static int QUIC_set_hp_cipher_space_alg(QuicCipherSpace *space, uint32_t alg)
 
 int QUIC_set_initial_hp_cipher(QUIC *quic, uint32_t alg)
 {
-    if (QUIC_set_hp_cipher_space_alg(&quic->initial.client, alg) < 0) {
+    if (QUIC_set_hp_cipher_space_alg(&quic->initial.decrypt, alg) < 0) {
         return -1;
     }
 
-    return QUIC_set_hp_cipher_space_alg(&quic->initial.server, alg);
+    return QUIC_set_hp_cipher_space_alg(&quic->initial.encrypt, alg);
 }
 
 static int QUIC_set_pp_ciphers_alg(QUIC_CIPHERS *ciphers, uint32_t alg)
@@ -78,13 +78,12 @@ static int QUIC_set_pp_cipher_space_alg(QuicCipherSpace *space, uint32_t alg)
 
 int QUIC_set_initial_pp_cipher(QUIC *quic, uint32_t alg)
 {
-    if (QUIC_set_pp_cipher_space_alg(&quic->initial.client, alg) < 0) {
+    if (QUIC_set_pp_cipher_space_alg(&quic->initial.decrypt, alg) < 0) {
         return -1;
     }
 
-    return QUIC_set_pp_cipher_space_alg(&quic->initial.server, alg);
+    return QUIC_set_pp_cipher_space_alg(&quic->initial.encrypt, alg);
 }
-
 
 QUIC *QuicNew(QUIC_CTX *ctx)
 {
@@ -95,15 +94,16 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         return NULL;
     }
 
-    quic->state = QUIC_STREAM_STATE_READY;
+    quic->statem = QUIC_STATEM_READY;
+    quic->stream_state = QUIC_STREAM_STATE_READY;
     quic->rwstate = QUIC_NOTHING; 
     quic->do_handshake = ctx->method->quic_handshake; 
     quic->method = ctx->method;
-    quic->quic_server = ctx->method->server;
     quic->mtu = ctx->mtu;
+    quic->version = ctx->method->version;
     quic->ctx = ctx;
 
-    if (QuicTlsInit(&quic->tls, ctx->method) < 0) {
+    if (quic->method->tls_init(&quic->tls) < 0) {
         goto out;
     }
 
@@ -144,6 +144,17 @@ int QuicDoHandshake(QUIC *quic)
     return quic->do_handshake(quic);
 }
 
+void QuicCryptoCipherFree(QuicCipherSpace *cs)
+{
+    QuicCipherCtxFree(&cs->ciphers);
+}
+
+void QuicCryptoFree(QuicCrypto *c)
+{
+    QuicCryptoCipherFree(&c->decrypt);
+    QuicCryptoCipherFree(&c->encrypt);
+}
+
 void QuicFree(QUIC *quic)
 {
     BIO_free_all(quic->rbio);
@@ -153,10 +164,10 @@ void QuicFree(QUIC *quic)
     QuicBufFree(&quic->plain_buffer);
     QuicBufFree(&quic->rbuffer);
 
-    QuicMemFree(quic->cid.data);
+    QuicMemFree(quic->dcid.data);
+    QuicMemFree(quic->scid.data);
 
-    QuicCipherCtxFree(&quic->initial.client.ciphers);
-    QuicCipherCtxFree(&quic->initial.server.ciphers);
+    QuicCryptoFree(&quic->initial);
     QuicCipherCtxFree(&quic->zero_rtt.ciphers);
     QuicCipherCtxFree(&quic->handshake.client.ciphers);
     QuicCipherCtxFree(&quic->handshake.server.ciphers);

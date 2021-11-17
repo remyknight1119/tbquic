@@ -14,6 +14,7 @@
 #include "packet_format.h"
 #include "common.h"
 
+static uint8_t cid[] = "\x83\x94\xC8\xF0\x3E\x51\x57\x08";
 static uint8_t client_iv[] = "\xFA\x04\x4B\x2F\x42\xA3\xFD\x3B\x46\xFB\x25\x5C";
 static uint8_t server_iv[] = "\x0A\xC1\x49\x3C\xA1\x90\x58\x53\xB0\xBB\xA0\x3E";
 static uint8_t client_init_packet[] =
@@ -111,7 +112,72 @@ static uint8_t payload_plaintext[1162] =
     "\x75\x30\x09\x01\x10\x0F\x08\x83\x94\xC8\xF0\x3E\x51\x57\x08\x06"
     "\x04\x80\x00\xFF\xFF";
 
-int QuicPktFormatTest(void)
+int QuicPktFormatTestClient(void)
+{
+    QUIC_CTX *ctx = NULL;
+    QUIC *quic = NULL;
+    BIO *rbio = NULL;
+    BIO *wbio = NULL;
+    int case_num = -1;
+    int ret = 0;
+
+    ctx = QuicCtxNew(QuicClientMethod());
+    if (ctx == NULL) {
+        goto out;
+    }
+
+    quic = QuicNew(ctx);
+    if (quic == NULL) {
+        goto out;
+    }
+
+    rbio = BIO_new(BIO_s_mem());
+    if (rbio == NULL) {
+        goto out;
+    }
+
+    wbio = BIO_new(BIO_s_mem());
+    if (wbio == NULL) {
+        goto out;
+    }
+    QUIC_set_bio(quic, rbio, wbio);
+
+    rbio = NULL;
+    wbio = NULL;
+
+    quic->dcid.data = cid;
+    quic->dcid.len = sizeof(cid) - 1;
+    ret = QuicDoHandshake(quic);
+    quic->dcid.data = NULL;
+    if (ret < 0) {
+        printf("Do Handshake failed\n");
+        goto out;
+    }
+
+    if (memcmp(client_iv, quic->initial.encrypt.ciphers.pp_cipher.iv,
+                sizeof(client_iv) - 1) != 0) {
+        printf("Client IV incorrect\n");
+        goto out;
+    }
+
+    if (memcmp(server_iv, quic->initial.decrypt.ciphers.pp_cipher.iv,
+                sizeof(server_iv) - 1) != 0) {
+        printf("Server IV incorrect\n");
+        goto out;
+    }
+
+    case_num = 1;
+out:
+    BIO_free(rbio);
+    BIO_free(wbio);
+    QuicFree(quic);
+    QuicCtxFree(ctx);
+
+    return case_num;
+
+}
+
+int QuicPktFormatTestServer(void)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
@@ -161,19 +227,19 @@ int QuicPktFormatTest(void)
         goto out;
     }
 
-    if (memcmp(client_iv, quic->initial.client.ciphers.pp_cipher.iv,
+    if (memcmp(client_iv, quic->initial.decrypt.ciphers.pp_cipher.iv,
                 sizeof(client_iv) - 1) != 0) {
         printf("Client IV incorrect\n");
         goto out;
     }
 
-    if (memcmp(server_iv, quic->initial.server.ciphers.pp_cipher.iv,
+    if (memcmp(server_iv, quic->initial.encrypt.ciphers.pp_cipher.iv,
                 sizeof(server_iv) - 1) != 0) {
         printf("Server IV incorrect\n");
         goto out;
     }
 
-    if (quic->initial.client.pkt_num != 2) {
+    if (quic->initial.decrypt.pkt_num != 2) {
         printf("PKT number incorrect\n");
         goto out;
     }

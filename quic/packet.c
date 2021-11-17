@@ -57,7 +57,7 @@ static int RPacketPeekData(const RPacket *pkt, uint32_t *data, size_t len)
     *data = *pkt->curr;
 
     for (i = 1; i < len; i++) {
-        *data |= ((uint32_t)(*(pkt->curr + i))) << 8*i;
+        *data = (*data << 8*i) | ((uint32_t)(*(pkt->curr + i)));
     }
 
     return 0;
@@ -87,8 +87,7 @@ int RPacketGet1(RPacket *pkt, uint32_t *data)
 }
 
 /*
- * Peek ahead at 2 bytes in network order from |pkt| and store the value in
- * |*data|
+ * Peek ahead at 2 bytes in from |pkt| and store the value in |*data|
  */
 int RPacketPeek2(const RPacket *pkt, uint32_t *data)
 {
@@ -96,31 +95,30 @@ int RPacketPeek2(const RPacket *pkt, uint32_t *data)
 }
 
 /* Equivalent of n2s */
-/* Get 2 bytes in network order from |pkt| and store the value in |*data| */
+/* Get 2 bytes from |pkt| and store the value in |*data| */
 int RPacketGet2(RPacket *pkt, uint32_t *data)
 {
     return RPacketGetData(pkt, data, 2);
 }
 
 /*
- * Peek ahead at 3 bytes in network order from |pkt| and store the value in
- * |*data|
+ * Peek ahead at 3 bytes from |pkt| and store the value in |*data|
  */
-int PacketPeek3(const RPacket *pkt, uint32_t *data)
+int RPacketPeek3(const RPacket *pkt, uint32_t *data)
 {
     return RPacketPeekData(pkt, data, 3);
 }
 
 /* Equivalent of n2l3 */
-/* Get 3 bytes in network order from |pkt| and store the value in |*data| */
-int PacketGet3(RPacket *pkt, uint32_t *data)
+/* Get 3 bytes from |pkt| and store the value in |*data|
+ */
+int RPacketGet3(RPacket *pkt, uint32_t *data)
 {
     return RPacketGetData(pkt, data, 3);
 }
 
 /*
- * Peek ahead at 4 bytes in reverse network order from |pkt| and store the value
- * in |*data|
+ * Peek ahead at 4 bytes from |pkt| and store the value |*data|
  */
 int RPacketPeek4(const RPacket *pkt, uint32_t *data)
 {
@@ -129,8 +127,7 @@ int RPacketPeek4(const RPacket *pkt, uint32_t *data)
 
 /* Equivalent of c2l */
 /*
- * Get 4 bytes in reverse network order from |pkt| and store the value in
- * |*data|
+ * Get 4 bytes order from |pkt| and store the value in |*data|
  */
 int RPacketGet4(RPacket *pkt, uint32_t *data)
 {
@@ -195,6 +192,18 @@ int RPacketCopyBytes(RPacket *pkt, uint8_t *data, size_t len)
     }
 
     RPacketForward(pkt, len);
+
+    return 0;
+}
+
+int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
+{
+    if (RPacketRemaining(parent) < len) {
+        return -1;
+    }
+
+    RPacketBufInit(child, RPacketData(parent), len);
+    RPacketForward(parent, len);
 
     return 0;
 }

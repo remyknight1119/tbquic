@@ -4,6 +4,7 @@
 
 #include "tls.h"
 
+#include <assert.h>
 #include <tbquic/types.h>
 #include <tbquic/quic.h>
 
@@ -20,11 +21,21 @@ int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *pkt, const QuicTlsProcess *proc,
                         size_t num)
 {
     const QuicTlsProcess *p = NULL;
+    QuicTlsState state = 0;
     uint32_t type = 0;
 
-
     while (RPacketGet1(pkt, &type) >= 0) {
-        if (type != tls->next_type) {
+        state = tls->state;
+
+        assert(state >= QUIC_TLS_ST_OK && state < QUIC_TLS_ST_MAX);
+
+        p = &proc[state];
+        if (p->proc == NULL) {
+            QUIC_LOG("No proc found\n");
+            return -1;
+        }
+
+        if (type != p->expect) {
             QUIC_LOG("type not match\n");
             return -1;
         }
@@ -34,30 +45,18 @@ int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *pkt, const QuicTlsProcess *proc,
             return -1;
         }
 
-        p = &proc[type];
-        if (p->proc == NULL) {
-            QUIC_LOG("No proc found\n");
-            return -1;
-        }
-
         if (p->proc(tls, pkt) < 0) {
             QUIC_LOG("Proc failed\n");
             return -1;
         }
 
-        /* If proc not assign next_type, use default */
-        if (type == tls->next_type) {
-            tls->next_type = p->next_type;
+        /* If proc not assign next_state, use default */
+        if (state == tls->state) {
+            tls->state = p->next_state;
         }
     }
 
     return 0;
 }
 
-int QuicTlsInit(QUIC_TLS *tls, const QUIC_METHOD *method)
-{
-    tls->handshake = method->tls_handshake;
-    tls->next_type = tls->server ? CLIENT_HELLO : SERVER_HELLO;
 
-    return 0;
-}

@@ -18,3 +18,12 @@ int QuicTlsConnect(QUIC_TLS *tls, const uint8_t *data, size_t len)
 
     return 0;
 }
+
+int QuicTlsClientInit(QUIC_TLS *tls)
+{
+    tls->handshake = QuicTlsConnect;
+    tls->state = QUIC_TLS_ST_SERVER_HELLO;
+    tls->server = 0;
+
+    return 0;
+}

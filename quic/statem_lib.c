@@ -18,12 +18,14 @@ int QuicStreamRead(QUIC *quic, RPacket *pkt)
     RPacketBufInit(pkt, (const uint8_t *)QUIC_R_BUFFER_HEAD(quic),
             read_bytes);
 
-    if (RPacketGet1(pkt, &flags) < 0) {
-        return -1;
+    //One packet maybe contain multiple QUIC messages
+    while (RPacketGet1(pkt, &flags) >= 0) {
+        if (QuicPacketParse(quic, pkt, flags) < 0) {
+            return -1;
+        }
     }
 
-    printf("read %d\n", read_bytes);
-    return QuicPacketParse(quic, pkt, flags);
+    return 0;
 }
 
 

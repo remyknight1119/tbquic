@@ -36,8 +36,12 @@ static QuicFuncTest test_funcs[] = {
         .err_msg = "HKDF Expand Label",
     },
     {
-        .test = QuicPktFormatTest,
-        .err_msg = "Packet Format",
+        .test = QuicPktFormatTestClient,
+        .err_msg = "Packet Format Client",
+    },
+    {
+        .test = QuicPktFormatTestServer,
+        .err_msg = "Packet Format Server",
     },
     {
         .test = QuicPktNumberDecodeTest,

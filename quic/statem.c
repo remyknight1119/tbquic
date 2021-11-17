@@ -4,7 +4,9 @@
 
 #include "statem.h"
 
+#include <assert.h>
 #include <openssl/err.h>
+
 #include "quic_local.h"
 #include "log.h"
 
@@ -12,23 +14,21 @@
 
 int QuicStateMachineAct(QUIC *quic, QuicStateMachine *statem, size_t num)
 {
-    int i = 0;
+    QuicStateMachine *st = NULL;
     int ret = 0;
 
-    for (i = 0; i < num; i++) {
-        if (quic->state != statem[i].state) {
-            continue;
-        }
+    assert(quic->statem >= 0 && quic->statem < num);
+    st = &statem[quic->statem];
 
-        if (statem[i].read != NULL) {
-            ret = statem[i].read(quic);
-            if (ret < 0) {
-                return ret;
-            }
+    if (st->read != NULL) {
+        ret = st->read(quic);
+        if (ret < 0) {
+            return ret;
         }
-        if (statem[i].write != NULL) {
-            return statem[i].write(quic);
-        }
+    }
+
+    if (st->write != NULL) {
+        return st->write(quic);
     }
 
     return -1;

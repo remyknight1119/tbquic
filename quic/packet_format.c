@@ -61,7 +61,7 @@ static int QuicLPacketHeaderParse(QUIC *quic, QuicLPacketHeader *h, RPacket *pkt
         return -1;
     }
 
-    h->version = ntohl(version);
+    h->version = version;
 
     if (RPacketGet1(pkt, &len) < 0) {
         QUIC_LOG("Get dest CID len failed\n");
@@ -405,25 +405,30 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
+    QUIC_DATA *dcid = NULL;
     QUIC_BUFFER *buffer = NULL;
     QUIC_BUFFER *crypto_buf = &quic->wbuffer;
+    RPacket message = {};
     RPacket frame = {};
+    size_t remaining = 0;
     uint64_t token_len = 0;
     uint64_t length = 0;
     uint64_t pkt_num = 0;
     uint8_t first_byte = 0;
+    int offset = 0;
     int ret = 0;
 
-    if (quic->cid.data == NULL) {
-        quic->cid.data = QuicMemMalloc(h->dest_conn_id_len);
-        if (quic->cid.data == NULL) {
+    dcid = &quic->dcid;
+    if (dcid->data == NULL) {
+        dcid->data = QuicMemMalloc(h->dest_conn_id_len);
+        if (dcid->data == NULL) {
             QUIC_LOG("Peer CID malloc failed!\n");
             return -1;
         }
-        quic->cid.len = h->dest_conn_id_len;
-        memcpy(quic->cid.data, h->dest_conn_id, quic->cid.len);
-    } else if (quic->cid.len != h->dest_conn_id_len ||
-            memcmp(quic->cid.data, h->dest_conn_id, quic->cid.len) != 0) {
+        dcid->len = h->dest_conn_id_len;
+        memcpy(dcid->data, h->dest_conn_id, dcid->len);
+    } else if (dcid->len != h->dest_conn_id_len ||
+            memcmp(dcid->data, h->dest_conn_id, dcid->len) != 0) {
         QUIC_LOG("DCID not match!\n");
         return -1;
     }
@@ -443,22 +448,29 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
         return -1;
     }
 
-    if (length != RPacketRemaining(pkt)) {
-        QUIC_LOG("length(%lu) not match remaining(%lu)!\n",
-                length, RPacketRemaining(pkt));
+    remaining = RPacketRemaining(pkt);
+    if (length > remaining) {
+        QUIC_LOG("Length(%lu) bigger than remaining(%lu)\n", length, remaining);
         return -1;
     }
+
+    offset = RPacketTotalLen(pkt) - remaining;
+    
+    assert(offset >= 0);
+
+    RPacketBufInit(&message, RPacketHead(pkt), length + offset);
+    RPacketForward(&message, offset);
+    RPacketForward(pkt, length);
 
     if (QuicCreateInitialDecoders(quic, h->version) < 0) {
         QUIC_LOG("Create Initial Decoders failed!\n");
         return -1;
     }
 
-    initial = QUIC_IS_SERVER(quic) ?
-        &quic->initial.client : &quic->initial.server;
+    initial = &quic->initial.decrypt;
     cipher = &initial->ciphers;
     if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, h->flags.value,
-                &h->pkt_num, &h->pkt_num_len, &first_byte, pkt) < 0) {
+                &h->pkt_num, &h->pkt_num_len, &first_byte, &message) < 0) {
         QUIC_LOG("Decrypt Initial packet header failed!\n");
         return -1;
     }
@@ -480,7 +492,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     buffer = &quic->plain_buffer;
     if (QuicDecryptMessage(&cipher->pp_cipher, (uint8_t *)buffer->buf->data,
                 &buffer->data_len, first_byte, h->pkt_num, h->pkt_num_len,
-                pkt) < 0) {
+                &message) < 0) {
         return -1;
     }
 

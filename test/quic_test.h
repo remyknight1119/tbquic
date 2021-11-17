@@ -20,7 +20,8 @@ extern char *quic_key;
 int QuicVariableLengthDecodeTest(void);
 int QuicHkdfExtractExpandTest(void);
 int QuicHkdfExpandLabel(void);
-int QuicPktFormatTest(void);
+int QuicPktFormatTestClient(void);
+int QuicPktFormatTestServer(void);
 int QuicPktNumberDecodeTest(void);
 
 #endif

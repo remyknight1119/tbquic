@@ -7,6 +7,8 @@
 #include <tbquic/types.h>
 #include "packet_local.h"
 
+#define TLS_RANDOM_BYTE_LEN     32
+
 typedef struct QuicTls QUIC_TLS;
 
 typedef enum {
@@ -33,21 +35,31 @@ typedef enum {
     HANDSHAKE_MAX,
 } HandshakeType;
 
+typedef enum {
+    QUIC_TLS_ST_OK,
+    QUIC_TLS_ST_CLIENT_HELLO,
+    QUIC_TLS_ST_SERVER_HELLO,
+    QUIC_TLS_ST_CLIENT_KEY_EXCHANGE,
+    QUIC_TLS_ST_MAX,
+} QuicTlsState;
+
 struct QuicTls {
-    HandshakeType next_type;
+    QuicTlsState state;
     uint8_t server:1;
     int (*handshake)(QUIC_TLS *, const uint8_t *, size_t);
+    uint8_t client_random[TLS_RANDOM_BYTE_LEN];
+    uint8_t server_random[TLS_RANDOM_BYTE_LEN];
 };
 
 typedef struct {
-    HandshakeType next_type;
+    QuicTlsState next_state;
+    HandshakeType expect;
     int (*proc)(QUIC_TLS *, RPacket *);
 } QuicTlsProcess;
 
-int QuicTlsInit(QUIC_TLS *, const QUIC_METHOD *);
+int QuicTlsClientInit(QUIC_TLS *);
+int QuicTlsServerInit(QUIC_TLS *);
 int QuicTlsDoHandshake(QUIC_TLS *, const uint8_t *, size_t);
-int QuicTlsConnect(QUIC_TLS *, const uint8_t *, size_t);
-int QuicTlsAccept(QUIC_TLS *, const uint8_t *, size_t);
 int QuicTlsDoProcess(QUIC_TLS *, RPacket *, const QuicTlsProcess *, size_t);
 
 #endif

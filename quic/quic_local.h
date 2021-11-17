@@ -7,6 +7,7 @@
 #include <tbquic/quic.h>
 
 #include "statem.h"
+#include "stream.h"
 #include "cipher.h"
 #include "buffer.h"
 #include "tls.h"
@@ -21,9 +22,9 @@
 #define QUIC_IS_SERVER(q) (q->quic_server)
 
 struct QuicMethod {
+    uint32_t version;
     int (*quic_handshake)(QUIC *);
-    int (*tls_handshake)(QUIC_TLS *, const uint8_t *, size_t);
-    uint8_t server:1;
+    int (*tls_init)(QUIC_TLS *);
 };
 
 struct QuicCtx {
@@ -41,11 +42,18 @@ typedef struct {
     uint64_t pkt_num;
 } QuicCipherSpace;
 
+typedef struct {
+    QuicCipherSpace decrypt;
+    QuicCipherSpace encrypt;
+} QuicCrypto;
+
 struct Quic {
     QUIC_TLS tls;
-    QuicStreamState state;
+    QuicStreamState stream_state;
+    QuicStatem statem;
     QuicReadWriteState rwstate;
 #define quic_server tls.server
+    uint32_t version;
     uint32_t mtu;
     const QUIC_CTX *ctx;
     const QUIC_METHOD *method;
@@ -57,11 +65,9 @@ struct Quic {
     QUIC_BUFFER plain_buffer;
     /* Write Buffer */
     QUIC_BUFFER wbuffer;
-    QUIC_DATA cid;
-    struct {
-        QuicCipherSpace client;
-        QuicCipherSpace server;
-    } initial;
+    QUIC_DATA dcid;
+    QUIC_DATA scid;
+    QuicCrypto initial;
     struct {
         QUIC_CIPHERS ciphers;
     } zero_rtt;

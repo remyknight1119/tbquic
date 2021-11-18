@@ -54,6 +54,24 @@ int QuicVariableLengthDecodeTest(void)
     return 4;
 }
 
+int QuicPktNumberEncodeTest(void)
+{
+    uint64_t curr_num = 0xa82f30ea;
+    uint64_t full_pn = 0xa82f9b32;
+    uint32_t value = 0x9b32;
+    uint32_t encode = 0;
+
+    QuicPktNumberEncode(0xac5c02, 0xabe8b3, 32);
+    QuicPktNumberEncode(0xace8fe, 0xabe8b3, 32);
+    encode = QuicPktNumberEncode(full_pn, curr_num, 16);
+    printf("encode = %x\n", encode);
+    if (encode != value) {
+        return -1;
+    }
+
+    return 1;
+}
+
 int QuicPktNumberDecodeTest(void)
 {
     uint64_t curr_num = 0xa82f30ea;
@@ -68,4 +86,3 @@ int QuicPktNumberDecodeTest(void)
 
     return 1;
 }
-

@@ -22,6 +22,7 @@ int QuicHkdfExtractExpandTest(void);
 int QuicHkdfExpandLabel(void);
 int QuicPktFormatTestClient(void);
 int QuicPktFormatTestServer(void);
+int QuicPktNumberEncodeTest(void);
 int QuicPktNumberDecodeTest(void);
 
 #endif

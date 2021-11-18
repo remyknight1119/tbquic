@@ -97,6 +97,8 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->statem = QUIC_STATEM_READY;
     quic->stream_state = QUIC_STREAM_STATE_READY;
     quic->rwstate = QUIC_NOTHING; 
+    //4 bytes packet number length
+    quic->pkt_num_len = 3;
     quic->do_handshake = ctx->method->quic_handshake; 
     quic->method = ctx->method;
     quic->mtu = ctx->mtu;
@@ -126,6 +128,8 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     if (QUIC_set_initial_pp_cipher(quic, QUIC_ALG_AES_128_GCM) < 0) {
         goto out;
     }
+
+    quic->initial.cipher_initialed = false;
 
     return quic;
 out:

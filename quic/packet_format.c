@@ -5,6 +5,7 @@
 #include "packet_format.h"
 
 #include <string.h>
+#include <math.h>
 #include <assert.h>
 #include <arpa/inet.h>
 
@@ -51,6 +52,33 @@ static QuicLongPacketParse LPacketPaser[] = {
 
 #define LPACKET_PARSER_NUM     QUIC_ARRAY_SIZE(LPacketPaser) 
 
+static int QuicVersionSelect(QUIC *quic, uint32_t version)
+{
+    return -1;
+}
+
+static int QuicCidParse(QUIC_DATA *cid, const uint8_t *data, size_t len)
+{
+    if (len == 0) {
+        return 0;
+    }
+
+    if (cid->data == NULL) {
+        cid->data = QuicMemMalloc(len);
+        if (cid->data == NULL) {
+            QUIC_LOG("CID malloc failed!\n");
+            return -1;
+        }
+        memcpy(cid->data, data, len);
+        cid->len = len;
+    } else if (cid->len != len || memcmp(cid->data, data, len) != 0) {
+        QUIC_LOG("CID not match!\n");
+        return -1;
+    }
+ 
+    return 0;
+}
+
 static int QuicLPacketHeaderParse(QUIC *quic, QuicLPacketHeader *h, RPacket *pkt)
 {
     uint32_t version = 0;
@@ -61,15 +89,17 @@ static int QuicLPacketHeaderParse(QUIC *quic, QuicLPacketHeader *h, RPacket *pkt
         return -1;
     }
 
-    h->version = version;
-
     if (RPacketGet1(pkt, &len) < 0) {
         QUIC_LOG("Get dest CID len failed\n");
         return -1;
     }
 
-    if ((h->version == QUIC_VERSION_1 && len > QUIC_MAX_CID_LENGTH) ||
-            len == 0) {
+    if (version != quic->version && QuicVersionSelect(quic, version) < 0) {
+        QUIC_LOG("Version invalid\n");
+        return -1;
+    }
+
+    if ((version == QUIC_VERSION_1 && len > QUIC_MAX_CID_LENGTH) || len == 0) {
         QUIC_LOG("CID len is too long(%u)\n", len);
         return -1;
     }
@@ -79,21 +109,23 @@ static int QuicLPacketHeaderParse(QUIC *quic, QuicLPacketHeader *h, RPacket *pkt
         return -1;
     }
 
-    h->dest_conn_id_len = len;
-    h->dest_conn_id = RPacketData(pkt);
-    RPacketForward(pkt, h->dest_conn_id_len);
+    if (QuicCidParse(&quic->scid, RPacketData(pkt), len) < 0) {
+        QUIC_LOG("DCID parse failed!\n");
+        return -1;
+    }
+ 
+    RPacketForward(pkt, len);
 
     if (RPacketGet1(pkt,  &len) < 0) {
         QUIC_LOG("Get source CID len failed\n");
         return -1;
     }
 
-    h->source_conn_id_len = len;
-    if (h->source_conn_id_len != 0) {
-        h->source_conn_id = RPacketData(pkt);
-        RPacketForward(pkt, h->source_conn_id_len);
+    if (QuicCidParse(&quic->dcid, RPacketData(pkt), len) < 0) {
+        QUIC_LOG("SCID parse failed!\n");
+        return -1;
     }
-
+ 
     return 0;
 }
 
@@ -110,7 +142,7 @@ static int QuicLongPacketDoParse(QUIC *quic, RPacket *pkt, uint8_t flags)
         return -1;
     }
 
-    version = h.version;
+    version = quic->version;
     h.flags.value = flags;
     type = h.flags.lpacket_type;
     for (i = 0; i < LPACKET_PARSER_NUM; i++) {
@@ -163,7 +195,7 @@ static int QuicVariableLengthValueEncode(uint8_t *buf, size_t blen,
         buf[i] = (length >> shift) & 0xFF;
     }
 
-    return 0;
+    return len;
 }
 
 int QuicVariableLengthEncode(uint8_t *buf, size_t blen, uint64_t length)
@@ -213,12 +245,60 @@ int QuicVariableLengthDecode(RPacket *pkt, uint64_t *length)
 
 /*
  * RFC 9000
+ * A.2.  Sample Packet Number Encoding Algorithm
+ * @full_pn is the full packet number of the packet being sent.
+ * @largest_acked is the largest packet number that has been
+ *    acknowledged by the peer in the current packet number space, if
+ *    any.
+ * @pn_nbits is the number of bits in the Packet Number field (8, 16,
+ *    24, or 32).
+ */
+uint32_t QuicPktNumberEncode(uint64_t full_pn, uint64_t largest_acked,
+                            uint8_t pn_nbits)
+{
+    uint64_t pn_win = 1 << pn_nbits;
+    uint64_t pn_mask = pn_win - 1;
+    uint64_t num_unacked = 0;
+    uint32_t code = 0;
+    uint8_t min_bits = 0;
+    uint8_t num_bytes = 0;
+    int i = 0;
+
+    // The number of bits must be at least one more
+    // than the base-2 logarithm of the number of contiguous
+    // unacknowledged packet numbers, including the new packet.
+    if (largest_acked == 0) {
+        num_unacked = full_pn + 1;
+    } else {
+        assert(QUIC_GE(full_pn, largest_acked));
+        num_unacked = full_pn - largest_acked;
+    }
+
+    for (i = sizeof(num_unacked)*8 - 1; i >= 0; i--){
+        if (num_unacked >> i) {
+            break;
+        }
+    }
+    min_bits = i + 2; 
+    num_bytes = (min_bits >> 3) + !!(min_bits & 0x7);
+
+    if (num_bytes > pn_nbits) {
+        return -1;
+    }
+    // Encode the integer value and truncate to
+    // the num_bytes least significant bytes.
+    code = full_pn & pn_mask;
+    return code;
+}
+
+/*
+ * RFC 9000
  * A.3.  Sample Packet Number Decoding Algorithm
  * @largest_pn is the largest packet number that has been successfully
  *     processed in the current packet number space.
  * @truncated_pn is the value of the Packet Number field.
  * @pn_nbits is the number of bits in the Packet Number field (8, 16,
-      24, or 32).
+ *    24, or 32).
  */
 
 //(1 << 62)
@@ -262,32 +342,49 @@ static int QuicHPDoCipher(QuicHPCipher *cipher, uint8_t *out, size_t *outl,
     return QuicDoCipher(&cipher->cipher, out, outl, in, inl);
 }
 
-int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
-                            uint8_t *p_num_len, uint8_t *first_byte,
-                            RPacket *pkt, uint8_t bits_mask)
+static int QuicHPMaskGen(QuicHPCipher *hp_cipher, uint8_t *mask_out,
+                        size_t mask_out_len, const uint8_t *pkt_num_start,
+                        size_t total_len)
 {
-    const uint8_t *pkt_num_start = NULL;
-    uint8_t sample[QUIC_SAMPLE_LEN] = {};
+    const uint8_t *sample = NULL;
     uint8_t mask[QUIC_SAMPLE_LEN*2] = {};
-    uint8_t pkn_bytes[QUIC_MACKET_NUM_MAX_LEN] = {};
-    uint8_t packet0 = 0;
-    uint8_t pkt_num_len = 0;
-    size_t sample_len = sizeof(sample);
     size_t mask_len = 0;
-    int i = 0;
 
     if (hp_cipher->cipher.ctx == NULL) {
         return -1;
     }
 
-    if (RPacketRemaining(pkt) < QUIC_MACKET_NUM_MAX_LEN + sample_len) {
+    if (total_len < QUIC_PACKET_NUM_MAX_LEN + QUIC_SAMPLE_LEN) {
         return -1;
     }
 
-    pkt_num_start = RPacketData(pkt);
-    memcpy(sample, pkt_num_start + QUIC_MACKET_NUM_MAX_LEN, sample_len);
+    sample = pkt_num_start + QUIC_PACKET_NUM_MAX_LEN;
+    if (QuicHPDoCipher(hp_cipher, mask, &mask_len, sample,
+                QUIC_SAMPLE_LEN) < 0) {
+        return -1;
+    }
 
-    if (QuicHPDoCipher(hp_cipher, mask, &mask_len, sample, sample_len) < 0) {
+    assert(QUIC_LE(mask_len, sizeof(mask)) && QUIC_GE(mask_len, mask_out_len));
+
+    memcpy(mask_out, mask, mask_out_len);
+
+    return 0;
+}
+
+int QuicDecryptLHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
+                            uint8_t *p_num_len, uint8_t *first_byte,
+                            RPacket *pkt, uint8_t bits_mask)
+{
+    const uint8_t *pkt_num_start = NULL;
+    uint8_t mask[QUIC_SAMPLE_LEN] = {};
+    uint8_t pkn_bytes[QUIC_PACKET_NUM_MAX_LEN] = {};
+    uint8_t packet0 = 0;
+    uint8_t pkt_num_len = 0;
+    int i = 0;
+
+    pkt_num_start = RPacketData(pkt);
+    if (QuicHPMaskGen(hp_cipher, mask, sizeof(mask), pkt_num_start,
+                RPacketRemaining(pkt)) < 0) {
         return -1;
     }
 
@@ -301,6 +398,8 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
         return -1;
     }
 
+    assert(pkt_num_len < sizeof(mask));
+
     for (i = 0; i < pkt_num_len; i++) {
         *pkt_num |= (pkn_bytes[i] ^ mask[i + 1]) << (8 * (pkt_num_len - i - 1));
     }
@@ -309,11 +408,35 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint8_t flags, uint32_t *pkt_num,
     return 0;
 }
 
+int QuicEncryptLHeader(QuicHPCipher *hp_cipher, uint8_t *first_byte,
+                            uint8_t *pkt_num_start, size_t len,
+                            uint8_t bits_mask)
+{
+    uint8_t mask[QUIC_SAMPLE_LEN] = {};
+    uint8_t pkt_num_len = 0;
+    int i = 0;
+
+    if (QuicHPMaskGen(hp_cipher, mask, sizeof(mask), pkt_num_start, len) < 0) {
+        return -1;
+    }
+
+    pkt_num_len = (*first_byte & 0x3) + 1;
+    *first_byte ^= mask[0] & bits_mask;
+
+    assert(pkt_num_len < sizeof(mask));
+
+    for (i = 0; i < pkt_num_len; i++) {
+        pkt_num_start[i] ^= mask[i + 1];
+    }
+
+    return 0;
+}
+
 int QuicDecryptInitPacketHeader(QuicHPCipher *hp_cipher, uint8_t flags,
                                 uint32_t *pkt_num, uint8_t *pkt_num_len,
                                 uint8_t *first_byte, RPacket *pkt)
 {
-    return QuicDecryptHeader(hp_cipher, flags, pkt_num, pkt_num_len,
+    return QuicDecryptLHeader(hp_cipher, flags, pkt_num, pkt_num_len,
                                 first_byte, pkt, 0x0F);
 }
 
@@ -401,11 +524,29 @@ static int QuicDecryptMessage(QuicPPCipher *cipher, uint8_t *out, size_t *outl,
     return QuicDoCipher(&cipher->cipher, out, outl, data, data_len - tag_len);
 }
 
+static int QuicTokenVerify(QUIC_DATA *token, const uint8_t *data, size_t len)
+{
+    if (len == 0) {
+        return 0;
+    }
+
+    if (token->data == NULL) {
+        QUIC_LOG("No token received!\n");
+        return -1;
+    }
+
+    if (token->len != len || memcmp(token->data, data, len) != 0) {
+        QUIC_LOG("Token not match!\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
-    QUIC_DATA *dcid = NULL;
     QUIC_BUFFER *buffer = NULL;
     QUIC_BUFFER *crypto_buf = &quic->wbuffer;
     RPacket message = {};
@@ -414,34 +555,23 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     uint64_t token_len = 0;
     uint64_t length = 0;
     uint64_t pkt_num = 0;
+    uint32_t h_pkt_num = 0;
+    uint8_t pkt_num_len;
     uint8_t first_byte = 0;
     int offset = 0;
     int ret = 0;
 
-    dcid = &quic->dcid;
-    if (dcid->data == NULL) {
-        dcid->data = QuicMemMalloc(h->dest_conn_id_len);
-        if (dcid->data == NULL) {
-            QUIC_LOG("Peer CID malloc failed!\n");
-            return -1;
-        }
-        dcid->len = h->dest_conn_id_len;
-        memcpy(dcid->data, h->dest_conn_id, dcid->len);
-    } else if (dcid->len != h->dest_conn_id_len ||
-            memcmp(dcid->data, h->dest_conn_id, dcid->len) != 0) {
-        QUIC_LOG("DCID not match!\n");
-        return -1;
-    }
- 
     if (QuicVariableLengthDecode(pkt, &token_len) < 0) {
         QUIC_LOG("Token len decode failed!\n");
         return -1;
     }
 
-    if (token_len != 0) {
-        //token = RPacketData(pkt);
-        RPacketForward(pkt, token_len);
+    if (QuicTokenVerify(&quic->token, RPacketData(pkt), token_len) < 0) {
+        QUIC_LOG("Token verify failed!\n");
+        return -1;
     }
+
+    RPacketForward(pkt, token_len);
 
     if (QuicVariableLengthDecode(pkt, &length) < 0) {
         QUIC_LOG("Length decode failed!\n");
@@ -462,7 +592,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     RPacketForward(&message, offset);
     RPacketForward(pkt, length);
 
-    if (QuicCreateInitialDecoders(quic, h->version) < 0) {
+    if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
         QUIC_LOG("Create Initial Decoders failed!\n");
         return -1;
     }
@@ -470,13 +600,12 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     initial = &quic->initial.decrypt;
     cipher = &initial->ciphers;
     if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, h->flags.value,
-                &h->pkt_num, &h->pkt_num_len, &first_byte, &message) < 0) {
+                &h_pkt_num, &pkt_num_len, &first_byte, &message) < 0) {
         QUIC_LOG("Decrypt Initial packet header failed!\n");
         return -1;
     }
 
-    pkt_num = QuicPktNumberDecode(initial->pkt_num, h->pkt_num,
-                                h->pkt_num_len*8);
+    pkt_num = QuicPktNumberDecode(initial->pkt_num, h_pkt_num, pkt_num_len*8);
     if ((int)(initial->pkt_num - pkt_num) > 0) {
         QUIC_LOG("PKT number invalid!\n");
         return -1;
@@ -491,7 +620,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 
     buffer = &quic->plain_buffer;
     if (QuicDecryptMessage(&cipher->pp_cipher, (uint8_t *)buffer->buf->data,
-                &buffer->data_len, first_byte, h->pkt_num, h->pkt_num_len,
+                &buffer->data_len, first_byte, h_pkt_num, pkt_num_len,
                 &message) < 0) {
         return -1;
     }
@@ -514,7 +643,8 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
         return -1;
     }
 
-    printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h->pkt_num, initial->pkt_num);
+    quic->statem = QUIC_STATEM_INITIAL_RECV;
+    printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h_pkt_num, initial->pkt_num);
     return 0;
 }
 
@@ -532,4 +662,111 @@ static int QuicRetryPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 {
     return 0;
 }
+
+static int QuicCidPut(QUIC_DATA *cid, WPacket *pkt)
+{
+    if (WPacketPut1(pkt, cid->len) < 0) {
+        return -1;
+    }
+
+    if (cid->len == 0) {
+        return -1;
+    }
+
+    return WPacketMemcpy(pkt, cid->data, cid->len);
+}
+
+static int QuicTokenPut(QUIC_DATA *token, WPacket *pkt)
+{
+    int len = 0;
+    int blen = 0;
+
+    if (token->len == 0) {
+        return WPacketPut1(pkt, 0);
+    }
+
+    blen = WPacket_get_space(pkt);
+    if (blen <= 0) {
+        return -1;
+    }
+
+    len = QuicVariableLengthEncode(WPacket_get_curr(pkt), blen, token->len);
+    if (len <= 0) {
+        return -1;
+    }
+
+    if (WPacketAllocateBytes(pkt, len, NULL) < 0) {
+        return -1;
+    }
+
+    return WPacketMemcpy(pkt, token->data, token->len);
+}
+
+static int QuicLHeaderGen(QUIC *quic, WPacket *pkt, uint8_t type, uint8_t pkt_num_len)
+{
+    QuicLPacketFlags flags;
+
+    flags.fixed_bit = 1;
+    flags.header_form = 1;
+    flags.reserved_bits = 0;
+    flags.lpacket_type = type;
+    flags.packet_num_len = (pkt_num_len & 0x3) - 1;
+
+    if (WPacketPut1(pkt, flags.value) < 0) {
+        return -1;
+    }
+
+    if (WPacketPut4(pkt, quic->version) < 0) {
+        return -1;
+    }
+
+    if (QuicCidPut(&quic->dcid, pkt) < 0) {
+        return -1;
+    }
+
+    if (QuicCidPut(&quic->scid, pkt) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
+{
+    QuicCipherSpace *cs = NULL;
+    uint64_t var_len = 0;
+    uint32_t pkt_num = 0;
+    uint32_t len = 0;
+    uint8_t pkt_num_len = quic->pkt_num_len + 1;
+    int wlen = 0;
+
+    if (QuicLHeaderGen(quic, pkt, QUIC_LPACKET_TYPE_INITIAL, pkt_num_len) < 0) {
+        return -1;
+    }
+
+    if (QuicTokenPut(&quic->token, pkt) < 0) {
+        return -1;
+    }
+
+    len += pkt_num_len;
+    wlen = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
+    if (wlen < 0) {
+        return -1;
+    }
+
+    if (WPacketMemcpy(pkt, &var_len, wlen) < 0) {
+        return -1;
+    }
+
+    cs = &quic->initial.encrypt;
+    cs->pkt_num++;
+
+    pkt_num = QuicPktNumberEncode(cs->pkt_num, cs->pkt_acked, pkt_num_len*8);
+    if (WPacketPutBytes(pkt, pkt_num, pkt_num_len) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 

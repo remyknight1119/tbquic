@@ -47,6 +47,10 @@ static QuicFuncTest test_funcs[] = {
         .test = QuicPktNumberDecodeTest,
         .err_msg = "PKT Number Decode",
     },
+    {
+        .test = QuicPktNumberEncodeTest,
+        .err_msg = "PKT Number Encode",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_ARRAY_SIZE(test_funcs)

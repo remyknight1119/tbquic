@@ -39,6 +39,7 @@ static int QuicCidGen(QUIC_DATA *cid, size_t len)
 static int QuicClientInitialSend(QUIC *quic)
 {
     QUIC_DATA *cid = NULL;
+    WPacket pkt = {};
 
     cid = &quic->dcid;
     if (cid->data == NULL && QuicCidGen(cid, QUIC_MAX_CID_LENGTH) < 0) {
@@ -49,6 +50,7 @@ static int QuicClientInitialSend(QUIC *quic)
         return -1;
     }
 
+    WPacketBufInit(&pkt, quic->wbuffer.buf);
     printf("client init\n");
     return 0;
 }

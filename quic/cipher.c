@@ -234,14 +234,14 @@ int QuicCiphersPrepare(QUIC_CIPHERS *ciphers, const EVP_MD *md,
 
 int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 {
-    uint8_t client_secret[HASH_SHA2_256_LENGTH];
-    uint8_t server_secret[HASH_SHA2_256_LENGTH];
+    QUIC_DATA *cid = NULL;
     uint8_t *decrypt_secret = NULL;
     uint8_t *encrypt_secret = NULL;
+    uint8_t client_secret[HASH_SHA2_256_LENGTH];
+    uint8_t server_secret[HASH_SHA2_256_LENGTH];
     
-    if (QuicDeriveInitialSecrets(&quic->dcid, client_secret, server_secret,
-                version) < 0) {
-        return -1;
+    if (quic->initial.cipher_initialed == true) {
+        return 0;
     }
 
     /* 
@@ -249,11 +249,18 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
      * initial packets are protected with AEAD_AES_128_GCM.
      */
     if (QUIC_IS_SERVER(quic)) {
+        cid = &quic->scid;
         decrypt_secret = client_secret;
         encrypt_secret = server_secret;
     } else {
+        cid = &quic->dcid;
         decrypt_secret = server_secret;
         encrypt_secret = client_secret;
+    }
+
+    if (QuicDeriveInitialSecrets(cid, client_secret, server_secret,
+                version) < 0) {
+        return -1;
     }
 
     if (QuicCiphersPrepare(&quic->initial.decrypt.ciphers, EVP_sha256(),
@@ -266,6 +273,7 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
         return -1;
     }
 
+    quic->initial.cipher_initialed = true;
     return 0;
 }
 

@@ -5,6 +5,8 @@
 
 #define QUIC_LT(a, b) ((int)(a - b) < 0)
 #define QUIC_GT(a, b) ((int)(a - b) > 0)
+#define QUIC_LE(a, b) ((int)(a - b) <= 0)
+#define QUIC_GE(a, b) ((int)(a - b) >= 0)
 
 static inline void QuicPrint(const uint8_t *data, size_t len)
 {

@@ -2,6 +2,7 @@
 #define TBQUIC_QUIC_QUIC_LOCAL_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <openssl/bio.h>
 #include <tbquic/quic.h>
@@ -40,11 +41,13 @@ typedef struct {
 typedef struct {
     QUIC_CIPHERS ciphers;
     uint64_t pkt_num;
+    uint64_t pkt_acked;
 } QuicCipherSpace;
 
 typedef struct {
     QuicCipherSpace decrypt;
     QuicCipherSpace encrypt;
+    bool cipher_initialed;
 } QuicCrypto;
 
 struct Quic {
@@ -55,6 +58,7 @@ struct Quic {
 #define quic_server tls.server
     uint32_t version;
     uint32_t mtu;
+    uint64_t pkt_num_len:2;
     const QUIC_CTX *ctx;
     const QUIC_METHOD *method;
     BIO *rbio;
@@ -67,6 +71,7 @@ struct Quic {
     QUIC_BUFFER wbuffer;
     QUIC_DATA dcid;
     QUIC_DATA scid;
+    QUIC_DATA token;
     QuicCrypto initial;
     struct {
         QUIC_CIPHERS ciphers;

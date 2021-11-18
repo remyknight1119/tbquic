@@ -21,7 +21,7 @@
 //RFC 9000 7.2. Negotiating Connection IDs
 #define QUIC_MIN_CID_LENGTH     8
 #define QUIC_SAMPLE_LEN     16
-#define QUIC_MACKET_NUM_MAX_LEN     4
+#define QUIC_PACKET_NUM_MAX_LEN     4
 
 #define QUIC_PACKET_IS_LONG_PACKET(flags) (flags.header_form)
 
@@ -65,20 +65,12 @@ typedef union {
 
 struct LPacketHeader {
     QuicLPacketFlags flags;
-	uint8_t	dest_conn_id_len;
-	uint8_t	source_conn_id_len;
-    const uint8_t *dest_conn_id;
-    const uint8_t *source_conn_id;
-    uint8_t pkt_num_len;
-    uint32_t version;
-    uint32_t pkt_num;
-    uint64_t token_len;
-    const uint8_t *token;
 };
 
 int QuicPacketParse(QUIC *, RPacket *, uint8_t);
 int QuicVariableLengthEncode(uint8_t *, size_t , uint64_t);
 int QuicVariableLengthDecode(RPacket *, uint64_t *);
+uint32_t QuicPktNumberEncode(uint64_t, uint64_t, uint8_t);
 uint64_t QuicPktNumberDecode(uint64_t, uint32_t, uint8_t);
 
 #endif

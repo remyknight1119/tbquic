@@ -216,9 +216,14 @@ void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)
     pkt->maxsize = buf->length;
 }
 
-static uint8_t *WPacket_get_curr(WPacket *pkt)
+uint8_t *WPacket_get_curr(WPacket *pkt)
 {
     return (uint8_t *)pkt->buf->data + pkt->curr;
+}
+
+int WPacket_get_space(WPacket *pkt)
+{
+    return (int)(pkt->maxsize - pkt->written);
 }
 
 int WPacketReserveBytes(WPacket *pkt, size_t len, uint8_t **allocbytes)
@@ -269,6 +274,10 @@ int WPacketMemcpy(WPacket *pkt, const void *src, size_t len)
 {
     uint8_t *dest;
 
+    if (src == NULL) {
+        return -1;
+    }
+
     if (len == 0) {
         return 0;
     }
@@ -299,7 +308,7 @@ static int WPacketPutValue(uint8_t *data, size_t value, size_t len)
     return 0;
 }
 
-static int WPacketPutBytes(WPacket *pkt, uint32_t val, size_t size)
+int WPacketPutBytes(WPacket *pkt, uint32_t val, size_t size)
 {
     uint8_t *data = NULL;
 

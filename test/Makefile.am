@@ -7,5 +7,5 @@ quic_client_LDADD = $(srcdir)/../quic/libtbquic.la
 quic_server_LDADD = $(srcdir)/../quic/libtbquic.la
 quic_test_LDADD = $(srcdir)/../quic/libtbquic.la
 
-AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/../quic -lm
+AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/../quic -DQUIC_TEST
 AM_CFLAGS = -Wall -Werror

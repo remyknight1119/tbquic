@@ -8,9 +8,11 @@
 #include <openssl/rand.h>
 
 #include "quic_local.h"
-#include "common.h"
-#include "mem.h"
 #include "packet_format.h"
+#include "common.h"
+#include "datagram.h"
+#include "mem.h"
+#include "log.h"
 
 static int QuicClientInitialSend(QUIC *);
 static QuicStateMachine client_statem[QUIC_STATEM_MAX] = {
@@ -39,6 +41,7 @@ static int QuicCidGen(QUIC_DATA *cid, size_t len)
 static int QuicClientInitialSend(QUIC *quic)
 {
     QUIC_DATA *cid = NULL;
+    QUIC_BUFFER *wbuffer = NULL;
     WPacket pkt = {};
 
     cid = &quic->dcid;
@@ -50,7 +53,20 @@ static int QuicClientInitialSend(QUIC *quic)
         return -1;
     }
 
-    WPacketBufInit(&pkt, quic->wbuffer.buf);
+    wbuffer = &quic->wbuffer;
+    WPacketBufInit(&pkt, wbuffer->buf);
+
+    if (QuicInitialPacketGen(quic, &pkt) < 0) {
+        return -1;
+    }
+
+    wbuffer->data_len = WPacket_get_written(&pkt);
+    if (QuicDatagramSend(quic) < 0) {
+        QUIC_LOG("Send failed\n");
+        return -1;
+    }
+
+    quic->statem = QUIC_STATEM_INITIAL_SENT;
     printf("client init\n");
     return 0;
 }

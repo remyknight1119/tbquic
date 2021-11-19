@@ -64,5 +64,5 @@ int QuicTlsServerInit(QUIC_TLS *tls)
     tls->state = QUIC_TLS_ST_CLIENT_HELLO;
     tls->server = 1;
 
-    return 0;
+    return QuicTlsInit(tls);
 }

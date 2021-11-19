@@ -15,5 +15,6 @@ void QuicBufClear(QUIC_BUFFER *);
 size_t QuicBufMemGrow(QUIC_BUFFER *, size_t);
 uint8_t *QuicBufData(QUIC_BUFFER *);
 size_t QuicBufLength(QUIC_BUFFER *);
+size_t QuicBufDataLength(QUIC_BUFFER *);
 
 #endif

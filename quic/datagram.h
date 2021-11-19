@@ -3,6 +3,7 @@
 
 #include <tbquic/types.h>
 
-int QuicReadBytes(QUIC *quic);
+int QuicDatagramRecv(QUIC *);
+int QuicDatagramSend(QUIC *);
 
 #endif

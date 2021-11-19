@@ -9,20 +9,25 @@
 #include "packet_local.h"
 #include "quic_local.h"
 
-int QuicStreamRead(QUIC *quic, RPacket *pkt)
+int QuicStreamRead(QUIC *quic)
 {
+    RPacket pkt = {};
     uint32_t flags = 0;
-    int read_bytes = 0;
+    int ret = 0;
 
-    read_bytes = QuicReadBytes(quic);
-    RPacketBufInit(pkt, (const uint8_t *)QUIC_R_BUFFER_HEAD(quic),
-            read_bytes);
+    ret = QuicDatagramRecv(quic);
+    if (ret < 0) {
+        return -1;
+    }
+    RPacketBufInit(&pkt, (const uint8_t *)QUIC_R_BUFFER_HEAD(quic),
+            QUIC_R_BUFFER_DATA_LEN(quic));
 
     //One packet maybe contain multiple QUIC messages
-    while (RPacketGet1(pkt, &flags) >= 0) {
-        if (QuicPacketParse(quic, pkt, flags) < 0) {
+    while (RPacketGet1(&pkt, &flags) >= 0) {
+        if (QuicPacketParse(quic, &pkt, flags) < 0) {
             return -1;
         }
+        RPacketHeadSync(&pkt);
     }
 
     return 0;

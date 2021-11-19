@@ -5,6 +5,7 @@
 #include "cipher.h"
 
 #include <string.h>
+#include <assert.h>
 #include <openssl/evp.h>
 #include <openssl/obj_mac.h>
 #include <tbquic/cipher.h>
@@ -21,26 +22,54 @@ typedef struct {
     uint32_t version;
 } QuicSalt;
 
-static const int algorithm_cipher_nid[QUIC_ALG_MAX] = {
-    [QUIC_ALG_AES_128_ECB] = NID_aes_128_ecb,
-    [QUIC_ALG_AES_192_ECB] = NID_aes_192_ecb,
-    [QUIC_ALG_AES_256_ECB] = NID_aes_256_ecb,
-    [QUIC_ALG_AES_128_GCM] = NID_aes_128_gcm,
-    [QUIC_ALG_AES_192_GCM] = NID_aes_192_gcm,
-    [QUIC_ALG_AES_256_GCM] = NID_aes_256_gcm,
-    [QUIC_ALG_AES_128_CCM] = NID_aes_128_ccm,
-    [QUIC_ALG_AES_192_CCM] = NID_aes_192_ccm,
-    [QUIC_ALG_AES_256_CCM] = NID_aes_256_ccm,
-    [QUIC_ALG_CHACHA20] = NID_chacha20,
-};
+static size_t QuicAesEcbGetCipherLen(size_t, size_t);
+static size_t QuicAesGcmGetCipherLen(size_t, size_t);
+static size_t QuicAesCcmGetCipherLen(size_t, size_t);
 
-static const uint32_t algorithm_tag_len[QUIC_ALG_MAX] = {
-    [QUIC_ALG_AES_128_GCM] = EVP_GCM_TLS_TAG_LEN,
-    [QUIC_ALG_AES_192_GCM] = EVP_GCM_TLS_TAG_LEN,
-    [QUIC_ALG_AES_256_GCM] = EVP_GCM_TLS_TAG_LEN,
-    [QUIC_ALG_AES_128_CCM] = EVP_CCM_TLS_TAG_LEN,
-    [QUIC_ALG_AES_192_CCM] = EVP_CCM_TLS_TAG_LEN,
-    [QUIC_ALG_AES_256_CCM] = EVP_CCM_TLS_TAG_LEN,
+static const QuicCipherSuite cipher_suite[QUIC_ALG_MAX] = {
+    [QUIC_ALG_AES_128_ECB] = {
+        .nid = NID_aes_128_ecb,
+        .get_cipher_len = QuicAesEcbGetCipherLen,
+    },
+    [QUIC_ALG_AES_192_ECB] = {
+        .nid = NID_aes_192_ecb,
+        .get_cipher_len = QuicAesEcbGetCipherLen,
+    },
+    [QUIC_ALG_AES_256_ECB] = {
+        .nid = NID_aes_256_ecb,
+        .get_cipher_len = QuicAesEcbGetCipherLen,
+    },
+    [QUIC_ALG_AES_128_GCM] = {
+        .nid = NID_aes_128_gcm,
+        .tag_len = EVP_GCM_TLS_TAG_LEN,
+        .get_cipher_len = QuicAesGcmGetCipherLen,
+    },
+    [QUIC_ALG_AES_192_GCM] = {
+        .nid = NID_aes_192_gcm,
+        .tag_len = EVP_GCM_TLS_TAG_LEN,
+        .get_cipher_len = QuicAesGcmGetCipherLen,
+    },
+    [QUIC_ALG_AES_256_GCM] = {
+        .nid = NID_aes_256_gcm,
+        .tag_len = EVP_GCM_TLS_TAG_LEN,
+        .get_cipher_len = QuicAesGcmGetCipherLen,
+    },
+    [QUIC_ALG_AES_128_CCM] = {
+        .nid = NID_aes_128_ccm,
+        .get_cipher_len = QuicAesCcmGetCipherLen,
+    },
+    [QUIC_ALG_AES_192_CCM] = {
+        .nid = NID_aes_192_ccm,
+        .get_cipher_len = QuicAesCcmGetCipherLen,
+    },
+    [QUIC_ALG_AES_256_CCM] = {
+        .nid = NID_aes_256_ccm,
+        .get_cipher_len = QuicAesCcmGetCipherLen,
+    },
+    [QUIC_ALG_CHACHA20] = {
+        .nid = NID_aes_256_ccm,
+        .get_cipher_len = QuicAesCcmGetCipherLen,
+    },
 };
 
 static const uint8_t handshake_salt_v1[] =
@@ -72,22 +101,64 @@ static const QuicSalt *QuicSaltFind(const QuicSalt *salt, size_t num,
     return NULL;
 }
 
-int QuicCipherNidFind(uint32_t alg)
+static size_t QuicAesEcbGetCipherLen(size_t plaintext_len, size_t tag_len)
+{
+    return plaintext_len;
+}
+
+static size_t QuicAesGcmGetCipherLen(size_t plaintext_len, size_t tag_len)
+{
+    return plaintext_len + tag_len;
+}
+
+static size_t QuicAesCcmGetCipherLen(size_t plaintext_len, size_t tag_len)
+{
+    return plaintext_len;
+}
+
+static const QuicCipherSuite *QuicCipherSuiteFind(uint32_t alg)
 {
     if (alg >= QUIC_ALG_MAX) {
+        return NULL;
+    }
+
+    return &cipher_suite[alg];
+}
+
+size_t QuicCipherLenGet(uint32_t alg, size_t plaintext_len)
+{
+    const QuicCipherSuite *suite = NULL;
+
+    suite = QuicCipherSuiteFind(alg);
+    if (suite == NULL) {
+        return 0;
+    }
+
+    return suite->get_cipher_len(plaintext_len, suite->tag_len);
+}
+
+int QuicCipherNidFind(uint32_t alg)
+{
+    const QuicCipherSuite *suite = NULL;
+
+    suite = QuicCipherSuiteFind(alg);
+    if (suite == NULL) {
         return -1;
     }
 
-    return algorithm_cipher_nid[alg];
+    return suite->nid;
 }
 
 int QuicCipherGetTagLen(uint32_t alg)
 {
-    if (alg >= QUIC_ALG_MAX) {
+    const QuicCipherSuite *suite = NULL;
+
+    suite = QuicCipherSuiteFind(alg);
+    if (suite == NULL) {
         return -1;
     }
 
-    return algorithm_tag_len[alg];
+    return suite->tag_len;
 }
 
 /*
@@ -278,7 +349,8 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 }
 
 int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,
-                        const uint8_t *in, size_t inl)
+                    size_t out_buf_len, const uint8_t *in,
+                    size_t inl)
 {
     size_t len = 0;
 
@@ -287,12 +359,15 @@ int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,
         return -1;
     }
 
+    assert(QUIC_LE(*outl, out_buf_len));
+
     if (QuicEvpCipherFinal(cipher->ctx, &out[*outl], &len) < 0) {
         QUIC_LOG("Cipher Final failed\n");
         return -1;
     }
 
     *outl += len;
+    assert(QUIC_LE(*outl, out_buf_len));
 
     return 0;
 }

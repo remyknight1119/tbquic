@@ -20,6 +20,7 @@ typedef struct {
 } WPacket;
 
 void RPacketBufInit(RPacket *, const uint8_t *, size_t);
+void RPacketHeadSync(RPacket *);
 size_t RPacketTotalLen(const RPacket *pkt);
 const uint8_t *RPacketHead(const RPacket *pkt);
 void RPacketForward(RPacket *, size_t);
@@ -41,12 +42,14 @@ int RPacketTransfer(RPacket *, RPacket *, size_t);
 void WPacketBufInit(WPacket *, BUF_MEM *);
 uint8_t *WPacket_get_curr(WPacket *);
 int WPacket_get_space(WPacket *);
+size_t WPacket_get_written(WPacket *);
 int WPacketAllocateBytes(WPacket *, size_t, uint8_t **);
 int WPacketPutBytes(WPacket *, uint32_t, size_t);
 int WPacketPut1(WPacket *, uint32_t);
 int WPacketPut2(WPacket *, uint32_t);
 int WPacketPut3(WPacket *, uint32_t);
 int WPacketPut4(WPacket *, uint32_t);
-int WPacketMemcpy(WPacket *, const void *src, size_t len);
+int WPacketMemcpy(WPacket *, const void *, size_t);
+int WPacketMemmove(WPacket *, const void *, size_t);
 
 #endif

@@ -5,6 +5,7 @@
 
 #include "quic_test.h"
 
+#include <assert.h>
 #include <string.h>
 #include <tbquic/quic.h>
 #include <openssl/bio.h>
@@ -112,13 +113,27 @@ static uint8_t payload_plaintext[1162] =
     "\x75\x30\x09\x01\x10\x0F\x08\x83\x94\xC8\xF0\x3E\x51\x57\x08\x06"
     "\x04\x80\x00\xFF\xFF";
 
+static void QuicPktPayloadInject(QUIC_BUFFER *buffer)
+{
+    size_t len = sizeof(payload_plaintext);
+
+    assert(QUIC_GE(QuicBufLength(buffer), len));
+
+    memcpy(QuicBufData(buffer), payload_plaintext, len);
+    buffer->data_len = len;
+}
+
 int QuicPktFormatTestClient(void)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
     BIO *rbio = NULL;
     BIO *wbio = NULL;
+    BIO *out_bio = NULL;
+    static uint8_t buf[2048] = {};
+    size_t msg_len = sizeof(client_init_packet) - 1;
     int case_num = -1;
+    int rlen = 0;
     int ret = 0;
 
     ctx = QuicCtxNew(QuicClientMethod());
@@ -142,11 +157,16 @@ int QuicPktFormatTestClient(void)
     }
     QUIC_set_bio(quic, rbio, wbio);
 
+    out_bio = wbio;
     rbio = NULL;
     wbio = NULL;
 
     quic->dcid.data = cid;
     quic->dcid.len = sizeof(cid) - 1;
+    quic->initial.encrypt.pkt_num = 1;
+
+    QuicEncryptFrameHook = QuicPktPayloadInject;
+
     ret = QuicDoHandshake(quic);
     quic->dcid.data = NULL;
     if (ret < 0) {
@@ -163,6 +183,17 @@ int QuicPktFormatTestClient(void)
     if (memcmp(server_iv, quic->initial.decrypt.ciphers.pp_cipher.iv,
                 sizeof(server_iv) - 1) != 0) {
         printf("Server IV incorrect\n");
+        goto out;
+    }
+
+    rlen = BIO_read(out_bio, buf, sizeof(buf));
+    if (rlen != msg_len) {
+        printf("Message len incorrect, rlen %d, msg_len %lu\n", rlen, msg_len);
+        goto out;
+    }
+
+    if (memcmp(buf, client_init_packet, rlen) != 0) {
+        printf("Message content incorrect\n");
         goto out;
     }
 
@@ -240,7 +271,7 @@ int QuicPktFormatTestServer(void)
     }
 
     if (quic->initial.decrypt.pkt_num != 2) {
-        printf("PKT number incorrect\n");
+        printf("PKT number incorrect, %lu\n", quic->initial.decrypt.pkt_num);
         goto out;
     }
 

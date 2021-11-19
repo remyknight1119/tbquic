@@ -161,20 +161,23 @@ void QuicCryptoFree(QuicCrypto *c)
 
 void QuicFree(QUIC *quic)
 {
+    QuicMemFree(quic->dcid.data);
+    QuicMemFree(quic->scid.data);
+
     BIO_free_all(quic->rbio);
     BIO_free_all(quic->wbio);
+
+    QuicCipherCtxFree(&quic->zero_rtt.ciphers);
+    QuicCipherCtxFree(&quic->handshake.client.ciphers);
+    QuicCipherCtxFree(&quic->handshake.server.ciphers);
+
+    QuicCryptoFree(&quic->initial);
 
     QuicBufFree(&quic->wbuffer);
     QuicBufFree(&quic->plain_buffer);
     QuicBufFree(&quic->rbuffer);
 
-    QuicMemFree(quic->dcid.data);
-    QuicMemFree(quic->scid.data);
-
-    QuicCryptoFree(&quic->initial);
-    QuicCipherCtxFree(&quic->zero_rtt.ciphers);
-    QuicCipherCtxFree(&quic->handshake.client.ciphers);
-    QuicCipherCtxFree(&quic->handshake.server.ciphers);
+    QuicTlsFree(&quic->tls);
 
     QuicMemFree(quic);
 }

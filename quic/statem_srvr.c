@@ -24,9 +24,7 @@ static QuicStateMachine server_statem[QUIC_STATEM_MAX] = {
 
 static int QuicServerReadyRead(QUIC *quic)
 {
-    RPacket pkt = {};
-
-    if (QuicStreamRead(quic, &pkt) < 0) {
+    if (QuicStreamRead(quic) < 0) {
         return -1;
     }
 

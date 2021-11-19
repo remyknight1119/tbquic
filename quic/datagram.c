@@ -6,7 +6,7 @@
 
 #include "quic_local.h"
 
-int QuicReadBytes(QUIC *quic)
+int QuicDatagramRecv(QUIC *quic)
 {
     QUIC_BUFFER *qbuf = NULL;
     int read_bytes = 0;
@@ -21,5 +21,24 @@ int QuicReadBytes(QUIC *quic)
         qbuf->data_len = read_bytes;
     }
 
-    return read_bytes;
+    return 0;
+}
+
+int QuicDatagramSend(QUIC *quic)
+{
+    QUIC_BUFFER *qbuf = NULL;
+    int write_bytes = 0;
+
+    if (quic->wbio == NULL) {
+        return -1;
+    }
+
+    qbuf = &quic->wbuffer;
+    write_bytes = BIO_write(quic->wbio, qbuf->buf->data, qbuf->data_len);
+    if (write_bytes < 0 || write_bytes < qbuf->data_len) {
+        return -1;
+    }
+
+    qbuf->data_len = 0;
+    return 0;
 }

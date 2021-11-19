@@ -41,7 +41,7 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
 
 static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt)
 {
-    QUIC_BUFFER *buf = &quic->wbuffer;
+    QUIC_BUFFER *buf = &quic->tls.buffer;
     uint8_t *data = NULL;
     uint64_t offset = 0;
     uint64_t length = 0;

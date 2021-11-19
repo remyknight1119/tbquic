@@ -15,10 +15,16 @@
 
 #define QUIC_VERSION_1      0x01
 
-#define QUIC_BUFFER_HEAD(buffer) buffer.buf->data
-#define QUIC_R_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->rbuffer)
-#define QUIC_P_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->plain_buffer)
-#define QUIC_W_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(quic->wbuffer)
+#define QUIC_BUFFER_HEAD(buffer) (uint8_t *)((buffer)->buf->data)
+#define QUIC_R_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(&quic->rbuffer)
+#define QUIC_P_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(&quic->plain_buffer)
+#define QUIC_W_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(&quic->wbuffer)
+
+#define QUIC_BUFFER_DATA_LEN(buffer) (buffer)->data_len
+#define QUIC_R_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->rbuffer)
+#define QUIC_P_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->plain_buffer)
+#define QUIC_W_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->wbuffer)
+
 
 #define QUIC_IS_SERVER(q) (q->quic_server)
 

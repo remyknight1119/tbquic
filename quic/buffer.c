@@ -55,6 +55,13 @@ size_t QuicBufLength(QUIC_BUFFER *qbuf)
     return qbuf->buf->length;
 }
 
+size_t QuicBufDataLength(QUIC_BUFFER *qbuf)
+{
+    assert(qbuf->buf != NULL);
+
+    return qbuf->data_len;
+}
+
 void QuicBufClear(QUIC_BUFFER *qbuf)
 {
     qbuf->data_len = 0;

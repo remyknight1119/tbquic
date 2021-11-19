@@ -4,8 +4,6 @@
 #include <stddef.h>
 #include <tbquic/types.h>
 
-#include "packet_local.h"
-
 typedef enum {
 	QUIC_STATEM_READY = 0,
 	QUIC_STATEM_INITIAL_SENT,
@@ -31,6 +29,6 @@ typedef struct {
 int QuicStateMachineAct(QUIC *, QuicStateMachine *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
-int QuicStreamRead(QUIC *, RPacket *);
+int QuicStreamRead(QUIC *);
 
 #endif

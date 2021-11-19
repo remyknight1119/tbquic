@@ -9,12 +9,18 @@
 
 #define DEFAULT_BUF_SIZE    256
 
+void RPacketHeadSync(RPacket *pkt)
+{
+    pkt->head = pkt->curr;
+}
+
 void RPacketBufInit(RPacket *pkt, const uint8_t *buf, size_t len)
 {
-    pkt->head = buf;
     pkt->curr = buf;
     pkt->total_len = len;
     pkt->remaining = len;
+
+    RPacketHeadSync(pkt);
 }
 
 void RPacketForward(RPacket *pkt, size_t len)
@@ -226,6 +232,11 @@ int WPacket_get_space(WPacket *pkt)
     return (int)(pkt->maxsize - pkt->written);
 }
 
+size_t WPacket_get_written(WPacket *pkt)
+{
+    return pkt->written;
+}
+
 int WPacketReserveBytes(WPacket *pkt, size_t len, uint8_t **allocbytes)
 {
     if (pkt->maxsize - pkt->written < len) {
@@ -288,7 +299,30 @@ int WPacketMemcpy(WPacket *pkt, const void *src, size_t len)
 
     memcpy(dest, src, len);
 
-    return 1;
+    return 0;
+}
+
+int WPacketMemmove(WPacket *pkt, const void *src, size_t len)
+{
+    uint8_t *dest;
+
+    if (src == NULL) {
+        return -1;
+    }
+
+    if (len == 0) {
+        return 0;
+    }
+
+    if (WPacketAllocateBytes(pkt, len, &dest) < 0) {
+        return -1;
+    }
+
+    if (dest != src) {
+        memmove(dest, src, len);
+    }
+
+    return 0;
 }
 
 /* Store the |value| of length |len| at location |data| */

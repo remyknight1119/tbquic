@@ -37,3 +37,7 @@ void *QuicMemDup(const void *ptr, size_t size)
     return m;
 }
 
+void *QuicMemmove(void *dest, const void *src, size_t n)
+{
+    return memmove(dest, src, n);
+}

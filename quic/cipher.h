@@ -21,6 +21,12 @@ typedef struct {
 } QuicHPCipher;
 
 typedef struct {
+    int nid;
+    uint32_t tag_len;
+    size_t (*get_cipher_len)(size_t, size_t);
+} QuicCipherSuite;
+
+typedef struct {
     QUIC_CIPHER   cipher;  /**< Packet protection cipher. */
     uint8_t       iv[TLS13_AEAD_NONCE_LENGTH];
 } QuicPPCipher;
@@ -33,7 +39,9 @@ struct QuicCiphers {
 int QuicCreateInitialDecoders(QUIC *, uint32_t);
 void QuicCipherCtxFree(QUIC_CIPHERS *);
 int QuicCipherNidFind(uint32_t);
+size_t QuicCipherLenGet(uint32_t, size_t);
 int QuicCipherGetTagLen(uint32_t);
-int QuicDoCipher(QUIC_CIPHER *, uint8_t *, size_t *, const uint8_t *, size_t);
+int QuicDoCipher(QUIC_CIPHER *, uint8_t *, size_t *, size_t,
+                    const uint8_t *, size_t);
 
 #endif

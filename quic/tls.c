@@ -59,4 +59,17 @@ int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *pkt, const QuicTlsProcess *proc,
     return 0;
 }
 
+int QuicTlsInit(QUIC_TLS *tls)
+{
+    if (QuicBufInit(&tls->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+void QuicTlsFree(QUIC_TLS *tls)
+{
+    QuicBufFree(&tls->buffer);
+}
 

@@ -70,3 +70,9 @@ int QUIC_EVP_CIPHER_gcm_set_tag(EVP_CIPHER_CTX *ctx, size_t tag_len,
     return QuicEvpCipherCtxCtrl(ctx, EVP_CTRL_GCM_SET_TAG, (int)tag_len, data);
 }
 
+int QUIC_EVP_CIPHER_gcm_get_tag(EVP_CIPHER_CTX *ctx, size_t tag_len,
+                                uint8_t *data)
+{
+    return QuicEvpCipherCtxCtrl(ctx, EVP_CTRL_GCM_GET_TAG, (int)tag_len, data);
+}
+

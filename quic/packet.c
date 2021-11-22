@@ -7,6 +7,9 @@
 #include <string.h>
 #include <stdint.h>
 
+#include "common.h"
+
+#define WPACKET_BUF_MAX_LEN    65535
 #define DEFAULT_BUF_SIZE    256
 
 void RPacketHeadSync(RPacket *pkt)
@@ -217,9 +220,19 @@ int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
 void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)
 {
     pkt->buf = buf;
+    pkt->static_buf = NULL;
     pkt->curr = 0;
     pkt->written = 0;
-    pkt->maxsize = buf->length;
+    pkt->maxsize = WPACKET_BUF_MAX_LEN;
+}
+
+void WPacketStaticBufInit(WPacket *pkt, uint8_t *buf, size_t len)
+{
+    pkt->buf = NULL;
+    pkt->static_buf = buf;
+    pkt->curr = 0;
+    pkt->written = 0;
+    pkt->maxsize = len;
 }
 
 uint8_t *WPacket_get_curr(WPacket *pkt)
@@ -239,11 +252,11 @@ size_t WPacket_get_written(WPacket *pkt)
 
 int WPacketReserveBytes(WPacket *pkt, size_t len, uint8_t **allocbytes)
 {
-    if (pkt->maxsize - pkt->written < len) {
+    if (QUIC_LT(pkt->maxsize - pkt->written, len)) {
         return -1;
     }
 
-    if (pkt->buf->length - pkt->written < len) {
+    if (pkt->static_buf == NULL && pkt->buf->length - pkt->written < len) {
         size_t newlen;
         size_t reflen;
 

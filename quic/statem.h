@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <tbquic/types.h>
 
+#define QUIC_STATEM_READING(s) (s == QUIC_READING)
+#define QUIC_STATEM_WRITING(s) (s == QUIC_WRITING)
+
 typedef enum {
 	QUIC_STATEM_READY = 0,
 	QUIC_STATEM_INITIAL_SENT,

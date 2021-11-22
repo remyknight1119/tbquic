@@ -13,10 +13,11 @@
 static int QuicTlsClientHelloProcess(QUIC_TLS *, RPacket *);
 
 static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
-    [QUIC_TLS_ST_CLIENT_HELLO] = {
-        .next_state = QUIC_TLS_ST_CLIENT_KEY_EXCHANGE,
+    [QUIC_TLS_ST_SR_CLIENT_HELLO] = {
+        .rwstate = QUIC_READING,
+        .next_state = QUIC_TLS_ST_SW_SERVER_HELLO,
         .expect = CLIENT_HELLO,
-        .proc = QuicTlsClientHelloProcess,
+        .read = QuicTlsClientHelloProcess,
     },
 };
 
@@ -24,11 +25,14 @@ static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
 
 int QuicTlsAccept(QUIC_TLS *tls, const uint8_t *data, size_t len)
 {
-    RPacket pkt = {};
+    RPacket rpkt = {};
+    WPacket wpkt = {};
 
-    RPacketBufInit(&pkt, data, len);
+    RPacketBufInit(&rpkt, data, len);
+    WPacketBufInit(&wpkt, tls->buffer.buf);
 
-    return QuicTlsDoProcess(tls, &pkt, server_proc, QUIC_TLS_SERVER_PROC_NUM);
+    return QuicTlsDoProcess(tls, &rpkt, &wpkt, server_proc,
+                            QUIC_TLS_SERVER_PROC_NUM);
 }
 
 static int QuicTlsClientHelloProcess(QUIC_TLS *tls, RPacket *pkt)
@@ -61,7 +65,7 @@ static int QuicTlsClientHelloProcess(QUIC_TLS *tls, RPacket *pkt)
 int QuicTlsServerInit(QUIC_TLS *tls)
 {
     tls->handshake = QuicTlsAccept;
-    tls->state = QUIC_TLS_ST_CLIENT_HELLO;
+    tls->handshake_state = QUIC_TLS_ST_SR_CLIENT_HELLO;
     tls->server = 1;
 
     return QuicTlsInit(tls);

@@ -14,6 +14,7 @@ typedef struct {
 
 typedef struct {
     BUF_MEM *buf;
+    uint8_t *static_buf;
     size_t curr;
     size_t written;
     size_t maxsize;
@@ -40,6 +41,7 @@ int RPacketPeek4(const RPacket *, uint32_t *);
 int RPacketGet4(RPacket *, uint32_t *);
 int RPacketTransfer(RPacket *, RPacket *, size_t);
 void WPacketBufInit(WPacket *, BUF_MEM *);
+void WPacketStaticBufInit(WPacket *, uint8_t *, size_t);
 uint8_t *WPacket_get_curr(WPacket *);
 int WPacket_get_space(WPacket *);
 size_t WPacket_get_written(WPacket *);

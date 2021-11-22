@@ -41,6 +41,7 @@ static int QuicCidGen(QUIC_DATA *cid, size_t len)
 static int QuicClientInitialSend(QUIC *quic)
 {
     QUIC_DATA *cid = NULL;
+    QUIC_BUFFER *rbuffer = NULL;
     QUIC_BUFFER *wbuffer = NULL;
     WPacket pkt = {};
 
@@ -50,6 +51,12 @@ static int QuicClientInitialSend(QUIC *quic)
     }
 
     if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
+        return -1;
+    }
+
+    rbuffer = &quic->rbuffer;
+    if (QuicTlsDoHandshake(&quic->tls, QuicBufData(rbuffer),
+                QuicBufDataLength(rbuffer)) < 0) {
         return -1;
     }
 

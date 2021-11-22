@@ -25,8 +25,11 @@
 #define QUIC_P_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->plain_buffer)
 #define QUIC_W_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->wbuffer)
 
+#define QUIC_FRAME_BUFFER(quic) (&quic->plain_buffer)
 
 #define QUIC_IS_SERVER(q) (q->quic_server)
+#define QUIC_IS_READING(q) QUIC_STATEM_READING(q->rwstate)
+#define QUIC_IS_WRITNG(q) QUIC_STATEM_WRITNG(q->rwstate)
 
 struct QuicMethod {
     uint32_t version;

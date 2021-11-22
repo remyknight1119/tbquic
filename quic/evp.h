@@ -14,5 +14,6 @@ int QuicEvpCipherFinal(EVP_CIPHER_CTX *, uint8_t *, size_t *);
 int QuicEvpCipher(EVP_CIPHER_CTX *, uint8_t *, const uint8_t *, size_t);
 int QUIC_EVP_CIPHER_set_iv_len(EVP_CIPHER_CTX *, size_t);
 int QUIC_EVP_CIPHER_gcm_set_tag(EVP_CIPHER_CTX *, size_t, uint8_t *);
+int QUIC_EVP_CIPHER_gcm_get_tag(EVP_CIPHER_CTX *, size_t, uint8_t *);
 
 #endif

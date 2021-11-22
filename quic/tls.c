@@ -17,21 +17,25 @@ int QuicTlsDoHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len)
     return tls->handshake(tls, data, len);
 }
 
-int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *pkt, const QuicTlsProcess *proc,
-                        size_t num)
+int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
+                        const QuicTlsProcess *proc, size_t num)
 {
     const QuicTlsProcess *p = NULL;
     QuicTlsState state = 0;
     uint32_t type = 0;
 
-    while (RPacketGet1(pkt, &type) >= 0) {
-        state = tls->state;
+    state = tls->handshake_state;
+    assert(state >= 0 && state < num);
+    p = &proc[state];
 
-        assert(state >= QUIC_TLS_ST_OK && state < QUIC_TLS_ST_MAX);
+    while (QUIC_STATEM_READING(p->rwstate)) {
+        tls->rwstate = p->rwstate;
+        if (RPacketGet1(rpkt, &type) < 0) {
+            return -1;
+        }
 
-        p = &proc[state];
-        if (p->proc == NULL) {
-            QUIC_LOG("No proc found\n");
+        if (p->read == NULL) {
+            QUIC_LOG("No read func found\n");
             return -1;
         }
 
@@ -40,22 +44,51 @@ int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *pkt, const QuicTlsProcess *proc,
             return -1;
         }
 
-        if (type >= num) {
-            QUIC_LOG("type invalid\n");
-            return -1;
-        }
-
-        if (p->proc(tls, pkt) < 0) {
+        state = tls->handshake_state;
+        if (p->read(tls, rpkt) < 0) {
             QUIC_LOG("Proc failed\n");
             return -1;
         }
 
         /* If proc not assign next_state, use default */
-        if (state == tls->state) {
-            tls->state = p->next_state;
+        if (state == tls->handshake_state) {
+            tls->handshake_state = p->next_state;
         }
+
+        state = tls->handshake_state;
+        assert(state >= 0 && state < num);
+        p = &proc[state];
     }
 
+    while (QUIC_STATEM_WRITING(p->rwstate)) {
+        tls->rwstate = p->rwstate;
+        if (p->write == NULL) {
+            QUIC_LOG("No write func found\n");
+            return -1;
+        }
+
+        state = tls->handshake_state;
+        if (p->write(tls, wpkt) < 0) {
+            QUIC_LOG("Proc failed\n");
+            return -1;
+        }
+
+        /* If proc not assign next_state, use default */
+        if (state == tls->handshake_state) {
+            tls->handshake_state = p->next_state;
+        }
+
+        state = tls->handshake_state;
+        assert(state >= 0 && state < num);
+        p = &proc[state];
+    }
+
+    return 0;
+}
+
+int QuicTlsBuildMessage(QUIC_TLS *tls, WPacket *pkt, const QuicTlsBuild *b,
+                        size_t b_num)
+{
     return 0;
 }
 

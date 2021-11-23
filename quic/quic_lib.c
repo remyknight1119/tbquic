@@ -43,7 +43,7 @@ static int QUIC_set_cipher_alg(QUIC_CIPHER *cipher, uint32_t alg)
         return -1;
     }
 
-    cipher->cipher_alg = alg;
+    cipher->alg = alg;
     return 0;
 }
 

@@ -198,6 +198,7 @@ static int QuicVariableLengthValueEncode(uint8_t *buf, size_t blen,
     return len;
 }
 
+
 int QuicVariableLengthEncode(uint8_t *buf, size_t blen, uint64_t length)
 {
     uint8_t prefix = 0;
@@ -503,7 +504,7 @@ static int QuicDecryptMessage(QuicPPCipher *cipher, uint8_t *out, size_t *outl,
         return -1;
     }
 
-    tag_len = QuicCipherGetTagLen(c->cipher_alg);
+    tag_len = QuicCipherGetTagLen(c->alg);
     if (tag_len < 0) {
         QUIC_LOG("Get tag len failed\n");
         return -1;
@@ -560,7 +561,7 @@ static int QuicEncryptMessage(QuicPPCipher *cipher, uint8_t *out, size_t *outl,
         return -1;
     }
 
-    tag_len = QuicCipherGetTagLen(c->cipher_alg);
+    tag_len = QuicCipherGetTagLen(c->alg);
     if (tag_len < 0) {
         QUIC_LOG("Get tag len failed\n");
         return -1;
@@ -723,6 +724,21 @@ static int QuicRetryPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     return 0;
 }
 
+int QuicVariableLengthWrite(WPacket *pkt, uint64_t len)
+{
+    uint64_t var_len = 0;
+    int wlen = 0;
+
+    wlen = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
+    if (wlen < 0) {
+        return -1;
+    }
+
+    assert(wlen <= QUIC_VARIABLE_LEN_MAX_SIZE);
+
+    return WPacketMemcpy(pkt, &var_len, wlen);
+}
+
 static int QuicCidPut(QUIC_DATA *cid, WPacket *pkt)
 {
     if (WPacketPut1(pkt, cid->len) < 0) {
@@ -738,24 +754,11 @@ static int QuicCidPut(QUIC_DATA *cid, WPacket *pkt)
 
 static int QuicTokenPut(QUIC_DATA *token, WPacket *pkt)
 {
-    int len = 0;
-    int blen = 0;
-
     if (token->len == 0) {
         return WPacketPut1(pkt, 0);
     }
 
-    blen = WPacket_get_space(pkt);
-    if (blen <= 0) {
-        return -1;
-    }
-
-    len = QuicVariableLengthEncode(WPacket_get_curr(pkt), blen, token->len);
-    if (len <= 0) {
-        return -1;
-    }
-
-    if (WPacketAllocateBytes(pkt, len, NULL) < 0) {
+    if (QuicVariableLengthWrite(pkt, token->len) < 0) {
         return -1;
     }
 
@@ -830,8 +833,8 @@ static size_t QuicGetEncryptedFrameLen(QUIC *quic, QuicPPCipher *pp_cipher)
         QuicEncryptFrameHook(frame_buffer);
     }
 #endif
-    return QuicCipherLenGet(pp_cipher->cipher.cipher_alg,
-                        QuicBufDataLength(frame_buffer));
+    return QuicCipherLenGet(pp_cipher->cipher.alg,
+                QuicBufDataLength(frame_buffer));
 }
 
 int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
@@ -842,12 +845,10 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
     uint8_t *pkt_num_start = NULL;
     uint8_t *dest = NULL;
     size_t cipher_len = 0;
-    uint64_t var_len = 0;
+    uint64_t len = 0;
     uint32_t pkt_num = 0;
-    uint32_t len = 0;
     uint8_t pkt_num_len = quic->pkt_num_len + 1;
     int offset = 0;
-    int wlen = 0;
 
     if (QuicLHeaderGen(quic, &first_byte, pkt, QUIC_LPACKET_TYPE_INITIAL,
                 pkt_num_len) < 0) {
@@ -872,14 +873,7 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
     }
 
     len = cipher_len + pkt_num_len;
-    wlen = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
-    if (wlen < 0) {
-        return -1;
-    }
-
-    assert(wlen <= QUIC_VARIABLE_LEN_MAX_SIZE);
-
-    if (WPacketMemcpy(pkt, &var_len, wlen) < 0) {
+    if (QuicVariableLengthWrite(pkt, len) < 0) {
         return -1;
     }
 
@@ -906,4 +900,21 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
                             QUIC_LPACKET_TYPE_RESV_MASK);
 }
 
+int QuicInitialFrameBuild(QUIC *quic)
+{
+    QUIC_BUFFER *frame_buffer = QUIC_FRAME_BUFFER(quic);
+    WPacket pkt = {};
 
+    WPacketBufInit(&pkt, frame_buffer->buf);
+
+    if (QuicFramePingBuild(&pkt) < 0) {
+        return -1;
+    }
+
+    if (QuicFrameCryptoBuild(quic, &pkt) < 0) {
+        return -1;
+    }
+
+    frame_buffer->data_len = WPacket_get_written(&pkt);
+    return 0;
+}

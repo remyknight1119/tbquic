@@ -26,6 +26,7 @@
 #define QUIC_W_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->wbuffer)
 
 #define QUIC_FRAME_BUFFER(quic) (&quic->plain_buffer)
+#define QUIC_TLS_BUFFER(quic) (&quic->tls.buffer)
 
 #define QUIC_IS_SERVER(q) (q->quic_server)
 #define QUIC_IS_READING(q) QUIC_STATEM_READING(q->rwstate)

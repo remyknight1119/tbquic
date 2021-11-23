@@ -46,6 +46,7 @@ uint8_t *WPacket_get_curr(WPacket *);
 int WPacket_get_space(WPacket *);
 size_t WPacket_get_written(WPacket *);
 int WPacketAllocateBytes(WPacket *, size_t, uint8_t **);
+int WPacketPutValue(uint8_t *, size_t, size_t);
 int WPacketPutBytes(WPacket *, uint32_t, size_t);
 int WPacketPut1(WPacket *, uint32_t);
 int WPacketPut2(WPacket *, uint32_t);

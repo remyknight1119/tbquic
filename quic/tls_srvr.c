@@ -10,14 +10,22 @@
 #include "packet_local.h"
 #include "common.h"
 
-static int QuicTlsClientHelloProcess(QUIC_TLS *, RPacket *);
+static int QuicTlsClientHelloProcess(QUIC_TLS *, void *);
 
 static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
+    [QUIC_TLS_ST_OK] = {
+        .rwstate = QUIC_NOTHING,
+        .next_state = QUIC_TLS_ST_SR_CLIENT_HELLO,
+    },
     [QUIC_TLS_ST_SR_CLIENT_HELLO] = {
         .rwstate = QUIC_READING,
         .next_state = QUIC_TLS_ST_SW_SERVER_HELLO,
         .expect = CLIENT_HELLO,
-        .read = QuicTlsClientHelloProcess,
+        .handler = QuicTlsClientHelloProcess,
+    },
+    [QUIC_TLS_ST_SW_SERVER_HELLO] = {
+        .rwstate = QUIC_WRITING,
+        .next_state = QUIC_TLS_ST_SW_SERVER_CERTIFICATE,
     },
 };
 
@@ -25,18 +33,13 @@ static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
 
 int QuicTlsAccept(QUIC_TLS *tls, const uint8_t *data, size_t len)
 {
-    RPacket rpkt = {};
-    WPacket wpkt = {};
-
-    RPacketBufInit(&rpkt, data, len);
-    WPacketBufInit(&wpkt, tls->buffer.buf);
-
-    return QuicTlsDoProcess(tls, &rpkt, &wpkt, server_proc,
+    return QuicTlsHandshake(tls, data, len, server_proc,
                             QUIC_TLS_SERVER_PROC_NUM);
 }
 
-static int QuicTlsClientHelloProcess(QUIC_TLS *tls, RPacket *pkt)
+static int QuicTlsClientHelloProcess(QUIC_TLS *tls, void *packet)
 {
+    RPacket *pkt = packet;
     RPacket msg = {};
     uint32_t len = 0;
     uint32_t legacy_version = 0;
@@ -65,7 +68,6 @@ static int QuicTlsClientHelloProcess(QUIC_TLS *tls, RPacket *pkt)
 int QuicTlsServerInit(QUIC_TLS *tls)
 {
     tls->handshake = QuicTlsAccept;
-    tls->handshake_state = QUIC_TLS_ST_SR_CLIENT_HELLO;
     tls->server = 1;
 
     return QuicTlsInit(tls);

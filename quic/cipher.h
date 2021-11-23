@@ -10,8 +10,15 @@
 #define TLS13_AEAD_NONCE_LENGTH     12
 #define AES_KEY_MAX_SIZE    32
 
+enum {
+    QUIC_DIGEST_SHA256,
+    QUIC_DIGEST_SHA384,
+    QUIC_DIGEST_MAX,
+};
+
+
 struct QuicCipher {
-    uint32_t cipher_alg;
+    uint32_t alg;
     int enc;
     EVP_CIPHER_CTX *ctx;
 };

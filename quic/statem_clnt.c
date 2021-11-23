@@ -12,6 +12,7 @@
 #include "common.h"
 #include "datagram.h"
 #include "mem.h"
+#include "rand.h"
 #include "log.h"
 
 static int QuicClientInitialSend(QUIC *);
@@ -32,7 +33,7 @@ static int QuicCidGen(QUIC_DATA *cid, size_t len)
         return -1;
     }
 
-    RAND_bytes(cid->data, len);
+    QuicRandBytes(cid->data, len);
     cid->len = len;
 
     return 0;
@@ -57,6 +58,12 @@ static int QuicClientInitialSend(QUIC *quic)
     rbuffer = &quic->rbuffer;
     if (QuicTlsDoHandshake(&quic->tls, QuicBufData(rbuffer),
                 QuicBufDataLength(rbuffer)) < 0) {
+        QUIC_LOG("TLS handshake failed\n");
+        return -1;
+    }
+
+    if (QuicInitialFrameBuild(quic) < 0) {
+        QUIC_LOG("Initial frame build failed\n");
         return -1;
     }
 

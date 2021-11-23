@@ -73,9 +73,11 @@ struct LPacketHeader {
 int QuicPacketParse(QUIC *, RPacket *, uint8_t);
 int QuicVariableLengthEncode(uint8_t *, size_t , uint64_t);
 int QuicVariableLengthDecode(RPacket *, uint64_t *);
+int QuicVariableLengthWrite(WPacket *, uint64_t);
 uint32_t QuicPktNumberEncode(uint64_t, uint64_t, uint8_t);
 uint64_t QuicPktNumberDecode(uint64_t, uint32_t, uint8_t);
 int QuicInitialPacketGen(QUIC *, WPacket *);
+int QuicInitialFrameBuild(QUIC *);
 
 #ifdef QUIC_TEST
 extern void (*QuicEncryptFrameHook)(QUIC_BUFFER *buffer);

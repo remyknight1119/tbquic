@@ -235,7 +235,7 @@ static int QuicHPCipherPrepare(QuicHPCipher *cipher, const EVP_MD *md,
     static const uint8_t quic_hp_label[] = "quic hp";
     int key_len = 0;
 
-    c = QuicFindCipherByAlg(cipher->cipher.cipher_alg);
+    c = QuicFindCipherByAlg(cipher->cipher.alg);
     if (c == NULL) {
         return -1;
     }
@@ -265,7 +265,7 @@ static int QuicPPCipherPrepare(QuicPPCipher *cipher, const EVP_MD *md,
     static const uint8_t quic_iv_label[] = "quic iv";
     int key_len = 0;
 
-    c = QuicFindCipherByAlg(cipher->cipher.cipher_alg);
+    c = QuicFindCipherByAlg(cipher->cipher.alg);
     if (c == NULL) {
         return -1;
     }

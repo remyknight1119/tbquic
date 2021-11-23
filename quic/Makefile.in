@@ -135,7 +135,7 @@ am_libtbquic_la_OBJECTS = core.lo quic_lib.lo mem.lo statem_clnt.lo \
 	statem_srvr.lo methods.lo statem.lo datagram.lo packet.lo \
 	statem_lib.lo packet_format.lo cipher.lo crypto.lo evp.lo \
 	frame.lo buffer.lo cert_and_key.lo tls.lo tls_clnt.lo \
-	tls_srvr.lo
+	tls_srvr.lo rand_lib.lo tls_cipher.lo
 libtbquic_la_OBJECTS = $(am_libtbquic_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -166,9 +166,10 @@ am__depfiles_remade = ./$(DEPDIR)/buffer.Plo \
 	./$(DEPDIR)/frame.Plo ./$(DEPDIR)/mem.Plo \
 	./$(DEPDIR)/methods.Plo ./$(DEPDIR)/packet.Plo \
 	./$(DEPDIR)/packet_format.Plo ./$(DEPDIR)/quic_lib.Plo \
-	./$(DEPDIR)/statem.Plo ./$(DEPDIR)/statem_clnt.Plo \
-	./$(DEPDIR)/statem_lib.Plo ./$(DEPDIR)/statem_srvr.Plo \
-	./$(DEPDIR)/tls.Plo ./$(DEPDIR)/tls_clnt.Plo \
+	./$(DEPDIR)/rand_lib.Plo ./$(DEPDIR)/statem.Plo \
+	./$(DEPDIR)/statem_clnt.Plo ./$(DEPDIR)/statem_lib.Plo \
+	./$(DEPDIR)/statem_srvr.Plo ./$(DEPDIR)/tls.Plo \
+	./$(DEPDIR)/tls_cipher.Plo ./$(DEPDIR)/tls_clnt.Plo \
 	./$(DEPDIR)/tls_srvr.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -337,7 +338,8 @@ lib_LTLIBRARIES = libtbquic.la
 libtbquic_la_SOURCES = core.c quic_lib.c mem.c statem_clnt.c statem_srvr.c \
 						methods.c statem.c datagram.c packet.c statem_lib.c \
 						packet_format.c cipher.c crypto.c evp.c frame.c \
-						buffer.c cert_and_key.c tls.c tls_clnt.c tls_srvr.c
+						buffer.c cert_and_key.c tls.c tls_clnt.c tls_srvr.c \
+						rand_lib.c tls_cipher.c
 
 libtbquic_la_LDFLAGS = -version-info 1
 AM_CPPFLAGS = -I$(srcdir)/../include -DQUIC_TEST
@@ -434,11 +436,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/packet.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/packet_format.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_lib.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rand_lib.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_clnt.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_lib.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_srvr.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls_cipher.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls_clnt.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls_srvr.Plo@am__quote@ # am--include-marker
 
@@ -619,11 +623,13 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/packet.Plo
 	-rm -f ./$(DEPDIR)/packet_format.Plo
 	-rm -f ./$(DEPDIR)/quic_lib.Plo
+	-rm -f ./$(DEPDIR)/rand_lib.Plo
 	-rm -f ./$(DEPDIR)/statem.Plo
 	-rm -f ./$(DEPDIR)/statem_clnt.Plo
 	-rm -f ./$(DEPDIR)/statem_lib.Plo
 	-rm -f ./$(DEPDIR)/statem_srvr.Plo
 	-rm -f ./$(DEPDIR)/tls.Plo
+	-rm -f ./$(DEPDIR)/tls_cipher.Plo
 	-rm -f ./$(DEPDIR)/tls_clnt.Plo
 	-rm -f ./$(DEPDIR)/tls_srvr.Plo
 	-rm -f Makefile
@@ -684,11 +690,13 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/packet.Plo
 	-rm -f ./$(DEPDIR)/packet_format.Plo
 	-rm -f ./$(DEPDIR)/quic_lib.Plo
+	-rm -f ./$(DEPDIR)/rand_lib.Plo
 	-rm -f ./$(DEPDIR)/statem.Plo
 	-rm -f ./$(DEPDIR)/statem_clnt.Plo
 	-rm -f ./$(DEPDIR)/statem_lib.Plo
 	-rm -f ./$(DEPDIR)/statem_srvr.Plo
 	-rm -f ./$(DEPDIR)/tls.Plo
+	-rm -f ./$(DEPDIR)/tls_cipher.Plo
 	-rm -f ./$(DEPDIR)/tls_clnt.Plo
 	-rm -f ./$(DEPDIR)/tls_srvr.Plo
 	-rm -f Makefile

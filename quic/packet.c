@@ -339,7 +339,7 @@ int WPacketMemmove(WPacket *pkt, const void *src, size_t len)
 }
 
 /* Store the |value| of length |len| at location |data| */
-static int WPacketPutValue(uint8_t *data, size_t value, size_t len)
+int WPacketPutValue(uint8_t *data, size_t value, size_t len)
 {
     for (data += len - 1; len > 0; len--) {
         *data = (uint8_t)(value & 0xFF);

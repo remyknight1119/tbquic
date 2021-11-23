@@ -170,7 +170,7 @@ int QuicPktFormatTestClient(void)
     ret = QuicDoHandshake(quic);
     quic->dcid.data = NULL;
     if (ret < 0) {
-        printf("Do Handshake failed\n");
+        printf("Do Client Handshake failed\n");
         goto out;
     }
 
@@ -254,7 +254,7 @@ int QuicPktFormatTestServer(void)
 
     ret = QuicDoHandshake(quic);
     if (ret < 0) {
-        printf("Do Handshake failed\n");
+        printf("Do Server Handshake failed\n");
         goto out;
     }
 

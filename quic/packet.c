@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdint.h>
 
+#include "mem.h"
 #include "common.h"
 
 #define WPACKET_BUF_MAX_LEN    65535
@@ -385,13 +386,21 @@ int WPacketPut4(WPacket *pkt, uint32_t val)
 
 static int WPacketStartSubBytes(WPacket *pkt, size_t len)
 {
-    assert(pkt->sub_buf == NULL);
+    WPACKET_SUB *sub = NULL;
 
-    if (WPacketAllocateBytes(pkt, len, &pkt->sub_buf) < 0) {
+    sub = QuicMemCalloc(sizeof(*sub));
+    if (sub == NULL) {
+        return -1;
+    }
+
+    sub->parent = pkt->subs;
+    pkt->subs = sub;
+
+    if (WPacketAllocateBytes(pkt, len, &sub->value) < 0) {
         return -1;
     }
     
-    pkt->sub_len = len;
+    sub->val_len = len;
     return 0;
 }
 
@@ -417,22 +426,35 @@ int WPacketStartSubU32(WPacket *pkt)
 
 int WPacketClose(WPacket *pkt)
 {
+    WPACKET_SUB *sub = NULL;
     size_t data_len = 0;
 
-    if (pkt->sub_buf == NULL) {
+    sub = pkt->subs;
+    if (sub == NULL) {
         return -1;
     }
 
-    data_len = WPacket_get_curr(pkt) - pkt->sub_buf - pkt->sub_len;
+    data_len = WPacket_get_curr(pkt) - sub->value - sub->val_len;
     assert(QUIC_GE(data_len, 0));
 
-    if (WPacketPutValue(pkt->sub_buf, data_len, pkt->sub_len) < 0) {
+    if (WPacketPutValue(sub->value, data_len, sub->val_len) < 0) {
         return -1;
     }
     
-    pkt->sub_buf = NULL;
-    pkt->sub_len = 0;
+    pkt->subs = sub->parent;
+    QuicMemFree(sub);
+
     return 0;
 }
 
+void WPacketCleanup(WPacket *pkt)
+{
+    WPACKET_SUB *sub = NULL;
+    WPACKET_SUB *parent = NULL;
 
+    for (sub = pkt->subs; sub != NULL; sub = parent) {
+        parent = sub->parent;
+        QuicMemFree(sub);
+    }
+    pkt->subs = NULL;
+}

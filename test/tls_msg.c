@@ -44,6 +44,7 @@ int QuicTlsClientHelloTest(void)
     QUIC_BUFFER *buffer = NULL;
     BIO *rbio = NULL;
     BIO *wbio = NULL;
+    int offset = 0;
     int case_num = -1;
     int ret = 0;
 
@@ -79,8 +80,16 @@ int QuicTlsClientHelloTest(void)
     }
 
     buffer = &quic->tls.buffer;
-    QuicPrint(QuicBufData(buffer), buffer->data_len);
-    QuicPrint(client_hello, buffer->data_len);
+
+    offset = 4;
+    if (memcmp(QuicBufData(buffer) + offset, &client_hello[offset],
+                buffer->data_len - offset) != 0) {
+        printf("ClientHello content Inconsistent!\n");
+        QuicPrint(QuicBufData(buffer) + offset, buffer->data_len - offset);
+        QuicPrint(&client_hello[offset], buffer->data_len - offset);
+        goto out;
+    }
+
     case_num = 1;
 out:
     BIO_free(rbio);

@@ -3,6 +3,8 @@
 
 #include <openssl/buffer.h>
 
+typedef struct WPacketSub WPACKET_SUB;
+
 typedef struct {
     const uint8_t *head;
     /* Pointer to where we are currently reading from */
@@ -12,14 +14,19 @@ typedef struct {
     size_t remaining;
 } RPacket;
 
+struct WPacketSub {
+    WPACKET_SUB *parent;
+    uint8_t *value;
+    size_t val_len;
+};
+
 typedef struct {
     BUF_MEM *buf;
     uint8_t *static_buf;
     size_t curr;
     size_t written;
     size_t maxsize;
-    uint8_t *sub_buf;
-    size_t sub_len;
+    WPACKET_SUB *subs;
 } WPacket;
 
 void RPacketBufInit(RPacket *, const uint8_t *, size_t);
@@ -61,5 +68,6 @@ int WPacketStartSubU16(WPacket *);
 int WPacketStartSubU24(WPacket *);
 int WPacketStartSubU32(WPacket *);
 int WPacketClose(WPacket *);
+void WPacketCleanup(WPacket *);
 
 #endif

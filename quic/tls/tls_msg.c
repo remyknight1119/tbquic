@@ -38,8 +38,6 @@ int QuicTlsGenRandom(uint8_t *random, size_t len, WPacket *pkt)
 int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
 {
     TlsCipherListNode *node = NULL;
-    uint8_t *length = NULL;
-    size_t ciphersuite_len = 0;
 
     if (QuicTlsCreateCipherList(&tls->cipher_list, TLS_CIPHERS_DEF,
                                 sizeof(TLS_CIPHERS_DEF) - 1) < 0) {
@@ -47,10 +45,9 @@ int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
         return -1;
     }
 
-    if (WPacketAllocateBytes(pkt, TLS_CIPHESUITE_LEN_SIZE, &length) < 0) {
+    if (WPacketStartSubU16(pkt) < 0) { 
         return -1;
     }
-    
 
     hlist_for_each_entry(node, &tls->cipher_list, node)	{
         assert(node->cipher != NULL);
@@ -59,8 +56,8 @@ int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
         }
     }
 
-    if (WPacketPutValue(length, ciphersuite_len, TLS_CIPHESUITE_LEN_SIZE) < 0) {
-        QUIC_LOG("Put length failed\n");
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
         return -1;
     }
 

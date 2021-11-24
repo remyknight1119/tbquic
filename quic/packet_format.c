@@ -908,13 +908,16 @@ int QuicInitialFrameBuild(QUIC *quic)
     WPacketBufInit(&pkt, frame_buffer->buf);
 
     if (QuicFramePingBuild(&pkt) < 0) {
+        WPacketCleanup(&pkt);
         return -1;
     }
 
     if (QuicFrameCryptoBuild(quic, &pkt) < 0) {
+        WPacketCleanup(&pkt);
         return -1;
     }
 
     frame_buffer->data_len = WPacket_get_written(&pkt);
+    WPacketCleanup(&pkt);
     return 0;
 }

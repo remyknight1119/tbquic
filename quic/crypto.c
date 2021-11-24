@@ -166,6 +166,7 @@ int TLS13HkdfExpandLabel(const EVP_MD *md, const uint8_t *secret,
 
     ret = 0;
 out:
+    WPacketCleanup(&pkt);
     BUF_MEM_free(buf);
     return ret;
 }

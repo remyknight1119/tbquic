@@ -71,10 +71,13 @@ static int QuicClientInitialSend(QUIC *quic)
     WPacketBufInit(&pkt, wbuffer->buf);
 
     if (QuicInitialPacketGen(quic, &pkt) < 0) {
+        WPacketCleanup(&pkt);
         return -1;
     }
 
     wbuffer->data_len = WPacket_get_written(&pkt);
+    WPacketCleanup(&pkt);
+
     if (QuicDatagramSend(quic) < 0) {
         QUIC_LOG("Send failed\n");
         return -1;

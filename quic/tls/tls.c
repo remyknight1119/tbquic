@@ -154,6 +154,7 @@ int QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
 
     ret = QuicTlsHandshakeStatem(tls, &rpkt, &wpkt, proc, num);
     buffer->data_len = WPacket_get_written(&wpkt);
+    WPacketCleanup(&wpkt);
 
     return ret;
 }

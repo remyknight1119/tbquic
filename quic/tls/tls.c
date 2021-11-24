@@ -10,6 +10,7 @@
 
 #include "packet_local.h"
 #include "quic_local.h"
+#include "tls_cipher.h"
 #include "log.h"
 
 int QuicTlsDoHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len)
@@ -17,28 +18,20 @@ int QuicTlsDoHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len)
     return tls->handshake(tls, data, len);
 }
 
-static int QuicTlsStatem(QUIC_TLS *tls, const QuicTlsProcess *p, void *pkt)
+static void QuicTlsFlowFinish(QUIC_TLS *tls, QuicTlsState prev_state,
+                                QuicTlsState next_state)
 {
-    QuicTlsState state = 0;
-
-    state = tls->handshake_state;
-    if (p->handler(tls, pkt) < 0) {
-        QUIC_LOG("Proc failed\n");
-        return -1;
-    }
-
     tls->rwstate = QUIC_FINISHED;
     /* If proc not assign next_state, use default */
-    if (state == tls->handshake_state) {
-        tls->handshake_state = p->next_state;
+    if (prev_state == tls->handshake_state) {
+        tls->handshake_state = next_state;
     }
-
-    return 0;
 }
 
-static int QuicReadProcess(QUIC_TLS *tls, const QuicTlsProcess *p,
+static int QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p,
                             RPacket *pkt)
 {
+    QuicTlsState state = 0;
     uint32_t type = 0;
 
     tls->rwstate = p->rwstate;
@@ -51,28 +44,59 @@ static int QuicReadProcess(QUIC_TLS *tls, const QuicTlsProcess *p,
         return -1;
     }
 
-    if (type != p->expect) {
+    if (type != p->handshake_type) {
         QUIC_LOG("type not match\n");
         return -1;
     }
 
-    return QuicTlsStatem(tls, p, pkt);
+    state = tls->handshake_state;
+    if (p->handler(tls, pkt) < 0) {
+        QUIC_LOG("Proc failed\n");
+        return -1;
+    }
+
+    QuicTlsFlowFinish(tls, state, p->next_state);
+    return 0;
 }
 
-static int QuicWriteProcess(QUIC_TLS *tls, const QuicTlsProcess *p,
+static int QuicTlsHandshakeWrite(QUIC_TLS *tls, const QuicTlsProcess *p,
                             WPacket *pkt)
 {
+    QuicTlsState state = 0;
+
     tls->rwstate = p->rwstate;
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
         return -1;
     }
 
-    return QuicTlsStatem(tls, p, pkt);
+    if (WPacketPut1(pkt, p->handshake_type) < 0) {
+        QUIC_LOG("Put handshake type failed\n");
+        return -1;
+    }
+
+    /* TLS handshake message length 3 byte */
+    if (WPacketStartSubU24(pkt) < 0) { 
+        return -1;
+    }
+ 
+    state = tls->handshake_state;
+    if (p->handler(tls, pkt) < 0) {
+        QUIC_LOG("Proc failed\n");
+        return -1;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return -1;
+    }
+
+    QuicTlsFlowFinish(tls, state, p->next_state);
+    return 0;
 }
 
-int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
-                        const QuicTlsProcess *proc, size_t num)
+static int QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
+                                    const QuicTlsProcess *proc, size_t num)
 {
     const QuicTlsProcess *p = NULL;
     QuicTlsState state = 0;
@@ -91,7 +115,7 @@ int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
                     QUIC_LOG("No handler func found\n");
                     return 0;
                 }
-                if (QuicReadProcess(tls, p, rpkt) < 0) {
+                if (QuicTlsHandshakeRead(tls, p, rpkt) < 0) {
                     return -1;
                 }
                 break;
@@ -100,7 +124,7 @@ int QuicTlsDoProcess(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
                     QUIC_LOG("No handler func found\n");
                     return 0;
                 }
-                if (QuicWriteProcess(tls, p, wpkt) < 0) {
+                if (QuicTlsHandshakeWrite(tls, p, wpkt) < 0) {
                     return -1;
                 }
 
@@ -128,7 +152,7 @@ int QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
     RPacketBufInit(&rpkt, data, len);
     WPacketBufInit(&wpkt, buffer->buf);
 
-    ret = QuicTlsDoProcess(tls, &rpkt, &wpkt, proc, num);
+    ret = QuicTlsHandshakeStatem(tls, &rpkt, &wpkt, proc, num);
     buffer->data_len = WPacket_get_written(&wpkt);
 
     return ret;
@@ -141,11 +165,13 @@ int QuicTlsInit(QUIC_TLS *tls)
         return -1;
     }
 
+    INIT_HLIST_HEAD(&tls->cipher_list);
     return 0;
 }
 
 void QuicTlsFree(QUIC_TLS *tls)
 {
+    QuicTlsDestroyCipherList(&tls->cipher_list);
     QuicBufFree(&tls->buffer);
 }
 

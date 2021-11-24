@@ -8,8 +8,8 @@
 #include <tbquic/quic.h>
 
 #include "packet_local.h"
-#include "rand.h"
 #include "common.h"
+#include "tls_cipher.h"
 #include "log.h"
 
 static int QuicTlsClientHelloBuild(QUIC_TLS *, void *);
@@ -23,11 +23,12 @@ static const QuicTlsProcess client_proc[HANDSHAKE_MAX] = {
         .rwstate = QUIC_WRITING,
         .next_state = QUIC_TLS_ST_CR_SERVER_HELLO,
         .handler = QuicTlsClientHelloBuild,
+        .handshake_type = CLIENT_HELLO,
     },
     [QUIC_TLS_ST_CR_SERVER_HELLO] = {
         .rwstate = QUIC_READING,
         .next_state = QUIC_TLS_ST_SW_SERVER_HELLO,
-        .expect = SERVER_HELLO,
+        .handshake_type = SERVER_HELLO,
     },
 };
 
@@ -41,32 +42,16 @@ int QuicTlsConnect(QUIC_TLS *tls, const uint8_t *data, size_t len)
 
 static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
 {
-    uint8_t *length = NULL;
     WPacket *pkt = packet;
-    size_t msg_len = 0;
 
-    if (WPacketPut1(pkt, CLIENT_HELLO) < 0) {
-        QUIC_LOG("Put ClientHello message type failed\n");
-        return -1;
-    }
-
-    if (WPacketAllocateBytes(pkt, TLS_HANDSHAKE_LEN_SIZE, &length) < 0) {
-        return -1;
-    }
-    
     if (WPacketPut2(pkt, TLS_VERSION_1_2) < 0) {
         QUIC_LOG("Put leagacy version failed\n");
         return -1;
     }
 
-    if (QuicRandBytes(tls->client_random, sizeof(tls->client_random)) < 0) {
+    if (QuicTlsGenRandom(tls->client_random, sizeof(tls->client_random),
+                            pkt) < 0) {
         QUIC_LOG("Generate Client Random failed\n");
-        return -1;
-    }
-
-    if (WPacketMemcpy(pkt, tls->client_random, sizeof(tls->client_random))
-                        < 0) {
-        QUIC_LOG("Copy Client Random failed\n");
         return -1;
     }
 
@@ -75,9 +60,23 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    msg_len = WPacket_get_written(pkt) - TLS_HANDSHAKE_LEN_SIZE - 1;
-    if (WPacketPutValue(length, msg_len, TLS_HANDSHAKE_LEN_SIZE) < 0){
-        QUIC_LOG("Put length failed\n");
+    if (QuicTlsPutCipherList(tls, pkt) < 0) {
+        QUIC_LOG("Put cipher list failed\n");
+        return -1;
+    }
+
+    if (WPacketPut1(pkt, 1) < 0) {
+        QUIC_LOG("Put compression len failed\n");
+        return -1;
+    }
+
+    if (QuicTlsPutCompressionMethod(pkt) < 0) {
+        QUIC_LOG("Put compression method failed\n");
+        return -1;
+    }
+
+    if (QuicTlsPutExtension(tls, pkt) < 0) {
+        QUIC_LOG("Put extension failed\n");
         return -1;
     }
 

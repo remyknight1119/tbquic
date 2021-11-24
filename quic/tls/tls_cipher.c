@@ -16,14 +16,10 @@
 #include "cipher.h"
 #include "mem.h"
 
-#define TLS_CIPHERS_SEP ":"
-#define TLS_CIPHERS_DEF \
-    TLS_RFC_AES_128_GCM_SHA256 TLS_CIPHERS_SEP TLS_RFC_AES_256_GCM_SHA384 \
-    TLS_CIPHERS_SEP TLS_RFC_CHACHA20_POLY1305_SHA256
 
 #define TLS_CIPHER_DEF_IDS_NUM  QUIC_ARRAY_SIZE(tls_cipher_def_ids)
 
-static TlsCipher tls_ciphers[] = {
+static const TlsCipher tls_ciphers[] = {
     {
         .name = TLS_RFC_AES_128_GCM_SHA256,
         .id = TLS_CK_AES_128_GCM_SHA256,
@@ -68,9 +64,9 @@ static TlsCipher tls_ciphers[] = {
 
 #define TLS_CIPHERS_NUM  QUIC_ARRAY_SIZE(tls_ciphers)
 
-TlsCipher *QuicGetTlsCipherByName(const char *name, size_t name_len)
+const TlsCipher *QuicGetTlsCipherByName(const char *name, size_t name_len)
 {
-    TlsCipher *cipher = NULL;
+    const TlsCipher *cipher = NULL;
     size_t len = 0;
     int i = 0;
 
@@ -85,9 +81,9 @@ TlsCipher *QuicGetTlsCipherByName(const char *name, size_t name_len)
     return NULL;
 }
  
-TlsCipher *QuicGetTlsCipherById(uint16_t id)
+const TlsCipher *QuicGetTlsCipherById(uint16_t id)
 {
-    TlsCipher *cipher = NULL;
+    const TlsCipher *cipher = NULL;
     int i = 0;
 
     for (i = 0; i < TLS_CIPHERS_NUM; i++) {
@@ -101,18 +97,58 @@ TlsCipher *QuicGetTlsCipherById(uint16_t id)
 }
 
 int QuicTlsCreateCipherList(struct hlist_head *h, const char *cipher_str,
-                            size_t len)
+                            size_t cipher_str_len)
 {
+    const TlsCipher *cipher = NULL;
+    TlsCipherListNode *node = NULL;
+    struct hlist_node *tail = NULL;
+    const char *name = NULL;
+    const char *sep = NULL;
+    size_t len = 0;
+
     if (!hlist_empty(h)) {
         return 0;
     }
+
+    name = cipher_str;
+    do {
+        sep = strstr(name, TLS_CIPHERS_SEP);
+        if (sep != NULL) {
+            len = sep - name;
+            if (QUIC_GT(len, cipher_str_len)) {
+                len = cipher_str_len;
+                sep = NULL;
+            }
+        } else {
+            len = strlen(name);
+        }
+        
+        cipher = QuicGetTlsCipherByName(name, len);
+        name = sep + 1;
+        if (cipher == NULL) {
+            continue;
+        }
+
+        node = QuicMemCalloc(sizeof(*node));
+        if (node == NULL) {
+            QuicTlsDestroyCipherList(h);
+            return -1;
+        }
+        node->cipher = cipher;
+        if (tail == NULL) {
+            hlist_add_head(&node->node, h);
+        } else {
+            hlist_add_behind(&node->node, tail);
+        }
+        tail = &node->node;
+    } while (sep != NULL);
 
     return 0;
 }
 
 void QuicTlsDestroyCipherList(struct hlist_head *h)
 {
-    TlsCipherList *pos = NULL;
+    TlsCipherListNode *pos = NULL;
     struct hlist_node *n = NULL;
 
     if (hlist_empty(h)) {

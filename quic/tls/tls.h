@@ -1,5 +1,5 @@
-#ifndef TBQUIC_QUIC_TLS_H_
-#define TBQUIC_QUIC_TLS_H_
+#ifndef TBQUIC_QUIC_TLS_TLS_H_
+#define TBQUIC_QUIC_TLS_TLS_H_
 
 #include <stdint.h>
 #include <stddef.h>
@@ -13,6 +13,7 @@
 
 #define TLS_RANDOM_BYTE_LEN     32
 #define TLS_HANDSHAKE_LEN_SIZE  3
+#define TLS_CIPHESUITE_LEN_SIZE sizeof(uint16_t)
 
 #define TLS_MESSAGE_MAX_LEN     16384
 #define TLS_VERSION_1_2         0x0303
@@ -72,9 +73,13 @@ struct QuicTls {
 typedef struct {
     QuicReadWriteState rwstate;
     QuicTlsState next_state;
-    HandshakeType expect;
+    HandshakeType handshake_type;
     int (*handler)(QUIC_TLS *, void *);
 } QuicTlsProcess;
+
+#ifdef QUIC_TEST
+extern uint8_t *quic_random_test;
+#endif
 
 int QuicTlsInit(QUIC_TLS *);
 void QuicTlsFree(QUIC_TLS *);
@@ -85,5 +90,9 @@ int QuicTlsDoProcess(QUIC_TLS *, RPacket *, WPacket *, const QuicTlsProcess *,
                         size_t);
 int QuicTlsHandshake(QUIC_TLS *, const uint8_t *, size_t,
                         const QuicTlsProcess *, size_t);
+int QuicTlsGenRandom(uint8_t *, size_t, WPacket *);
+int QuicTlsPutCipherList(QUIC_TLS *, WPacket *);
+int QuicTlsPutCompressionMethod(WPacket *);
+int QuicTlsPutExtension(QUIC_TLS *, WPacket *);
 
 #endif

@@ -205,7 +205,6 @@ out:
     QuicCtxFree(ctx);
 
     return case_num;
-
 }
 
 int QuicPktFormatTestServer(void)

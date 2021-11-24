@@ -117,7 +117,7 @@ quic_server_OBJECTS = $(am_quic_server_OBJECTS)
 quic_server_DEPENDENCIES = $(srcdir)/../quic/libtbquic.la
 am_quic_test_OBJECTS = quic_test.$(OBJEXT) format.$(OBJEXT) \
 	hkdf_extract_expand.$(OBJEXT) hkdf_expand_label.$(OBJEXT) \
-	packet_message.$(OBJEXT)
+	packet_message.$(OBJEXT) tls.$(OBJEXT) tls_msg.$(OBJEXT)
 quic_test_OBJECTS = $(am_quic_test_OBJECTS)
 quic_test_DEPENDENCIES = $(srcdir)/../quic/libtbquic.la
 AM_V_P = $(am__v_P_@AM_V@)
@@ -139,7 +139,8 @@ am__depfiles_remade = ./$(DEPDIR)/format.Po \
 	./$(DEPDIR)/hkdf_expand_label.Po \
 	./$(DEPDIR)/hkdf_extract_expand.Po \
 	./$(DEPDIR)/packet_message.Po ./$(DEPDIR)/quic_client.Po \
-	./$(DEPDIR)/quic_server.Po ./$(DEPDIR)/quic_test.Po
+	./$(DEPDIR)/quic_server.Po ./$(DEPDIR)/quic_test.Po \
+	./$(DEPDIR)/tls.Po ./$(DEPDIR)/tls_msg.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -308,12 +309,15 @@ top_srcdir = @top_srcdir@
 quic_client_SOURCES = quic_client.c
 quic_server_SOURCES = quic_server.c
 quic_test_SOURCES = quic_test.c format.c hkdf_extract_expand.c \
-					hkdf_expand_label.c packet_message.c
+					hkdf_expand_label.c packet_message.c tls.c \
+					tls_msg.c
 
 quic_client_LDADD = $(srcdir)/../quic/libtbquic.la
 quic_server_LDADD = $(srcdir)/../quic/libtbquic.la
 quic_test_LDADD = $(srcdir)/../quic/libtbquic.la
-AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/../quic -DQUIC_TEST
+AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/../quic \
+			  -I$(srcdir)/../quic/tls -DQUIC_TEST
+
 AM_CFLAGS = -Wall -Werror
 all: all-am
 
@@ -423,6 +427,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_client.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_server.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quic_test.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls_msg.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -591,6 +597,8 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/quic_client.Po
 	-rm -f ./$(DEPDIR)/quic_server.Po
 	-rm -f ./$(DEPDIR)/quic_test.Po
+	-rm -f ./$(DEPDIR)/tls.Po
+	-rm -f ./$(DEPDIR)/tls_msg.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -643,6 +651,8 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/quic_client.Po
 	-rm -f ./$(DEPDIR)/quic_server.Po
 	-rm -f ./$(DEPDIR)/quic_test.Po
+	-rm -f ./$(DEPDIR)/tls.Po
+	-rm -f ./$(DEPDIR)/tls_msg.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

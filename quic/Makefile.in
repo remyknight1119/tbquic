@@ -131,11 +131,13 @@ am__uninstall_files_from_dir = { \
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libtbquic_la_LIBADD =
+am__dirstamp = $(am__leading_dot)dirstamp
 am_libtbquic_la_OBJECTS = core.lo quic_lib.lo mem.lo statem_clnt.lo \
 	statem_srvr.lo methods.lo statem.lo datagram.lo packet.lo \
 	statem_lib.lo packet_format.lo cipher.lo crypto.lo evp.lo \
-	frame.lo buffer.lo cert_and_key.lo tls.lo tls_clnt.lo \
-	tls_srvr.lo rand_lib.lo tls_cipher.lo
+	frame.lo buffer.lo cert_and_key.lo tls/tls.lo tls/tls_clnt.lo \
+	tls/tls_srvr.lo rand_lib.lo tls/tls_cipher.lo tls/tls_msg.lo \
+	tls/extension.lo tls/extension_clnt.lo tls/extension_srvr.lo
 libtbquic_la_OBJECTS = $(am_libtbquic_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -168,9 +170,11 @@ am__depfiles_remade = ./$(DEPDIR)/buffer.Plo \
 	./$(DEPDIR)/packet_format.Plo ./$(DEPDIR)/quic_lib.Plo \
 	./$(DEPDIR)/rand_lib.Plo ./$(DEPDIR)/statem.Plo \
 	./$(DEPDIR)/statem_clnt.Plo ./$(DEPDIR)/statem_lib.Plo \
-	./$(DEPDIR)/statem_srvr.Plo ./$(DEPDIR)/tls.Plo \
-	./$(DEPDIR)/tls_cipher.Plo ./$(DEPDIR)/tls_clnt.Plo \
-	./$(DEPDIR)/tls_srvr.Plo
+	./$(DEPDIR)/statem_srvr.Plo tls/$(DEPDIR)/extension.Plo \
+	tls/$(DEPDIR)/extension_clnt.Plo \
+	tls/$(DEPDIR)/extension_srvr.Plo tls/$(DEPDIR)/tls.Plo \
+	tls/$(DEPDIR)/tls_cipher.Plo tls/$(DEPDIR)/tls_clnt.Plo \
+	tls/$(DEPDIR)/tls_msg.Plo tls/$(DEPDIR)/tls_srvr.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -338,11 +342,13 @@ lib_LTLIBRARIES = libtbquic.la
 libtbquic_la_SOURCES = core.c quic_lib.c mem.c statem_clnt.c statem_srvr.c \
 						methods.c statem.c datagram.c packet.c statem_lib.c \
 						packet_format.c cipher.c crypto.c evp.c frame.c \
-						buffer.c cert_and_key.c tls.c tls_clnt.c tls_srvr.c \
-						rand_lib.c tls_cipher.c
+						buffer.c cert_and_key.c tls/tls.c tls/tls_clnt.c \
+						tls/tls_srvr.c rand_lib.c tls/tls_cipher.c \
+						tls/tls_msg.c tls/extension.c tls/extension_clnt.c \
+						tls/extension_srvr.c
 
 libtbquic_la_LDFLAGS = -version-info 1
-AM_CPPFLAGS = -I$(srcdir)/../include -DQUIC_TEST
+AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/tls -DQUIC_TEST
 AM_CFLAGS = -Wall -Werror
 AUTOMAKE_OPTIONS = foreign subdir-objects
 all: all-am
@@ -413,12 +419,30 @@ clean-libLTLIBRARIES:
 	  echo rm -f $${locs}; \
 	  rm -f $${locs}; \
 	}
+tls/$(am__dirstamp):
+	@$(MKDIR_P) tls
+	@: > tls/$(am__dirstamp)
+tls/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) tls/$(DEPDIR)
+	@: > tls/$(DEPDIR)/$(am__dirstamp)
+tls/tls.lo: tls/$(am__dirstamp) tls/$(DEPDIR)/$(am__dirstamp)
+tls/tls_clnt.lo: tls/$(am__dirstamp) tls/$(DEPDIR)/$(am__dirstamp)
+tls/tls_srvr.lo: tls/$(am__dirstamp) tls/$(DEPDIR)/$(am__dirstamp)
+tls/tls_cipher.lo: tls/$(am__dirstamp) tls/$(DEPDIR)/$(am__dirstamp)
+tls/tls_msg.lo: tls/$(am__dirstamp) tls/$(DEPDIR)/$(am__dirstamp)
+tls/extension.lo: tls/$(am__dirstamp) tls/$(DEPDIR)/$(am__dirstamp)
+tls/extension_clnt.lo: tls/$(am__dirstamp) \
+	tls/$(DEPDIR)/$(am__dirstamp)
+tls/extension_srvr.lo: tls/$(am__dirstamp) \
+	tls/$(DEPDIR)/$(am__dirstamp)
 
 libtbquic.la: $(libtbquic_la_OBJECTS) $(libtbquic_la_DEPENDENCIES) $(EXTRA_libtbquic_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(libtbquic_la_LINK) -rpath $(libdir) $(libtbquic_la_OBJECTS) $(libtbquic_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
+	-rm -f tls/*.$(OBJEXT)
+	-rm -f tls/*.lo
 
 distclean-compile:
 	-rm -f *.tab.c
@@ -441,10 +465,14 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_clnt.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_lib.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_srvr.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls_cipher.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls_clnt.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tls_srvr.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/extension.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/extension_clnt.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/extension_srvr.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/tls.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/tls_cipher.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/tls_clnt.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/tls_msg.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/tls_srvr.Plo@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -481,6 +509,7 @@ mostlyclean-libtool:
 
 clean-libtool:
 	-rm -rf .libs _libs
+	-rm -rf tls/.libs tls/_libs
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -600,6 +629,8 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-rm -f tls/$(DEPDIR)/$(am__dirstamp)
+	-rm -f tls/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
@@ -628,10 +659,14 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/statem_clnt.Plo
 	-rm -f ./$(DEPDIR)/statem_lib.Plo
 	-rm -f ./$(DEPDIR)/statem_srvr.Plo
-	-rm -f ./$(DEPDIR)/tls.Plo
-	-rm -f ./$(DEPDIR)/tls_cipher.Plo
-	-rm -f ./$(DEPDIR)/tls_clnt.Plo
-	-rm -f ./$(DEPDIR)/tls_srvr.Plo
+	-rm -f tls/$(DEPDIR)/extension.Plo
+	-rm -f tls/$(DEPDIR)/extension_clnt.Plo
+	-rm -f tls/$(DEPDIR)/extension_srvr.Plo
+	-rm -f tls/$(DEPDIR)/tls.Plo
+	-rm -f tls/$(DEPDIR)/tls_cipher.Plo
+	-rm -f tls/$(DEPDIR)/tls_clnt.Plo
+	-rm -f tls/$(DEPDIR)/tls_msg.Plo
+	-rm -f tls/$(DEPDIR)/tls_srvr.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -695,10 +730,14 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/statem_clnt.Plo
 	-rm -f ./$(DEPDIR)/statem_lib.Plo
 	-rm -f ./$(DEPDIR)/statem_srvr.Plo
-	-rm -f ./$(DEPDIR)/tls.Plo
-	-rm -f ./$(DEPDIR)/tls_cipher.Plo
-	-rm -f ./$(DEPDIR)/tls_clnt.Plo
-	-rm -f ./$(DEPDIR)/tls_srvr.Plo
+	-rm -f tls/$(DEPDIR)/extension.Plo
+	-rm -f tls/$(DEPDIR)/extension_clnt.Plo
+	-rm -f tls/$(DEPDIR)/extension_srvr.Plo
+	-rm -f tls/$(DEPDIR)/tls.Plo
+	-rm -f tls/$(DEPDIR)/tls_cipher.Plo
+	-rm -f tls/$(DEPDIR)/tls_clnt.Plo
+	-rm -f tls/$(DEPDIR)/tls_msg.Plo
+	-rm -f tls/$(DEPDIR)/tls_srvr.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

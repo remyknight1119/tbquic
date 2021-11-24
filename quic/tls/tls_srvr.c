@@ -20,7 +20,7 @@ static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
     [QUIC_TLS_ST_SR_CLIENT_HELLO] = {
         .rwstate = QUIC_READING,
         .next_state = QUIC_TLS_ST_SW_SERVER_HELLO,
-        .expect = CLIENT_HELLO,
+        .handshake_type = CLIENT_HELLO,
         .handler = QuicTlsClientHelloProcess,
     },
     [QUIC_TLS_ST_SW_SERVER_HELLO] = {

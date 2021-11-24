@@ -18,6 +18,8 @@ typedef struct {
     size_t curr;
     size_t written;
     size_t maxsize;
+    uint8_t *sub_buf;
+    size_t sub_len;
 } WPacket;
 
 void RPacketBufInit(RPacket *, const uint8_t *, size_t);
@@ -54,5 +56,10 @@ int WPacketPut3(WPacket *, uint32_t);
 int WPacketPut4(WPacket *, uint32_t);
 int WPacketMemcpy(WPacket *, const void *, size_t);
 int WPacketMemmove(WPacket *, const void *, size_t);
+int WPacketStartSubU8(WPacket *);
+int WPacketStartSubU16(WPacket *);
+int WPacketStartSubU24(WPacket *);
+int WPacketStartSubU32(WPacket *);
+int WPacketClose(WPacket *);
 
 #endif

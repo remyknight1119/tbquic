@@ -51,6 +51,14 @@ static QuicFuncTest test_funcs[] = {
         .test = QuicPktNumberEncodeTest,
         .err_msg = "PKT Number Encode",
     },
+    {
+        .test = QuicVTlsCipherListTest,
+        .err_msg = "TLS Cipher List",
+    },
+    {
+        .test = QuicTlsClientHelloTest,
+        .err_msg = "TLS ClientHello",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_ARRAY_SIZE(test_funcs)
@@ -174,6 +182,12 @@ int main(int argc, char **argv)
 
     fprintf(stdout, "%d/%lu Function test passed! Total passed case number"
             " is %d\n", passed, QUIC_FUNC_TEST_NUM, ok_num);
+    if (passed == QUIC_FUNC_TEST_NUM) {
+        fprintf(stdout, "Success!\n");
+    } else {
+        fprintf(stdout, "Failed!\n");
+    }
+
     return 0;
 }
 

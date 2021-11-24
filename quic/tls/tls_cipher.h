@@ -1,15 +1,21 @@
-#ifndef TBQUIC_QUIC_TLS_CIPHER_H_
-#define TBQUIC_QUIC_TLS_CIPHER_H_
+#ifndef TBQUIC_QUIC_TLS_TLS_CIPHER_H_
+#define TBQUIC_QUIC_TLS_TLS_CIPHER_H_
 
 #include <stdint.h>
 
 #include "list.h"
+
+#define TLS_CIPHERS_SEP ":"
 
 #define TLS_RFC_AES_128_GCM_SHA256                   "TLS_AES_128_GCM_SHA256"
 #define TLS_RFC_AES_256_GCM_SHA384                   "TLS_AES_256_GCM_SHA384"
 #define TLS_RFC_CHACHA20_POLY1305_SHA256             "TLS_CHACHA20_POLY1305_SHA256"
 #define TLS_RFC_AES_128_CCM_SHA256                   "TLS_AES_128_CCM_SHA256"
 #define TLS_RFC_AES_128_CCM_8_SHA256                 "TLS_AES_128_CCM_8_SHA256"
+
+#define TLS_CIPHERS_DEF \
+    TLS_RFC_AES_128_GCM_SHA256 TLS_CIPHERS_SEP TLS_RFC_AES_256_GCM_SHA384 \
+    TLS_CIPHERS_SEP TLS_RFC_CHACHA20_POLY1305_SHA256
 
 #define TLS_CK_AES_128_GCM_SHA256                     0x1301
 #define TLS_CK_AES_256_GCM_SHA384                     0x1302
@@ -45,11 +51,12 @@ typedef struct {
 
 typedef struct {
     struct hlist_node node;
-    TlsCipher *cipher;
-} TlsCipherList;
+    const TlsCipher *cipher;
+} TlsCipherListNode;
 
-TlsCipher *QuicGetTlsCipherByName(const char *, size_t);
-TlsCipher *QuicGetTlsCipherById(uint16_t);
+const TlsCipher *QuicGetTlsCipherByName(const char *, size_t);
+const TlsCipher *QuicGetTlsCipherById(uint16_t);
+int QuicTlsCreateCipherList(struct hlist_head *, const char *, size_t);
 void QuicTlsDestroyCipherList(struct hlist_head *);
 
 #endif

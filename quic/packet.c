@@ -4,6 +4,7 @@
 
 #include "packet_local.h"
 
+#include <assert.h>
 #include <string.h>
 #include <stdint.h>
 
@@ -219,19 +220,15 @@ int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
 
 void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)
 {
+    memset(pkt, 0, sizeof(*pkt));
     pkt->buf = buf;
-    pkt->static_buf = NULL;
-    pkt->curr = 0;
-    pkt->written = 0;
     pkt->maxsize = WPACKET_BUF_MAX_LEN;
 }
 
 void WPacketStaticBufInit(WPacket *pkt, uint8_t *buf, size_t len)
 {
-    pkt->buf = NULL;
+    memset(pkt, 0, sizeof(*pkt));
     pkt->static_buf = buf;
-    pkt->curr = 0;
-    pkt->written = 0;
     pkt->maxsize = len;
 }
 
@@ -385,3 +382,57 @@ int WPacketPut4(WPacket *pkt, uint32_t val)
 {
     return WPacketPutBytes(pkt, val, 4);
 }
+
+static int WPacketStartSubBytes(WPacket *pkt, size_t len)
+{
+    assert(pkt->sub_buf == NULL);
+
+    if (WPacketAllocateBytes(pkt, len, &pkt->sub_buf) < 0) {
+        return -1;
+    }
+    
+    pkt->sub_len = len;
+    return 0;
+}
+
+int WPacketStartSubU8(WPacket *pkt)
+{
+    return WPacketStartSubBytes(pkt, 1);
+}
+
+int WPacketStartSubU16(WPacket *pkt)
+{
+    return WPacketStartSubBytes(pkt, 2);
+}
+
+int WPacketStartSubU24(WPacket *pkt)
+{
+    return WPacketStartSubBytes(pkt, 3);
+}
+
+int WPacketStartSubU32(WPacket *pkt)
+{
+    return WPacketStartSubBytes(pkt, 4);
+}
+
+int WPacketClose(WPacket *pkt)
+{
+    size_t data_len = 0;
+
+    if (pkt->sub_buf == NULL) {
+        return -1;
+    }
+
+    data_len = WPacket_get_curr(pkt) - pkt->sub_buf - pkt->sub_len;
+    assert(QUIC_GE(data_len, 0));
+
+    if (WPacketPutValue(pkt->sub_buf, data_len, pkt->sub_len) < 0) {
+        return -1;
+    }
+    
+    pkt->sub_buf = NULL;
+    pkt->sub_len = 0;
+    return 0;
+}
+
+

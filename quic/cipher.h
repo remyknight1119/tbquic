@@ -13,9 +13,16 @@
 enum {
     QUIC_DIGEST_SHA256,
     QUIC_DIGEST_SHA384,
+    QUIC_DIGEST_SHA512,
+    QUIC_DIGEST_SHA1,
     QUIC_DIGEST_MAX,
 };
 
+enum {
+    QUIC_SIG_RSA,
+    QUIC_SIG_ECC,
+    QUIC_SIG_MAX,
+};
 
 struct QuicCipher {
     uint32_t alg;

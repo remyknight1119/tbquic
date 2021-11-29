@@ -59,6 +59,10 @@ static QuicFuncTest test_funcs[] = {
         .test = QuicTlsClientHelloTest,
         .err_msg = "TLS ClientHello",
     },
+    {
+        .test = QuicTlsClientExtensionTest,
+        .err_msg = "TLS Client Extension",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_ARRAY_SIZE(test_funcs)

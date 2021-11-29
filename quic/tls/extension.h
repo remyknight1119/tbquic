@@ -6,8 +6,26 @@
 #include "tls.h"
 #include "packet_local.h"
 
-#define TLS_EXT_CLIENT_HELLO    0x0001
-#define TLS_EXT_SERVER_HELLO    0x0002
+#define TLSEXT_CLIENT_HELLO    0x0001
+#define TLSEXT_SERVER_HELLO    0x0002
+
+/* Sigalgs values */
+#define TLSEXT_SIGALG_ECDSA_SECP256R1_SHA256                    0x0403
+#define TLSEXT_SIGALG_ECDSA_SECP384R1_SHA384                    0x0503
+#define TLSEXT_SIGALG_ECDSA_SECP521R1_SHA512                    0x0603
+#define TLSEXT_SIGALG_ECDSA_SHA224                              0x0303
+#define TLSEXT_SIGALG_ECDSA_SHA1                                0x0203
+#define TLSEXT_SIGALG_RSA_PSS_RSAE_SHA256                       0x0804
+#define TLSEXT_SIGALG_RSA_PSS_RSAE_SHA384                       0x0805
+#define TLSEXT_SIGALG_RSA_PSS_RSAE_SHA512                       0x0806
+#define TLSEXT_SIGALG_RSA_PSS_PSS_SHA256                        0x0809
+#define TLSEXT_SIGALG_RSA_PSS_PSS_SHA384                        0x080a
+#define TLSEXT_SIGALG_RSA_PSS_PSS_SHA512                        0x080b
+#define TLSEXT_SIGALG_RSA_PKCS1_SHA256                          0x0401
+#define TLSEXT_SIGALG_RSA_PKCS1_SHA384                          0x0501
+#define TLSEXT_SIGALG_RSA_PKCS1_SHA512                          0x0601
+#define TLSEXT_SIGALG_RSA_PKCS1_SHA224                          0x0301
+#define TLSEXT_SIGALG_RSA_PKCS1_SHA1                            0x0201
 
 typedef enum {
     EXT_TYPE_SERVER_NAME = 0,                             /* RFC 6066 */
@@ -32,6 +50,7 @@ typedef enum {
     EXT_TYPE_POST_HANDSHAKE_AUTH = 49,                    /* RFC 8446 */
     EXT_TYPE_SIGNATURE_ALGORITHMS_CERT = 50,              /* RFC 8446 */
     EXT_TYPE_KEY_SHARE = 51,                              /* RFC 8446 */
+    EXT_TYPE_QUIC_TRANSPORT_PARAMETERS = 57,              /* RFC 9001 */
     EXT_TYPE_MAX = 65535,
 } ExtensionType;
 
@@ -68,9 +87,17 @@ typedef struct {
     int (*final)(QUIC_TLS *quic, uint32_t context, int sent);
 } QuicTlsExtensionDefinition;
 
-int TlsExtParseStocServerName(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
+#ifdef QUIC_TEST
+extern const QuicTlsExtensionDefinition *(*QuicTestExtensionHook)(const
+        QuicTlsExtensionDefinition *, size_t *i);
+#endif
+int TlsExtParseCtosServerName(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
 int TlsExtConstructCtosServerName(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                     size_t);
+int TlsExtParseCtosSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
+int TlsExtParseStocSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
+int TlsExtConstructCtosSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t);
+int TlsExtConstructStocSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t);
 int TlsConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t);
 
 #endif

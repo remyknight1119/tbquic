@@ -38,6 +38,7 @@ int QuicTlsGenRandom(uint8_t *random, size_t len, WPacket *pkt)
 int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
 {
     TlsCipherListNode *node = NULL;
+    int ret = 0;
 
     if (QuicTlsCreateCipherList(&tls->cipher_list, TLS_CIPHERS_DEF,
                                 sizeof(TLS_CIPHERS_DEF) - 1) < 0) {
@@ -52,7 +53,8 @@ int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
     hlist_for_each_entry(node, &tls->cipher_list, node)	{
         assert(node->cipher != NULL);
         if (WPacketPut2(pkt, node->cipher->id) < 0) {
-            return -1;
+            ret = -1;
+            break;
         }
     }
 
@@ -61,7 +63,7 @@ int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
         return -1;
     }
 
-    return 0;
+    return ret;
 }
 
 int QuicTlsPutCompressionMethod(WPacket *pkt)

@@ -26,5 +26,6 @@ int QuicPktNumberEncodeTest(void);
 int QuicPktNumberDecodeTest(void);
 int QuicVTlsCipherListTest(void);
 int QuicTlsClientHelloTest(void);
+int QuicTlsClientExtensionTest(void);
 
 #endif

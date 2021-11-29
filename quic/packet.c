@@ -10,6 +10,7 @@
 
 #include "mem.h"
 #include "common.h"
+#include "log.h"
 
 #define WPACKET_BUF_MAX_LEN    65535
 #define DEFAULT_BUF_SIZE    256
@@ -235,7 +236,15 @@ void WPacketStaticBufInit(WPacket *pkt, uint8_t *buf, size_t len)
 
 uint8_t *WPacket_get_curr(WPacket *pkt)
 {
-    return (uint8_t *)pkt->buf->data + pkt->curr;
+    uint8_t *data = NULL;
+
+    if (pkt->static_buf != NULL) {
+        data = pkt->static_buf;
+    } else {
+        data = (void *)pkt->buf->data;
+    }
+
+    return data + pkt->curr;
 }
 
 int WPacket_get_space(WPacket *pkt)

@@ -16,6 +16,11 @@
 #include "sig_alg.h"
 #include "common.h"
 
+typedef struct {
+    uint64_t type;
+    uint64_t value;
+} QuicTlsTestParam;
+
 static const uint16_t tls_sigalgs[] = {
     TLSEXT_SIGALG_ECDSA_SECP256R1_SHA256,
     TLSEXT_SIGALG_RSA_PSS_RSAE_SHA256,
@@ -70,7 +75,56 @@ static uint8_t client_extension[] =
 
 static uint16_t extension_defs[] = {
     EXT_TYPE_SIGNATURE_ALGORITHMS,
+    EXT_TYPE_QUIC_TRANS_PARAMS,
     EXT_TYPE_SERVER_NAME,
+};
+
+static QuicTlsTestParam test_param[] = {
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_UNI,
+        .value = 0x600000,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE,
+        .value = 0x600000,
+    },
+    {
+        .type = 0x1CD4C8D5641422F0,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_UNI,
+        .value = 103,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_DATA,
+        .value = 15728640,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT,
+        .value = 600000,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_MAX_UDP_PAYLOAD_SIZE,
+        .value = 1472,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE,
+        .value = 65536,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_BIDI,
+        .value = 100,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL,
+        .value = 6291456,
+    },
+    {
+        .type = 0x4752,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_SOURCE_CONNECTION_ID,
+    },
 };
 
 int QuicTlsClientHelloTest(void)
@@ -148,7 +202,7 @@ static const QuicTlsExtensionDefinition *QuicTlsTestGetExtension(const
 {
     static size_t j = 0;
 
-    if (j >= sizeof(extension_defs)/sizeof(extension_defs)) {
+    if (j >= QUIC_NELEM(extension_defs)) {
         *i = EXT_TYPE_MAX - 1; 
     } else {
         *i = extension_defs[j];
@@ -157,13 +211,35 @@ static const QuicTlsExtensionDefinition *QuicTlsTestGetExtension(const
     return &ext[*i];
 }
 
+static QuicTransParamDefinition *
+QuicTlsTestGetTransParams(QuicTransParamDefinition *param, size_t num)
+{
+    QuicTlsTestParam *p = NULL;
+    static size_t i = 0;
+    size_t j = 0;
+
+    if (i < QUIC_NELEM(test_param)) {
+        p = &test_param[i];
+        i++;
+        for (j = 0; j < num; j++) {
+            if (p->type == param[j].type) {
+                return param + j;
+            }
+        }
+    } 
+
+    return NULL;
+}
+
 int QuicTlsClientExtensionTest(void)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
+    QuicTlsTestParam *p = NULL;
     WPacket pkt = {};
     uint8_t buf[sizeof(client_extension)] = {};
     size_t wlen = 0;
+    size_t i = 0;
     int offset = 0;
     int ret = -1;
 
@@ -179,8 +255,17 @@ int QuicTlsClientExtensionTest(void)
 
     WPacketStaticBufInit(&pkt, buf, sizeof(buf));
 
+    for (i = 0; i < QUIC_NELEM(test_param); i++) {
+        p = &test_param[i];
+        if (p->value == 0) {
+            continue;
+        }
+        QUIC_set_transport_parameter(quic, p->type, &p->value, 0);
+    }
+
     TlsTestGetPSigAlgs = QuicTlsTestGetPSigAlgs;
     QuicTestExtensionHook = QuicTlsTestGetExtension;
+    QuicTestTransParamHook = QuicTlsTestGetTransParams;
     if (TlsClientConstructExtensions(&quic->tls, &pkt, TLSEXT_CLIENT_HELLO,
                 NULL, 0) < 0) {
         goto out;

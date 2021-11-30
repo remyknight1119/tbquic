@@ -27,24 +27,6 @@
 #define TLSEXT_SIGALG_RSA_PKCS1_SHA224                          0x0301
 #define TLSEXT_SIGALG_RSA_PKCS1_SHA1                            0x0201
 
-#define QUIC_TRANSPORT_PARAM_ORIGINAL_DESTINATION_CONNECTION_ID     0x00
-#define QUIC_TRANSPORT_PARAM_MAX_IDLE_TIMEOUT                       0x01
-#define QUIC_TRANSPORT_PARAM_STATELESS_RESET_TOKEN                  0x02
-#define QUIC_TRANSPORT_PARAM_MAX_UDP_PAYLOAD_SIZE                   0x03
-#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_DATA                       0x04
-#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL     0x05
-#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE    0x06
-#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_UNI            0x07
-#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAMS_BIDI               0x08
-#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAMS_UNI                0x09
-#define QUIC_TRANSPORT_PARAM_ACK_DELAY_EXPONENT                     0x0A
-#define QUIC_TRANSPORT_PARAM_MAX_ACK_DELAY                          0x0B
-#define QUIC_TRANSPORT_PARAM_DISABLE_ACTIVE_MIGRATION               0x0C
-#define QUIC_TRANSPORT_PARAM_PREFERRED_ADDRESS                      0x0D
-#define QUIC_TRANSPORT_PARAM_ACTIVE_CONNECTION_ID_LIMIT             0x0E
-#define QUIC_TRANSPORT_PARAM_INITIAL_SOURCE_CONNECTION_ID           0x0F
-#define QUIC_TRANSPORT_PARAM_RETRY_SOURCE_CONNECTION_ID             0x10
-
 typedef enum {
     EXT_TYPE_SERVER_NAME = 0,                             /* RFC 6066 */
     EXT_TYPE_MAX_FRAGMENT_LENGTH = 1,                     /* RFC 6066 */
@@ -68,7 +50,7 @@ typedef enum {
     EXT_TYPE_POST_HANDSHAKE_AUTH = 49,                    /* RFC 8446 */
     EXT_TYPE_SIGNATURE_ALGORITHMS_CERT = 50,              /* RFC 8446 */
     EXT_TYPE_KEY_SHARE = 51,                              /* RFC 8446 */
-    EXT_TYPE_QUIC_TRANSPORT_PARAMETERS = 57,              /* RFC 9001 */
+    EXT_TYPE_QUIC_TRANS_PARAMS = 57,                      /* RFC 9001 */
     EXT_TYPE_MAX = 65535,
 } ExtensionType;
 
@@ -102,15 +84,17 @@ typedef struct {
 
 typedef struct {
     uint64_t type;
-    int (*parse)(QUIC_TLS *tls, RPacket *pkt);
+    int (*parse)(QuicTransParams *param, RPacket *pkt);
     /* Check if need construct */
-    int (*check)(QUIC_TLS *tls);
-    int (*construct)(QUIC_TLS *tls, WPacket *pkt);
-} QuicTransportParamDefinition;
+    int (*check)(QuicTransParams *param, size_t offset);
+    int (*construct)(QuicTransParams *param, size_t offset, WPacket *pkt);
+} QuicTransParamDefinition;
 
 #ifdef QUIC_TEST
 extern const QuicTlsExtensionDefinition *(*QuicTestExtensionHook)(const
         QuicTlsExtensionDefinition *, size_t *i);
+extern QuicTransParamDefinition *
+(*QuicTestTransParamHook)(QuicTransParamDefinition *, size_t);
 #endif
 
 int TlsExtInitServerName(QUIC_TLS *, uint32_t);
@@ -121,9 +105,11 @@ int TlsExtFinalSigAlgs(QUIC_TLS *, uint32_t, int);
 int TlsConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t,
                              const QuicTlsExtensionDefinition *ext,
                              size_t);
-int TlsConstructQuicTransportParamExtension(QUIC_TLS *, WPacket *,
-                            QuicTransportParamDefinition *, size_t);
+int TlsConstructQuicTransParamExtension(QUIC_TLS *, WPacket *,
+                            QuicTransParamDefinition *, size_t);
 int TlsClientConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                             size_t);
+int QuicTransParamCheckInteger(QuicTransParams *, size_t);
+int QuicTransParamConstructInteger(QuicTransParams *, size_t, WPacket *);
 
 #endif

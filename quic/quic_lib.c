@@ -37,16 +37,10 @@ void QuicCtxFree(QUIC_CTX *ctx)
     QuicMemFree(ctx);
 }
 
-int QUIC_CTX_set_max_idle_timeout(QUIC_CTX *ctx, uint64_t timeout)
+int QUIC_CTX_set_transport_parameter(QUIC_CTX *ctx, uint64_t type, void *value,
+                                        size_t len)
 {
-    ctx->trans_param.max_idle_timeout = timeout;
-
-    return 0;
-}
-
-uint64_t QUIC_CTX_get_max_idle_timeout(QUIC_CTX *ctx)
-{
-    return ctx->trans_param.max_idle_timeout;
+    return QuicTransParamSet(&ctx->trans_param, type, value, len);
 }
 
 static int QUIC_set_cipher_alg(QUIC_CIPHER *cipher, uint32_t alg)
@@ -263,14 +257,9 @@ err:
     return ret;
 }
 
-int QUIC_set_max_idle_timeout(QUIC *quic, uint64_t timeout)
+int QUIC_set_transport_parameter(QUIC *quic, uint64_t type,
+                                    void *value, size_t len)
 {
-    quic->tls.trans_param.max_idle_timeout = timeout;
-
-    return 0;
+    return QuicTransParamSet(&quic->tls.trans_param, type, value, len);
 }
 
-uint64_t QUIC_get_max_idle_timeout(QUIC *quic)
-{
-    return quic->tls.trans_param.max_idle_timeout;
-}

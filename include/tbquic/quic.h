@@ -7,6 +7,25 @@
 //MTU - IP Header - UDP Header
 #define QUIC_DATAGRAM_SIZE_MAX_DEF  (1500 - 20 - 8)
 
+#define QUIC_TRANS_PARAM_ORIGINAL_DESTINATION_CONNECTION_ID     0x00
+#define QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT                       0x01
+#define QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN                  0x02
+#define QUIC_TRANS_PARAM_MAX_UDP_PAYLOAD_SIZE                   0x03
+#define QUIC_TRANS_PARAM_INITIAL_MAX_DATA                       0x04
+#define QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL     0x05
+#define QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE    0x06
+#define QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_UNI            0x07
+#define QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_BIDI               0x08
+#define QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_UNI                0x09
+#define QUIC_TRANS_PARAM_ACK_DELAY_EXPONENT                     0x0A
+#define QUIC_TRANS_PARAM_MAX_ACK_DELAY                          0x0B
+#define QUIC_TRANS_PARAM_DISABLE_ACTIVE_MIGRATION               0x0C
+#define QUIC_TRANS_PARAM_PREFERRED_ADDRESS                      0x0D
+#define QUIC_TRANS_PARAM_ACTIVE_CONNECTION_ID_LIMIT             0x0E
+#define QUIC_TRANS_PARAM_INITIAL_SOURCE_CONNECTION_ID           0x0F
+#define QUIC_TRANS_PARAM_RETRY_SOURCE_CONNECTION_ID             0x10
+#define QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE               0x20
+
 enum {
     QUIC_FILE_TYPE_ASN1,
     QUIC_FILE_TYPE_PEM,
@@ -27,8 +46,8 @@ extern int QuicCtxUsePrivateKeyFile(QUIC_CTX *ctx, const char *file,
                                     uint32_t type);
 extern int QuicCtxUseCertificate_File(QUIC_CTX *ctx, const char *file,
                                         uint32_t type);
-extern int QUIC_CTX_set_max_idle_timeout(QUIC_CTX *ctx, uint64_t timeout);
-extern uint64_t QUIC_CTX_get_max_idle_timeout(QUIC_CTX *ctx);
+extern int QUIC_CTX_set_transport_parameter(QUIC_CTX *ctx, uint64_t type,
+                                        void *value, size_t len);
 
 extern QUIC_METHOD *QuicClientMethod(void);
 extern QUIC_METHOD *QuicServerMethod(void);
@@ -42,8 +61,7 @@ extern void QUIC_set_rbio(QUIC *quic, BIO *rbio);
 extern void QUIC_set_wbio(QUIC *quic, BIO *wbio);
 extern void QUIC_set_bio(QUIC *quic, BIO *rbio, BIO *wbio);
 extern int QUIC_set_fd(QUIC *quic, int fd);
-extern int QUIC_set_max_idle_timeout(QUIC *quic, uint64_t timeout);
-extern uint64_t QUIC_get_max_idle_timeout(QUIC *quic);
-
+extern int QUIC_set_transport_parameter(QUIC *quic, uint64_t type,
+                                    void *value, size_t len);
 
 #endif

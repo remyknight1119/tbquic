@@ -739,6 +739,26 @@ int QuicVariableLengthWrite(WPacket *pkt, uint64_t len)
     return WPacketMemcpy(pkt, &var_len, wlen);
 }
 
+int QuicVariableLengthValueWrite(WPacket *pkt, uint64_t value)
+{
+    uint64_t var = 0;
+    int wlen = 0;
+
+    wlen = QuicVariableLengthEncode((uint8_t *)&var, sizeof(var), value);
+    if (wlen < 0) {
+        return -1;
+    }
+
+    assert(wlen <= QUIC_VARIABLE_LEN_MAX_SIZE);
+
+    if (QuicVariableLengthWrite(pkt, wlen) < 0) {
+        return -1;
+    }
+
+    return WPacketMemcpy(pkt, &var, wlen);
+}
+
+
 static int QuicCidPut(QUIC_DATA *cid, WPacket *pkt)
 {
     if (WPacketPut1(pkt, cid->len) < 0) {

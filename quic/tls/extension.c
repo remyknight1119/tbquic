@@ -5,7 +5,11 @@
 #include "extension.h"
 
 #include "packet_format.h"
+#include "common.h"
 #include "log.h"
+
+#define QUIC_GET_U64_VALUE_BY_OFFSET(p, offset) \
+    *((uint64_t *)((uint8_t *)p + offset))
 
 int TlsExtInitServerName(QUIC_TLS *tls, uint32_t context)
 {
@@ -60,6 +64,9 @@ int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
 #ifdef QUIC_TEST
         if (QuicTestExtensionHook) {
             thisexd = QuicTestExtensionHook(ext, &i);
+            if (thisexd == NULL) {
+                break;
+            }
         }
 #endif
         /* Skip if not relevant for our context */
@@ -102,20 +109,31 @@ int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
     return 0;
 }
 
-int TlsConstructQuicTransportParamExtension(QUIC_TLS *tls, WPacket *pkt,
-                                QuicTransportParamDefinition *param,
+#ifdef QUIC_TEST
+QuicTransParamDefinition *(*QuicTestTransParamHook)(QuicTransParamDefinition
+                                *param, size_t num);
+#endif
+int TlsConstructQuicTransParamExtension(QUIC_TLS *tls, WPacket *pkt,
+                                QuicTransParamDefinition *param,
                                 size_t num)
 {
-    QuicTransportParamDefinition *p = NULL;
+    QuicTransParamDefinition *p = NULL;
+    size_t offset = 0;
     size_t i = 0;
-
-    if (WPacketStartSubU16(pkt) < 0) { 
-        return -1;
-    }
 
     for (i = 0; i < num; i++) {
         p = param + i;
-        if (p->check && p->check(tls) < 0) {
+#ifdef QUIC_TEST
+        if (QuicTestTransParamHook) {
+            p = QuicTestTransParamHook(param, num);
+            if (p == NULL) {
+                break;
+            }
+        }
+#endif
+        QuicTransParamGetOffset(p->type, &offset);
+        if (p->check && p->check(&tls->trans_param, offset) < 0) {
+            printf("check failed\n");
             continue;
         }
 
@@ -127,16 +145,33 @@ int TlsConstructQuicTransportParamExtension(QUIC_TLS *tls, WPacket *pkt,
             continue;
         }
 
-        if (p->construct(tls, pkt) < 0) {
+        if (p->construct(&tls->trans_param, offset, pkt) < 0) {
             return -1;
         }
     }
 
-    if (WPacketClose(pkt) < 0) {
-        QUIC_LOG("Close packet failed\n");
+    return 0;
+}
+
+int QuicTransParamCheckInteger(QuicTransParams *param, size_t offset)
+{
+    uint64_t value;
+
+    value = QUIC_GET_U64_VALUE_BY_OFFSET(param, offset);
+    if (value == 0) {
         return -1;
     }
 
     return 0;
+}
+
+int QuicTransParamConstructInteger(QuicTransParams *param, size_t offset,
+                                            WPacket *pkt)
+{
+    uint64_t value;
+
+    value = QUIC_GET_U64_VALUE_BY_OFFSET(param, offset);
+
+    return QuicVariableLengthValueWrite(pkt, value);
 }
 

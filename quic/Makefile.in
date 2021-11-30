@@ -138,7 +138,7 @@ am_libtbquic_la_OBJECTS = core.lo quic_lib.lo mem.lo statem_clnt.lo \
 	frame.lo buffer.lo cert_and_key.lo tls/tls.lo tls/tls_clnt.lo \
 	tls/tls_srvr.lo rand_lib.lo tls/tls_cipher.lo tls/tls_msg.lo \
 	tls/extension.lo tls/extension_clnt.lo tls/extension_srvr.lo \
-	tls/sig_alg.lo
+	tls/sig_alg.lo transport.lo
 libtbquic_la_OBJECTS = $(am_libtbquic_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -171,8 +171,8 @@ am__depfiles_remade = ./$(DEPDIR)/buffer.Plo \
 	./$(DEPDIR)/packet_format.Plo ./$(DEPDIR)/quic_lib.Plo \
 	./$(DEPDIR)/rand_lib.Plo ./$(DEPDIR)/statem.Plo \
 	./$(DEPDIR)/statem_clnt.Plo ./$(DEPDIR)/statem_lib.Plo \
-	./$(DEPDIR)/statem_srvr.Plo tls/$(DEPDIR)/extension.Plo \
-	tls/$(DEPDIR)/extension_clnt.Plo \
+	./$(DEPDIR)/statem_srvr.Plo ./$(DEPDIR)/transport.Plo \
+	tls/$(DEPDIR)/extension.Plo tls/$(DEPDIR)/extension_clnt.Plo \
 	tls/$(DEPDIR)/extension_srvr.Plo tls/$(DEPDIR)/sig_alg.Plo \
 	tls/$(DEPDIR)/tls.Plo tls/$(DEPDIR)/tls_cipher.Plo \
 	tls/$(DEPDIR)/tls_clnt.Plo tls/$(DEPDIR)/tls_msg.Plo \
@@ -347,7 +347,7 @@ libtbquic_la_SOURCES = core.c quic_lib.c mem.c statem_clnt.c statem_srvr.c \
 						buffer.c cert_and_key.c tls/tls.c tls/tls_clnt.c \
 						tls/tls_srvr.c rand_lib.c tls/tls_cipher.c \
 						tls/tls_msg.c tls/extension.c tls/extension_clnt.c \
-						tls/extension_srvr.c tls/sig_alg.c
+						tls/extension_srvr.c tls/sig_alg.c transport.c
 
 libtbquic_la_LDFLAGS = -version-info 1
 AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/tls -DQUIC_TEST
@@ -468,6 +468,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_clnt.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_lib.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statem_srvr.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/transport.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/extension.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/extension_clnt.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@tls/$(DEPDIR)/extension_srvr.Plo@am__quote@ # am--include-marker
@@ -663,6 +664,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/statem_clnt.Plo
 	-rm -f ./$(DEPDIR)/statem_lib.Plo
 	-rm -f ./$(DEPDIR)/statem_srvr.Plo
+	-rm -f ./$(DEPDIR)/transport.Plo
 	-rm -f tls/$(DEPDIR)/extension.Plo
 	-rm -f tls/$(DEPDIR)/extension_clnt.Plo
 	-rm -f tls/$(DEPDIR)/extension_srvr.Plo
@@ -735,6 +737,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/statem_clnt.Plo
 	-rm -f ./$(DEPDIR)/statem_lib.Plo
 	-rm -f ./$(DEPDIR)/statem_srvr.Plo
+	-rm -f ./$(DEPDIR)/transport.Plo
 	-rm -f tls/$(DEPDIR)/extension.Plo
 	-rm -f tls/$(DEPDIR)/extension_clnt.Plo
 	-rm -f tls/$(DEPDIR)/extension_srvr.Plo

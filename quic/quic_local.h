@@ -41,7 +41,7 @@ struct QuicMethod {
 struct QuicCtx {
     const QUIC_METHOD *method;
     uint32_t mtu;
-    QuicTransportParams trans_param;
+    QuicTransParams trans_param;
 };
 
 typedef struct {
@@ -92,6 +92,11 @@ struct Quic {
         QuicCipherSpace server;
     } handshake;
 };
+
+static inline QUIC *QuicTlsTrans(QUIC_TLS *tls)
+{
+    return (QUIC *)tls;
+}
 
 
 #endif

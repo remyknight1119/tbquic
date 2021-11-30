@@ -41,6 +41,7 @@ struct QuicMethod {
 struct QuicCtx {
     const QUIC_METHOD *method;
     uint32_t mtu;
+    QuicTransportParams trans_param;
 };
 
 typedef struct {
@@ -62,10 +63,10 @@ typedef struct {
 
 struct Quic {
     QUIC_TLS tls;
+#define quic_server tls.server
     QuicStreamState stream_state;
     QuicStatem statem;
     QuicReadWriteState rwstate;
-#define quic_server tls.server
     uint32_t version;
     uint32_t mtu;
     uint64_t pkt_num_len:2;

@@ -59,6 +59,10 @@ typedef enum {
     QUIC_TLS_ST_MAX,
 } QuicTlsState;
 
+typedef struct {
+    uint64_t max_idle_timeout;
+} QuicTransportParams;
+
 struct QuicTls {
     QuicTlsState handshake_state;
     QuicReadWriteState rwstate;
@@ -68,6 +72,7 @@ struct QuicTls {
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;
     QUIC_BUFFER buffer;
+    QuicTransportParams trans_param;
 };
 
 typedef struct {

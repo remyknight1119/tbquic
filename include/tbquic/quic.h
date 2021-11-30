@@ -27,6 +27,9 @@ extern int QuicCtxUsePrivateKeyFile(QUIC_CTX *ctx, const char *file,
                                     uint32_t type);
 extern int QuicCtxUseCertificate_File(QUIC_CTX *ctx, const char *file,
                                         uint32_t type);
+extern int QUIC_CTX_set_max_idle_timeout(QUIC_CTX *ctx, uint64_t timeout);
+extern uint64_t QUIC_CTX_get_max_idle_timeout(QUIC_CTX *ctx);
+
 extern QUIC_METHOD *QuicClientMethod(void);
 extern QUIC_METHOD *QuicServerMethod(void);
 extern QUIC *QuicNew(QUIC_CTX *ctx);
@@ -39,6 +42,8 @@ extern void QUIC_set_rbio(QUIC *quic, BIO *rbio);
 extern void QUIC_set_wbio(QUIC *quic, BIO *wbio);
 extern void QUIC_set_bio(QUIC *quic, BIO *rbio, BIO *wbio);
 extern int QUIC_set_fd(QUIC *quic, int fd);
+extern int QUIC_set_max_idle_timeout(QUIC *quic, uint64_t timeout);
+extern uint64_t QUIC_get_max_idle_timeout(QUIC *quic);
 
 
 #endif

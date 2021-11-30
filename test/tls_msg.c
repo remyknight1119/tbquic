@@ -181,7 +181,7 @@ int QuicTlsClientExtensionTest(void)
 
     TlsTestGetPSigAlgs = QuicTlsTestGetPSigAlgs;
     QuicTestExtensionHook = QuicTlsTestGetExtension;
-    if (TlsConstructExtensions(&quic->tls, &pkt, TLSEXT_CLIENT_HELLO,
+    if (TlsClientConstructExtensions(&quic->tls, &pkt, TLSEXT_CLIENT_HELLO,
                 NULL, 0) < 0) {
         goto out;
     }

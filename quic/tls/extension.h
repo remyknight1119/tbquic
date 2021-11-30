@@ -27,6 +27,24 @@
 #define TLSEXT_SIGALG_RSA_PKCS1_SHA224                          0x0301
 #define TLSEXT_SIGALG_RSA_PKCS1_SHA1                            0x0201
 
+#define QUIC_TRANSPORT_PARAM_ORIGINAL_DESTINATION_CONNECTION_ID     0x00
+#define QUIC_TRANSPORT_PARAM_MAX_IDLE_TIMEOUT                       0x01
+#define QUIC_TRANSPORT_PARAM_STATELESS_RESET_TOKEN                  0x02
+#define QUIC_TRANSPORT_PARAM_MAX_UDP_PAYLOAD_SIZE                   0x03
+#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_DATA                       0x04
+#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL     0x05
+#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE    0x06
+#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_UNI            0x07
+#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAMS_BIDI               0x08
+#define QUIC_TRANSPORT_PARAM_INITIAL_MAX_STREAMS_UNI                0x09
+#define QUIC_TRANSPORT_PARAM_ACK_DELAY_EXPONENT                     0x0A
+#define QUIC_TRANSPORT_PARAM_MAX_ACK_DELAY                          0x0B
+#define QUIC_TRANSPORT_PARAM_DISABLE_ACTIVE_MIGRATION               0x0C
+#define QUIC_TRANSPORT_PARAM_PREFERRED_ADDRESS                      0x0D
+#define QUIC_TRANSPORT_PARAM_ACTIVE_CONNECTION_ID_LIMIT             0x0E
+#define QUIC_TRANSPORT_PARAM_INITIAL_SOURCE_CONNECTION_ID           0x0F
+#define QUIC_TRANSPORT_PARAM_RETRY_SOURCE_CONNECTION_ID             0x10
+
 typedef enum {
     EXT_TYPE_SERVER_NAME = 0,                             /* RFC 6066 */
     EXT_TYPE_MAX_FRAGMENT_LENGTH = 1,                     /* RFC 6066 */
@@ -54,11 +72,6 @@ typedef enum {
     EXT_TYPE_MAX = 65535,
 } ExtensionType;
 
-typedef int (*ExtensionParse)(QUIC_TLS *quic, RPacket *pkt, uint32_t context,
-                                X509 *x, size_t chainidx);
-typedef int (*ExtensionConstruct)(QUIC_TLS *quic, WPacket *pkt,
-                                    uint32_t context, X509 *x,
-                                    size_t chainidx);
 
 typedef struct {
     /*
@@ -70,34 +83,47 @@ typedef struct {
      * Initialise extension before parsing. Always called for relevant contexts
      * even if extension not present
      */
-    int (*init)(QUIC_TLS *quic, uint32_t context);
-    /* Parse extension sent from client to server */
-    ExtensionParse parse_ctos;
-    /* Parse extension send from server to client */
-    ExtensionParse parse_stoc;
-    /* Construct extension sent from server to client */
-    ExtensionConstruct construct_stoc;
-    /* Construct extension sent from client to server */
-    ExtensionConstruct construct_ctos;
+    int (*init)(QUIC_TLS *tls, uint32_t context);
+    /* Parse extension */
+    int (*parse)(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
+                                X509 *x, size_t chainidx);
+    /* Check if need construct */
+    int (*check)(QUIC_TLS *tls);
+    /* Construct extension */
+    int (*construct)(QUIC_TLS *tls, WPacket *pkt, uint32_t context, X509 *x,
+                                    size_t chainidx);
     /*
      * Finalise extension after parsing. Always called where an extensions was
      * initialised even if the extension was not present. |sent| is set to 1 if
      * the extension was seen, or 0 otherwise.
      */
-    int (*final)(QUIC_TLS *quic, uint32_t context, int sent);
+    int (*final)(QUIC_TLS *tls, uint32_t context, int sent);
 } QuicTlsExtensionDefinition;
+
+typedef struct {
+    uint64_t type;
+    int (*parse)(QUIC_TLS *tls, RPacket *pkt);
+    /* Check if need construct */
+    int (*check)(QUIC_TLS *tls);
+    int (*construct)(QUIC_TLS *tls, WPacket *pkt);
+} QuicTransportParamDefinition;
 
 #ifdef QUIC_TEST
 extern const QuicTlsExtensionDefinition *(*QuicTestExtensionHook)(const
         QuicTlsExtensionDefinition *, size_t *i);
 #endif
-int TlsExtParseCtosServerName(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
-int TlsExtConstructCtosServerName(QUIC_TLS *, WPacket *, uint32_t, X509 *,
-                                    size_t);
-int TlsExtParseCtosSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
-int TlsExtParseStocSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
-int TlsExtConstructCtosSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t);
-int TlsExtConstructStocSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t);
-int TlsConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t);
+
+int TlsExtInitServerName(QUIC_TLS *, uint32_t);
+int TlsExtFinalServerName(QUIC_TLS *, uint32_t, int);
+int TlsExtInitSigAlgs(QUIC_TLS *, uint32_t);
+int TlsExtFinalSigAlgs(QUIC_TLS *, uint32_t, int);
+
+int TlsConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t,
+                             const QuicTlsExtensionDefinition *ext,
+                             size_t);
+int TlsConstructQuicTransportParamExtension(QUIC_TLS *, WPacket *,
+                            QuicTransportParamDefinition *, size_t);
+int TlsClientConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *,
+                            size_t);
 
 #endif

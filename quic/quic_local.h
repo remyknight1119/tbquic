@@ -7,6 +7,7 @@
 #include <openssl/bio.h>
 #include <tbquic/quic.h>
 
+#include "base.h"
 #include "statem.h"
 #include "stream.h"
 #include "cipher.h"
@@ -41,13 +42,13 @@ struct QuicMethod {
 struct QuicCtx {
     const QUIC_METHOD *method;
     uint32_t mtu;
-    QuicTransParams trans_param;
+    struct {
+        QUIC_DATA alpn;
+        QuicTransParams trans_param;
+        uint16_t *supported_groups;
+        size_t supported_groups_len;
+    } ext;
 };
-
-typedef struct {
-    uint8_t *data;
-    size_t len;
-} QUIC_DATA;
 
 typedef struct {
     QUIC_CIPHERS ciphers;

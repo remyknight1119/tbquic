@@ -24,16 +24,25 @@ void QuicMemFree(void *ptr)
     free(ptr);
 }
 
+void *QuicMemcpy(void *dest, const void *src, size_t n)
+{
+    return memcpy(dest, src, n);
+}
+
 void *QuicMemDup(const void *ptr, size_t size)
 {
     void *m = NULL;
     
+    if (ptr == NULL) {
+        return NULL;
+    }
+
     m = QuicMemMalloc(size);
     if (m == NULL) {
         return NULL;
     }
 
-    memcpy(m, ptr, size);
+    QuicMemcpy(m, ptr, size);
     return m;
 }
 

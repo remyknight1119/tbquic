@@ -65,7 +65,7 @@ static QuicFuncTest test_funcs[] = {
     },
 };
 
-#define QUIC_FUNC_TEST_NUM QUIC_ARRAY_SIZE(test_funcs)
+#define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)
 
 static uint8_t QuicBitsOrderTrans(uint8_t value)
 {

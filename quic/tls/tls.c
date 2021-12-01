@@ -172,6 +172,8 @@ int QuicTlsInit(QUIC_TLS *tls)
 
 void QuicTlsFree(QUIC_TLS *tls)
 {
+    QuicDataFree(&tls->ext.alpn);
+
     QuicTlsDestroyCipherList(&tls->cipher_list);
     QuicBufFree(&tls->buffer);
 }

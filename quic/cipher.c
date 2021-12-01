@@ -84,7 +84,7 @@ static const QuicSalt handshake_salt[] = {
     },
 };
 
-#define QUIC_HANDSHAKE_SALT_NUM QUIC_ARRAY_SIZE(handshake_salt)
+#define QUIC_HANDSHAKE_SALT_NUM QUIC_NELEM(handshake_salt)
 
 
 static const QuicSalt *QuicSaltFind(const QuicSalt *salt, size_t num,

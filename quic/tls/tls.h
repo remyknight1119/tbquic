@@ -11,6 +11,7 @@
 #include "statem.h"
 #include "list.h"
 #include "transport.h"
+#include "base.h"
 
 #define TLS_RANDOM_BYTE_LEN     32
 #define TLS_HANDSHAKE_LEN_SIZE  3
@@ -69,7 +70,13 @@ struct QuicTls {
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;
     QUIC_BUFFER buffer;
-    QuicTransParams trans_param;
+    /* TLS extensions. */
+    struct {
+        QuicTransParams trans_param;
+        QUIC_DATA alpn;
+        uint16_t *supported_groups;
+        size_t supported_groups_len;
+    } ext;
 };
 
 typedef struct {

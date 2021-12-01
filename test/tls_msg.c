@@ -76,6 +76,7 @@ static uint8_t client_extension[] =
 static uint16_t extension_defs[] = {
     EXT_TYPE_SIGNATURE_ALGORITHMS,
     EXT_TYPE_QUIC_TRANS_PARAMS,
+    EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
     EXT_TYPE_SERVER_NAME,
 };
 
@@ -194,21 +195,28 @@ static size_t QuicTlsTestGetPSigAlgs(const uint16_t **psigs)
 {
     *psigs = tls_sigalgs;
 
-    return QUIC_ARRAY_SIZE(tls_sigalgs);
+    return QUIC_NELEM(tls_sigalgs);
 }
 
 static const QuicTlsExtensionDefinition *QuicTlsTestGetExtension(const
-        QuicTlsExtensionDefinition *ext, size_t *i)
+        QuicTlsExtensionDefinition *ext, size_t num)
 {
-    static size_t j = 0;
+    static size_t i = 0;
+    size_t j = 0;
+    uint16_t type = 0;
 
-    if (j >= QUIC_NELEM(extension_defs)) {
-        *i = EXT_TYPE_MAX - 1; 
-    } else {
-        *i = extension_defs[j];
+    if (i >= QUIC_NELEM(extension_defs)) {
+        return NULL;
     }
-    j++;
-    return &ext[*i];
+    type = extension_defs[i];
+    i++;
+    for (j = 0; j < num; j++) {
+        if (type == ext[j].type) {
+            return ext + j;
+        }
+    }
+
+    return NULL;
 }
 
 static QuicTransParamDefinition *
@@ -238,6 +246,7 @@ int QuicTlsClientExtensionTest(void)
     QuicTlsTestParam *p = NULL;
     WPacket pkt = {};
     uint8_t buf[sizeof(client_extension)] = {};
+    const uint8_t alpn[] = "\x02\x68\x33";
     size_t wlen = 0;
     size_t i = 0;
     int offset = 0;
@@ -245,6 +254,10 @@ int QuicTlsClientExtensionTest(void)
 
     ctx = QuicCtxNew(QuicClientMethod());
     if (ctx == NULL) {
+        goto out;
+    }
+
+    if (QUIC_CTX_set_alpn_protos(ctx, alpn, sizeof(alpn) - 1) < 0) {
         goto out;
     }
 

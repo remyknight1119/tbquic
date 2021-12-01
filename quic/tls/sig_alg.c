@@ -22,7 +22,7 @@ static const uint16_t tls_sigalgs[] = {
     TLSEXT_SIGALG_RSA_PKCS1_SHA512,
 };
 
-#define SIG_ALG_DEF_NUM QUIC_ARRAY_SIZE(tls_sigalgs)
+#define SIG_ALG_DEF_NUM QUIC_NELEM(tls_sigalgs)
 
 static const SigAlgLookup sig_alg_lookup[] = {
     {
@@ -104,7 +104,7 @@ static const SigAlgLookup sig_alg_lookup[] = {
     },
 };
 
-#define SIG_ALG_LOOKUP_NUM QUIC_ARRAY_SIZE(sig_alg_lookup)
+#define SIG_ALG_LOOKUP_NUM QUIC_NELEM(sig_alg_lookup)
 
 static const SigAlgLookup *TlsLookupSigAlg(uint16_t sigalg)
 {

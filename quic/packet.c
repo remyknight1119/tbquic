@@ -456,6 +456,40 @@ int WPacketClose(WPacket *pkt)
     return 0;
 }
 
+int WPacketSubMemcpyBytes(WPacket *pkt, const void *src, size_t len,
+                         size_t lenbytes)
+{
+    if (WPacketStartSubBytes(pkt, lenbytes) < 0) {
+        return -1;
+    }
+    
+    if (WPacketMemcpy(pkt, src, len) < 0) {
+        return -1;
+    }
+
+    return WPacketClose(pkt);
+}
+
+int WPacketSubMemcpyU8(WPacket *pkt, const void *src, size_t len)
+{
+    return WPacketSubMemcpyBytes(pkt, src, len, 1);
+}
+
+int WPacketSubMemcpyU16(WPacket *pkt, const void *src, size_t len)
+{
+    return WPacketSubMemcpyBytes(pkt, src, len, 2);
+}
+
+int WPacketSubMemcpyU24(WPacket *pkt, const void *src, size_t len)
+{
+    return WPacketSubMemcpyBytes(pkt, src, len, 3);
+}
+
+int WPacketSubMemcpyU32(WPacket *pkt, const void *src, size_t len)
+{
+    return WPacketSubMemcpyBytes(pkt, src, len, 4);
+}
+
 void WPacketCleanup(WPacket *pkt)
 {
     WPACKET_SUB *sub = NULL;

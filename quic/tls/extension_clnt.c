@@ -15,44 +15,64 @@
 static int TlsExtClientConstructServerName(QUIC_TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
 static int TlsExtClientCheckServerName(QUIC_TLS *);
-
+static int TlsExtClientConstructSupportedGroups(QUIC_TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
 static int TlsExtClientParseSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *,
                                         size_t);
 static int TlsExtClientConstructSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 static int TlsExtClientConstructQuicTransParam(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
+static int TlsExtClientCheckAlpn(QUIC_TLS *);
+static int TlsExtClientConstructAlpn(QUIC_TLS *, WPacket *, uint32_t, X509 *,
+                                        size_t);
 
-static const QuicTlsExtensionDefinition client_ext_defs[EXT_TYPE_MAX] = {
-    [EXT_TYPE_SERVER_NAME] = {
+static const QuicTlsExtensionDefinition client_ext_defs[] = {
+    {
+        .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_CLIENT_HELLO,
         .init = TlsExtInitServerName,
         .check = TlsExtClientCheckServerName,
         .construct = TlsExtClientConstructServerName,
         .final = TlsExtFinalServerName,
     },
-    [EXT_TYPE_SIGNATURE_ALGORITHMS] = {
+    {
+        .type = EXT_TYPE_SUPPORTED_GROUPS,
+        .context = TLSEXT_CLIENT_HELLO,
+        .construct = TlsExtClientConstructSupportedGroups,
+    },
+    {
+        .type = EXT_TYPE_SIGNATURE_ALGORITHMS,
         .context = TLSEXT_CLIENT_HELLO,
         .init = TlsExtInitSigAlgs,
         .parse = TlsExtClientParseSigAlgs,
         .construct = TlsExtClientConstructSigAlgs,
         .final = TlsExtFinalSigAlgs,
     },
-    [EXT_TYPE_QUIC_TRANS_PARAMS] = {
+    {
+        .type = EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
+        .context = TLSEXT_CLIENT_HELLO,
+        .check = TlsExtClientCheckAlpn,
+        .construct = TlsExtClientConstructAlpn,
+    },
+    {
+        .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_CLIENT_HELLO,
         .construct = TlsExtClientConstructQuicTransParam,
     },
 };
 
-#define TLS_CLIENT_EXTENSION_DEF_NUM QUIC_ARRAY_SIZE(client_ext_defs)
+#define TLS_CLIENT_EXTENSION_DEF_NUM QUIC_NELEM(client_ext_defs)
 
-static int QuicTransParamCheckGrease(QuicTransParams *, size_t);
-static int QuicTransParamConstructGrease(QuicTransParams *, size_t, WPacket *);
-static int QuicTransParamConstructSourceConnId(QuicTransParams *, size_t,
-                                                WPacket *);
-static int QuicTransParamCheckGoogleVersion(QuicTransParams *, size_t);
-static int QuicTransParamConstructGoogleVersion(QuicTransParams *, size_t,
-                                                WPacket *);
+static int QuicTransParamCheckGrease(QUIC_TLS *, QuicTransParams *, size_t);
+static int QuicTransParamConstructGrease(QUIC_TLS *, QuicTransParams *,
+                                            size_t, WPacket *);
+static int QuicTransParamConstructSourceConnId(QUIC_TLS *, QuicTransParams *,
+                                            size_t, WPacket *);
+static int QuicTransParamCheckGoogleVersion(QUIC_TLS *, QuicTransParams *,
+                                            size_t);
+static int QuicTransParamConstructGoogleVersion(QUIC_TLS *, QuicTransParams *,
+                                            size_t, WPacket *);
 
 static QuicTransParamDefinition client_transport_param[] = {
     {
@@ -128,7 +148,7 @@ static QuicTransParamDefinition client_transport_param[] = {
     },
 };
 
-#define QUIC_TRANS_PARAM_NUM QUIC_ARRAY_SIZE(client_transport_param)
+#define QUIC_TRANS_PARAM_NUM QUIC_NELEM(client_transport_param)
 
 static int TlsExtClientCheckServerName(QUIC_TLS *)
 {
@@ -136,6 +156,13 @@ static int TlsExtClientCheckServerName(QUIC_TLS *)
 }
 
 static int TlsExtClientConstructServerName(QUIC_TLS *tls, WPacket *pkt,
+                                    uint32_t context, X509 *x,
+                                    size_t chainidx)
+{
+    return 0;
+}
+
+static int TlsExtClientConstructSupportedGroups(QUIC_TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
@@ -174,6 +201,24 @@ static int TlsExtClientConstructSigAlgs(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
+static int TlsExtClientCheckAlpn(QUIC_TLS *tls)
+{
+    if (QuicDataIsEmpty(&tls->ext.alpn)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int TlsExtClientConstructAlpn(QUIC_TLS *tls, WPacket *pkt,
+                                        uint32_t context, X509 *x,
+                                        size_t chainidx)
+{
+    QUIC_DATA *alpn = &tls->ext.alpn;
+
+    return WPacketSubMemcpyU16(pkt, alpn->data, alpn->len);
+}
+
 static int TlsExtClientConstructQuicTransParam(QUIC_TLS *tls, WPacket *pkt,
                             uint32_t context, X509 *x, size_t chainidx)
 {
@@ -189,7 +234,8 @@ int TlsClientConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
                                     TLS_CLIENT_EXTENSION_DEF_NUM);
 }
 
-static int QuicTransParamCheckGrease(QuicTransParams *param, size_t offset)
+static int
+QuicTransParamCheckGrease(QUIC_TLS *tls, QuicTransParams *param, size_t offset)
 {
 #ifdef QUIC_TEST
     return 0;
@@ -197,8 +243,9 @@ static int QuicTransParamCheckGrease(QuicTransParams *param, size_t offset)
     return -1;
 }
 
-static int QuicTransParamConstructGrease(QuicTransParams *param, size_t offset,
-                                            WPacket *pkt)
+static int
+QuicTransParamConstructGrease(QUIC_TLS *tls, QuicTransParams *param,
+                                size_t offset, WPacket *pkt)
 {
     uint8_t value[] = "\xB9\xF8\xCB\xDE\x38\x55\x6D\x9D\x34\x30\x0F\x89";
     size_t len = sizeof(value) - 1;
@@ -223,20 +270,20 @@ int QuicTransParamConstructCid(QUIC_DATA *cid, WPacket *pkt)
     return WPacketMemcpy(pkt, cid->data, cid->len);
 }
 
-static int QuicTransParamConstructSourceConnId(QuicTransParams *param,
+static int
+QuicTransParamConstructSourceConnId(QUIC_TLS *tls, QuicTransParams *param,
                                             size_t offset, WPacket *pkt)
 {
     QUIC *quic = NULL;
-    QUIC_TLS *tls = NULL;
 
-    tls = QUIC_CONTAINER_OF(param, QUIC_TLS, trans_param);
     quic = QuicTlsTrans(tls);
 
     return QuicTransParamConstructCid(&quic->scid, pkt);
 }
 
-static int QuicTransParamCheckGoogleVersion(QuicTransParams *param,
-                                            size_t offset)
+static int
+QuicTransParamCheckGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
+                                    size_t offset)
 {
 #ifdef QUIC_TEST
     return 0;
@@ -244,7 +291,8 @@ static int QuicTransParamCheckGoogleVersion(QuicTransParams *param,
     return -1;
 }
 
-static int QuicTransParamConstructGoogleVersion(QuicTransParams *param,
+static int
+QuicTransParamConstructGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
                                             size_t offset, WPacket *pkt)
 {
     if (QuicVariableLengthWrite(pkt, 4) < 0) {

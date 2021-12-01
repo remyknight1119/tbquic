@@ -50,7 +50,7 @@ static QuicLongPacketParse LPacketPaser[] = {
     },
 };
 
-#define LPACKET_PARSER_NUM     QUIC_ARRAY_SIZE(LPacketPaser) 
+#define LPACKET_PARSER_NUM     QUIC_NELEM(LPacketPaser) 
 
 static int QuicVersionSelect(QUIC *quic, uint32_t version)
 {

@@ -22,7 +22,7 @@ static QuicStateMachine client_statem[QUIC_STATEM_MAX] = {
     },
 };
 
-#define QUIC_CLIENT_STATEM_NUM QUIC_ARRAY_SIZE(client_statem)
+#define QUIC_CLIENT_STATEM_NUM QUIC_NELEM(client_statem)
 
 static int QuicCidGen(QUIC_DATA *cid, size_t len)
 {

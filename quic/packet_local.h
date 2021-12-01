@@ -67,6 +67,12 @@ int WPacketStartSubU8(WPacket *);
 int WPacketStartSubU16(WPacket *);
 int WPacketStartSubU24(WPacket *);
 int WPacketStartSubU32(WPacket *);
+int WPacketSubMemcpyBytes(WPacket *, const void *, size_t, size_t);
+int WPacketSubMemcpyU8(WPacket *, const void *, size_t);
+int WPacketSubMemcpyU16(WPacket *, const void *, size_t);
+int WPacketSubMemcpyU24(WPacket *, const void *, size_t);
+int WPacketSubMemcpyU32(WPacket *, const void *, size_t);
+
 int WPacketClose(WPacket *);
 void WPacketCleanup(WPacket *);
 

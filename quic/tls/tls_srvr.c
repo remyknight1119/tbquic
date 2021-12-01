@@ -29,7 +29,7 @@ static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
     },
 };
 
-#define QUIC_TLS_SERVER_PROC_NUM QUIC_ARRAY_SIZE(server_proc)
+#define QUIC_TLS_SERVER_PROC_NUM QUIC_NELEM(server_proc)
 
 int QuicTlsAccept(QUIC_TLS *tls, const uint8_t *data, size_t len)
 {

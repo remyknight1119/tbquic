@@ -56,6 +56,7 @@ typedef enum {
 
 
 typedef struct {
+    uint16_t type;
     /*
      * The context that this extension applies to, e.g. what messages and
      * protocol versions
@@ -84,15 +85,16 @@ typedef struct {
 
 typedef struct {
     uint64_t type;
-    int (*parse)(QuicTransParams *param, RPacket *pkt);
+    int (*parse)(QUIC_TLS *tls, QuicTransParams *param, RPacket *pkt);
     /* Check if need construct */
-    int (*check)(QuicTransParams *param, size_t offset);
-    int (*construct)(QuicTransParams *param, size_t offset, WPacket *pkt);
+    int (*check)(QUIC_TLS *tls, QuicTransParams *param, size_t offset);
+    int (*construct)(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
+                        WPacket *pkt);
 } QuicTransParamDefinition;
 
 #ifdef QUIC_TEST
 extern const QuicTlsExtensionDefinition *(*QuicTestExtensionHook)(const
-        QuicTlsExtensionDefinition *, size_t *i);
+        QuicTlsExtensionDefinition *, size_t);
 extern QuicTransParamDefinition *
 (*QuicTestTransParamHook)(QuicTransParamDefinition *, size_t);
 #endif
@@ -109,7 +111,8 @@ int TlsConstructQuicTransParamExtension(QUIC_TLS *, WPacket *,
                             QuicTransParamDefinition *, size_t);
 int TlsClientConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                             size_t);
-int QuicTransParamCheckInteger(QuicTransParams *, size_t);
-int QuicTransParamConstructInteger(QuicTransParams *, size_t, WPacket *);
+int QuicTransParamCheckInteger(QUIC_TLS *, QuicTransParams *, size_t);
+int QuicTransParamConstructInteger(QUIC_TLS *, QuicTransParams *, size_t,
+                                    WPacket *);
 
 #endif

@@ -135,7 +135,7 @@ static QuicHkdfExpandLabelTest QuicHkdfExpandLabelTestCases[] = {
 };
 
 #define QUIC_HKDF_EXPAND_LABEL_TEST_NUM \
-    QUIC_ARRAY_SIZE(QuicHkdfExpandLabelTestCases)
+    QUIC_NELEM(QuicHkdfExpandLabelTestCases)
 
 int QuicHkdfExpandLabel(void)
 {

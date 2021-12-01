@@ -20,7 +20,7 @@ static QuicStateMachine server_statem[QUIC_STATEM_MAX] = {
     },
 };
 
-#define QUIC_SERVER_STATEM_NUM QUIC_ARRAY_SIZE(server_statem)
+#define QUIC_SERVER_STATEM_NUM QUIC_NELEM(server_statem)
 
 static int QuicServerReadyRead(QUIC *quic)
 {

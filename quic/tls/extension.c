@@ -44,7 +44,7 @@ static int TlsShouldAddExtension(QUIC_TLS *tls, uint32_t extctx,
 
 #ifdef QUIC_TEST
 const QuicTlsExtensionDefinition *(*QuicTestExtensionHook)(const
-        QuicTlsExtensionDefinition *, size_t *i);
+        QuicTlsExtensionDefinition *, size_t);
 #endif
 int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
                              X509 *x, size_t chainidx,
@@ -63,7 +63,7 @@ int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
         thisexd = &ext[i];
 #ifdef QUIC_TEST
         if (QuicTestExtensionHook) {
-            thisexd = QuicTestExtensionHook(ext, &i);
+            thisexd = QuicTestExtensionHook(ext, num);
             if (thisexd == NULL) {
                 break;
             }
@@ -82,7 +82,7 @@ int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
             continue;
         }
 
-        if (WPacketPut2(pkt, i) < 0) {
+        if (WPacketPut2(pkt, thisexd->type) < 0) {
             QUIC_LOG("Put session ID len failed\n");
             return -1;
         }
@@ -132,7 +132,7 @@ int TlsConstructQuicTransParamExtension(QUIC_TLS *tls, WPacket *pkt,
         }
 #endif
         QuicTransParamGetOffset(p->type, &offset);
-        if (p->check && p->check(&tls->trans_param, offset) < 0) {
+        if (p->check && p->check(tls, &tls->ext.trans_param, offset) < 0) {
             printf("check failed\n");
             continue;
         }
@@ -145,7 +145,7 @@ int TlsConstructQuicTransParamExtension(QUIC_TLS *tls, WPacket *pkt,
             continue;
         }
 
-        if (p->construct(&tls->trans_param, offset, pkt) < 0) {
+        if (p->construct(tls, &tls->ext.trans_param, offset, pkt) < 0) {
             return -1;
         }
     }
@@ -153,7 +153,8 @@ int TlsConstructQuicTransParamExtension(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-int QuicTransParamCheckInteger(QuicTransParams *param, size_t offset)
+int QuicTransParamCheckInteger(QUIC_TLS *tls, QuicTransParams *param,
+                                size_t offset)
 {
     uint64_t value;
 
@@ -165,7 +166,7 @@ int QuicTransParamCheckInteger(QuicTransParams *param, size_t offset)
     return 0;
 }
 
-int QuicTransParamConstructInteger(QuicTransParams *param, size_t offset,
+int QuicTransParamConstructInteger(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
                                             WPacket *pkt)
 {
     uint64_t value;

@@ -17,7 +17,7 @@
 #include "mem.h"
 
 
-#define TLS_CIPHER_DEF_IDS_NUM  QUIC_ARRAY_SIZE(tls_cipher_def_ids)
+#define TLS_CIPHER_DEF_IDS_NUM  QUIC_NELEM(tls_cipher_def_ids)
 
 static const TlsCipher tls_ciphers[] = {
     {
@@ -62,7 +62,7 @@ static const TlsCipher tls_ciphers[] = {
     },
 };
 
-#define TLS_CIPHERS_NUM  QUIC_ARRAY_SIZE(tls_ciphers)
+#define TLS_CIPHERS_NUM  QUIC_NELEM(tls_ciphers)
 
 const TlsCipher *QuicGetTlsCipherByName(const char *name, size_t name_len)
 {

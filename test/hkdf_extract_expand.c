@@ -251,7 +251,7 @@ static QuicHkdfTest QuicHkdfTestCases[] = {
     },
 };
 
-#define QUIC_HKDF_TEST_NUM QUIC_ARRAY_SIZE(QuicHkdfTestCases)
+#define QUIC_HKDF_TEST_NUM QUIC_NELEM(QuicHkdfTestCases)
 
 int QuicHkdfExtractExpandTest(void)
 {

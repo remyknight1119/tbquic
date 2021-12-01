@@ -4,7 +4,6 @@
 #include <stddef.h>
 
 #define QUIC_NELEM(x)    (sizeof(x)/sizeof(x[0]))
-#define QUIC_ARRAY_SIZE QUIC_NELEM
 
 /*
  * QUIC_CONTAINER_OF - cast a member of a structure out to the containing structure

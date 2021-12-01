@@ -10,7 +10,7 @@
 #include "mem.h"
 #include "log.h"
 #include "cipher.h"
-
+#include "tls_lib.h"
 
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
@@ -34,13 +34,55 @@ out:
 
 void QuicCtxFree(QUIC_CTX *ctx)
 {
+    QuicDataFree(&ctx->ext.alpn);
     QuicMemFree(ctx);
+}
+
+int QuicCtxCtrl(QUIC_CTX *ctx, uint32_t cmd, void *parg, long larg)
+{
+    switch (cmd) {
+        case QUIC_CTRL_SET_GROUPS:
+            return TlsSetSupportedGroups(&ctx->ext.supported_groups,
+                    &ctx->ext.supported_groups_len,
+                    parg, larg);
+        default:
+            return -1;
+    }
+
+    return 0;
 }
 
 int QUIC_CTX_set_transport_parameter(QUIC_CTX *ctx, uint64_t type, void *value,
                                         size_t len)
 {
-    return QuicTransParamSet(&ctx->trans_param, type, value, len);
+    return QuicTransParamSet(&ctx->ext.trans_param, type, value, len);
+}
+
+int QUIC_set_transport_parameter(QUIC *quic, uint64_t type,
+                                    void *value, size_t len)
+{
+    return QuicTransParamSet(&quic->tls.ext.trans_param, type, value, len);
+}
+
+/*
+ * QUIC_CTX_set_alpn_protos sets the ALPN protocol list on |ctx| to |protos|.
+ * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
+ * length-prefixed strings). Returns 0 on success.
+ */
+int QUIC_CTX_set_alpn_protos(QUIC_CTX *ctx, const uint8_t *protos,
+                                size_t protos_len)
+{
+    return QuicDataCopy(&ctx->ext.alpn, protos, protos_len);
+}
+
+/*
+ * QUIC_set_alpn_protos sets the ALPN protocol list on |quic| to |protos|.
+ * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
+ * length-prefixed strings). Returns 0 on success.
+ */
+int QUIC_set_alpn_protos(QUIC *quic, const uint8_t *protos, size_t protos_len)
+{
+    return QuicDataCopy(&quic->tls.ext.alpn, protos, protos_len);
 }
 
 static int QUIC_set_cipher_alg(QUIC_CIPHER *cipher, uint32_t alg)
@@ -109,7 +151,11 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->method = ctx->method;
     quic->mtu = ctx->mtu;
     quic->version = ctx->method->version;
-    quic->tls.trans_param = ctx->trans_param;
+    quic->tls.ext.trans_param = ctx->ext.trans_param;
+    if (QuicDataDup(&quic->tls.ext.alpn, &ctx->ext.alpn) < 0) {
+        goto out;
+    }
+
     quic->ctx = ctx;
 
     if (quic->method->tls_init(&quic->tls) < 0) {
@@ -168,8 +214,8 @@ void QuicCryptoFree(QuicCrypto *c)
 
 void QuicFree(QUIC *quic)
 {
-    QuicMemFree(quic->dcid.data);
-    QuicMemFree(quic->scid.data);
+    QuicDataFree(&quic->dcid);
+    QuicDataFree(&quic->scid);
 
     BIO_free_all(quic->rbio);
     BIO_free_all(quic->wbio);
@@ -255,11 +301,5 @@ int QUIC_set_fd(QUIC *quic, int fd)
 
 err:
     return ret;
-}
-
-int QUIC_set_transport_parameter(QUIC *quic, uint64_t type,
-                                    void *value, size_t len)
-{
-    return QuicTransParamSet(&quic->tls.trans_param, type, value, len);
 }
 

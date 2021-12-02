@@ -11,6 +11,7 @@
 #include "packet_local.h"
 #include "quic_local.h"
 #include "tls_cipher.h"
+#include "mem.h"
 #include "log.h"
 
 int QuicTlsDoHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len)
@@ -159,11 +160,27 @@ int QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
     return ret;
 }
 
-int QuicTlsInit(QUIC_TLS *tls)
+int QuicTlsInit(QUIC_TLS *tls, QUIC_CTX *ctx)
 {
     tls->handshake_state = QUIC_TLS_ST_OK;
     if (QuicBufInit(&tls->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
         return -1;
+    }
+
+    tls->cert = QuicCertDup(ctx->cert);
+    if (tls->cert == NULL) {
+        return -1;
+    }
+
+    if (QuicDataDup(&tls->ext.alpn, &ctx->ext.alpn) < 0) {
+        return -1;
+    }
+
+    if (!QuicDataIsEmpty(&ctx->ext.supported_groups)) {
+        if (QuicDataDupU16(&tls->ext.supported_groups,
+                    &ctx->ext.supported_groups) < 0) {
+            return -1;
+        }
     }
 
     INIT_HLIST_HEAD(&tls->cipher_list);
@@ -172,9 +189,11 @@ int QuicTlsInit(QUIC_TLS *tls)
 
 void QuicTlsFree(QUIC_TLS *tls)
 {
+    QuicDataFree(&tls->ext.supported_groups);
     QuicDataFree(&tls->ext.alpn);
 
     QuicTlsDestroyCipherList(&tls->cipher_list);
+    QuicCertFree(tls->cert);
     QuicBufFree(&tls->buffer);
 }
 

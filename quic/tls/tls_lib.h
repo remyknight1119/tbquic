@@ -9,6 +9,7 @@ typedef struct {
 } TlsGroupInfo;
 
 void TlsGetSupportedGroups(QUIC_TLS *, const uint16_t **, size_t *);
-int TlsSetSupportedGroups(uint16_t **, size_t *, int *, size_t);
+int TlsSetSupportedGroups(uint16_t **, size_t *, uint16_t *, size_t);
+int TlsCheckFfdhGroup(uint16_t);
 
 #endif

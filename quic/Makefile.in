@@ -138,7 +138,7 @@ am_libtbquic_la_OBJECTS = core.lo quic_lib.lo mem.lo statem_clnt.lo \
 	frame.lo buffer.lo cert_and_key.lo tls/tls.lo tls/tls_clnt.lo \
 	tls/tls_srvr.lo rand_lib.lo tls/tls_cipher.lo tls/tls_msg.lo \
 	tls/extension.lo tls/extension_clnt.lo tls/extension_srvr.lo \
-	tls/sig_alg.lo transport.lo base.lo tls/tls_lib.lo
+	tls/sig_alg.lo transport.lo base.lo tls/tls_lib.lo cert.lo
 libtbquic_la_OBJECTS = $(am_libtbquic_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -163,10 +163,10 @@ DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/base.Plo ./$(DEPDIR)/buffer.Plo \
-	./$(DEPDIR)/cert_and_key.Plo ./$(DEPDIR)/cipher.Plo \
-	./$(DEPDIR)/core.Plo ./$(DEPDIR)/crypto.Plo \
-	./$(DEPDIR)/datagram.Plo ./$(DEPDIR)/evp.Plo \
-	./$(DEPDIR)/frame.Plo ./$(DEPDIR)/mem.Plo \
+	./$(DEPDIR)/cert.Plo ./$(DEPDIR)/cert_and_key.Plo \
+	./$(DEPDIR)/cipher.Plo ./$(DEPDIR)/core.Plo \
+	./$(DEPDIR)/crypto.Plo ./$(DEPDIR)/datagram.Plo \
+	./$(DEPDIR)/evp.Plo ./$(DEPDIR)/frame.Plo ./$(DEPDIR)/mem.Plo \
 	./$(DEPDIR)/methods.Plo ./$(DEPDIR)/packet.Plo \
 	./$(DEPDIR)/packet_format.Plo ./$(DEPDIR)/quic_lib.Plo \
 	./$(DEPDIR)/rand_lib.Plo ./$(DEPDIR)/statem.Plo \
@@ -348,7 +348,7 @@ libtbquic_la_SOURCES = core.c quic_lib.c mem.c statem_clnt.c statem_srvr.c \
 						tls/tls_srvr.c rand_lib.c tls/tls_cipher.c \
 						tls/tls_msg.c tls/extension.c tls/extension_clnt.c \
 						tls/extension_srvr.c tls/sig_alg.c transport.c \
-						base.c tls/tls_lib.c
+						base.c tls/tls_lib.c cert.c
 
 libtbquic_la_LDFLAGS = -version-info 1
 AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/tls -DQUIC_TEST
@@ -454,6 +454,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/base.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/buffer.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cert.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cert_and_key.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cipher.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/core.Plo@am__quote@ # am--include-marker
@@ -652,6 +653,7 @@ clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 distclean: distclean-am
 		-rm -f ./$(DEPDIR)/base.Plo
 	-rm -f ./$(DEPDIR)/buffer.Plo
+	-rm -f ./$(DEPDIR)/cert.Plo
 	-rm -f ./$(DEPDIR)/cert_and_key.Plo
 	-rm -f ./$(DEPDIR)/cipher.Plo
 	-rm -f ./$(DEPDIR)/core.Plo
@@ -727,6 +729,7 @@ installcheck-am:
 maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/base.Plo
 	-rm -f ./$(DEPDIR)/buffer.Plo
+	-rm -f ./$(DEPDIR)/cert.Plo
 	-rm -f ./$(DEPDIR)/cert_and_key.Plo
 	-rm -f ./$(DEPDIR)/cipher.Plo
 	-rm -f ./$(DEPDIR)/core.Plo

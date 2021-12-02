@@ -25,11 +25,8 @@ typedef struct {
     int curve;
 } SigAlgLookup;
 
-#ifdef QUIC_TEST
-extern size_t (*TlsTestGetPSigAlgs)(const uint16_t **psigs);
-#endif
-
 int TlsCopySigAlgs(WPacket *, const uint16_t *, size_t);
 size_t TlsGetPSigAlgs(QUIC_TLS *, const uint16_t **);
+int TlsSetSigalgs(QuicCert *c, const uint16_t *, size_t);
 
 #endif

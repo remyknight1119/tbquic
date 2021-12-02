@@ -13,6 +13,7 @@
 #include "cipher.h"
 #include "buffer.h"
 #include "tls.h"
+#include "cert.h"
 
 #define QUIC_VERSION_1      0x01
 
@@ -36,17 +37,17 @@
 struct QuicMethod {
     uint32_t version;
     int (*quic_handshake)(QUIC *);
-    int (*tls_init)(QUIC_TLS *);
+    int (*tls_init)(QUIC_TLS *, QUIC_CTX *);
 };
 
 struct QuicCtx {
     const QUIC_METHOD *method;
     uint32_t mtu;
+    QuicCert *cert;
     struct {
         QUIC_DATA alpn;
         QuicTransParams trans_param;
-        uint16_t *supported_groups;
-        size_t supported_groups_len;
+        QUIC_DATA supported_groups;
     } ext;
 };
 

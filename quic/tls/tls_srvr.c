@@ -65,10 +65,10 @@ static int QuicTlsClientHelloProcess(QUIC_TLS *tls, void *packet)
     return 0;
 }
 
-int QuicTlsServerInit(QUIC_TLS *tls)
+int QuicTlsServerInit(QUIC_TLS *tls, QUIC_CTX *ctx)
 {
     tls->handshake = QuicTlsAccept;
     tls->server = 1;
 
-    return QuicTlsInit(tls);
+    return QuicTlsInit(tls, ctx);
 }

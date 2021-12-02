@@ -5,6 +5,8 @@
 #include "sig_alg.h"
 
 #include <openssl/evp.h>
+#include <tbquic/quic.h>
+
 #include "extension.h"
 #include "cipher.h"
 #include "common.h"
@@ -129,6 +131,7 @@ int TlsCopySigAlgs(WPacket *pkt, const uint16_t *psig, size_t psiglen)
     for (i = 0; i < psiglen; i++, psig++) {
         lu = TlsLookupSigAlg(*psig);
         if (lu == NULL) {
+            QUIC_LOG("Sig id %x not found\n", *psig);
             return -1;
         }
 
@@ -141,19 +144,33 @@ int TlsCopySigAlgs(WPacket *pkt, const uint16_t *psig, size_t psiglen)
     return 0;
 }
 
-#ifdef QUIC_TEST
-size_t (*TlsTestGetPSigAlgs)(const uint16_t **psigs);
-#endif
-
 size_t TlsGetPSigAlgs(QUIC_TLS *tls, const uint16_t **psigs)
 {
-#ifdef QUIC_TEST
-    if (TlsTestGetPSigAlgs) {
-        return TlsTestGetPSigAlgs(psigs);
+    if (!QuicDataIsEmpty(&tls->cert->conf_sigalgs)) {
+        *psigs = tls->cert->conf_sigalgs.ptr_u16;
+        return tls->cert->conf_sigalgs.len;
     }
-#endif
+
     *psigs = tls_sigalgs;
 
     return SIG_ALG_DEF_NUM;
+}
+
+int TlsSetSigalgs(QuicCert *c, const uint16_t *psig_nids, size_t salglen)
+{
+    const SigAlgLookup *lu = NULL;
+    QUIC_DATA sig_alg = {};
+    size_t i = 0;
+
+    for (i = 0; i < salglen; i++) {
+        lu = TlsLookupSigAlg(psig_nids[i]);
+        if (lu == NULL) {
+            return -1;
+        }
+    }
+
+    QuicDataSet(&sig_alg, psig_nids, salglen);
+
+    return QuicDataDupU16(&c->conf_sigalgs, &sig_alg);
 }
 

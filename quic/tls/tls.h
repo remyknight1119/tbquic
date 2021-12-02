@@ -12,6 +12,7 @@
 #include "list.h"
 #include "transport.h"
 #include "base.h"
+#include "cert.h"
 
 #define TLS_RANDOM_BYTE_LEN     32
 #define TLS_HANDSHAKE_LEN_SIZE  3
@@ -70,12 +71,12 @@ struct QuicTls {
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;
     QUIC_BUFFER buffer;
+    QuicCert *cert;
     /* TLS extensions. */
     struct {
         QuicTransParams trans_param;
         QUIC_DATA alpn;
-        uint16_t *supported_groups;
-        size_t supported_groups_len;
+        QUIC_DATA supported_groups;
     } ext;
 };
 
@@ -90,10 +91,10 @@ typedef struct {
 extern uint8_t *quic_random_test;
 #endif
 
-int QuicTlsInit(QUIC_TLS *);
+int QuicTlsInit(QUIC_TLS *, QUIC_CTX *);
 void QuicTlsFree(QUIC_TLS *);
-int QuicTlsClientInit(QUIC_TLS *);
-int QuicTlsServerInit(QUIC_TLS *);
+int QuicTlsClientInit(QUIC_TLS *, QUIC_CTX *);
+int QuicTlsServerInit(QUIC_TLS *, QUIC_CTX *);
 int QuicTlsDoHandshake(QUIC_TLS *, const uint8_t *, size_t);
 int QuicTlsDoProcess(QUIC_TLS *, RPacket *, WPacket *, const QuicTlsProcess *,
                         size_t);

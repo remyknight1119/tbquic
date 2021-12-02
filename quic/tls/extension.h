@@ -9,24 +9,6 @@
 #define TLSEXT_CLIENT_HELLO    0x0001
 #define TLSEXT_SERVER_HELLO    0x0002
 
-/* Sigalgs values */
-#define TLSEXT_SIGALG_ECDSA_SECP256R1_SHA256                    0x0403
-#define TLSEXT_SIGALG_ECDSA_SECP384R1_SHA384                    0x0503
-#define TLSEXT_SIGALG_ECDSA_SECP521R1_SHA512                    0x0603
-#define TLSEXT_SIGALG_ECDSA_SHA224                              0x0303
-#define TLSEXT_SIGALG_ECDSA_SHA1                                0x0203
-#define TLSEXT_SIGALG_RSA_PSS_RSAE_SHA256                       0x0804
-#define TLSEXT_SIGALG_RSA_PSS_RSAE_SHA384                       0x0805
-#define TLSEXT_SIGALG_RSA_PSS_RSAE_SHA512                       0x0806
-#define TLSEXT_SIGALG_RSA_PSS_PSS_SHA256                        0x0809
-#define TLSEXT_SIGALG_RSA_PSS_PSS_SHA384                        0x080a
-#define TLSEXT_SIGALG_RSA_PSS_PSS_SHA512                        0x080b
-#define TLSEXT_SIGALG_RSA_PKCS1_SHA256                          0x0401
-#define TLSEXT_SIGALG_RSA_PKCS1_SHA384                          0x0501
-#define TLSEXT_SIGALG_RSA_PKCS1_SHA512                          0x0601
-#define TLSEXT_SIGALG_RSA_PKCS1_SHA224                          0x0301
-#define TLSEXT_SIGALG_RSA_PKCS1_SHA1                            0x0201
-
 typedef enum {
     EXT_TYPE_SERVER_NAME = 0,                             /* RFC 6066 */
     EXT_TYPE_MAX_FRAGMENT_LENGTH = 1,                     /* RFC 6066 */

@@ -11,6 +11,7 @@
 #include "log.h"
 #include "cipher.h"
 #include "tls_lib.h"
+#include "sig_alg.h"
 
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
@@ -23,18 +24,22 @@ QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 
     ctx->method = meth;
     ctx->mtu = QUIC_DATAGRAM_SIZE_MAX_DEF;
+    ctx->cert = QuicCertNew();
+    if (ctx->cert == NULL) {
+        goto out;
+    }
 
     return ctx;
-#if 0
 out:
     QuicCtxFree(ctx);
     return NULL;
-#endif
 }
 
 void QuicCtxFree(QUIC_CTX *ctx)
 {
     QuicDataFree(&ctx->ext.alpn);
+    QuicDataFree(&ctx->ext.supported_groups);
+    QuicCertFree(ctx->cert);
     QuicMemFree(ctx);
 }
 
@@ -42,9 +47,11 @@ int QuicCtxCtrl(QUIC_CTX *ctx, uint32_t cmd, void *parg, long larg)
 {
     switch (cmd) {
         case QUIC_CTRL_SET_GROUPS:
-            return TlsSetSupportedGroups(&ctx->ext.supported_groups,
-                    &ctx->ext.supported_groups_len,
+            return TlsSetSupportedGroups(&ctx->ext.supported_groups.ptr_u16,
+                    &ctx->ext.supported_groups.len,
                     parg, larg);
+        case QUIC_CTRL_SET_SIGALGS:
+            return TlsSetSigalgs(ctx->cert, parg, larg);
         default:
             return -1;
     }
@@ -152,13 +159,9 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->mtu = ctx->mtu;
     quic->version = ctx->method->version;
     quic->tls.ext.trans_param = ctx->ext.trans_param;
-    if (QuicDataDup(&quic->tls.ext.alpn, &ctx->ext.alpn) < 0) {
-        goto out;
-    }
-
     quic->ctx = ctx;
 
-    if (quic->method->tls_init(&quic->tls) < 0) {
+    if (quic->method->tls_init(&quic->tls, ctx) < 0) {
         goto out;
     }
 

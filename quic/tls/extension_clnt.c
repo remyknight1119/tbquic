@@ -8,57 +8,65 @@
 #include <tbquic/quic.h>
 #include "sig_alg.h"
 #include "quic_local.h"
+#include "tls_lib.h"
 #include "common.h"
 #include "packet_format.h"
 #include "log.h"
 
-static int TlsExtClientConstructServerName(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntConstructServerName(QUIC_TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
-static int TlsExtClientCheckServerName(QUIC_TLS *);
-static int TlsExtClientConstructSupportedGroups(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntCheckServerName(QUIC_TLS *);
+static int TlsExtClntConstructSupportedGroups(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClientParseSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *,
+static int TlsExtClntParseSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtClientConstructSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *,
+static int TlsExtClntConstructSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtClientConstructQuicTransParam(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntConstructQuicTransParam(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClientCheckAlpn(QUIC_TLS *);
-static int TlsExtClientConstructAlpn(QUIC_TLS *, WPacket *, uint32_t, X509 *,
+static int TlsExtClntCheckAlpn(QUIC_TLS *);
+static int TlsExtClntConstructAlpn(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
+static int TlsExtClntConstructSupportedVersion(QUIC_TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
 
 static const QuicTlsExtensionDefinition client_ext_defs[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_CLIENT_HELLO,
         .init = TlsExtInitServerName,
-        .check = TlsExtClientCheckServerName,
-        .construct = TlsExtClientConstructServerName,
+        .check = TlsExtClntCheckServerName,
+        .construct = TlsExtClntConstructServerName,
         .final = TlsExtFinalServerName,
     },
     {
         .type = EXT_TYPE_SUPPORTED_GROUPS,
         .context = TLSEXT_CLIENT_HELLO,
-        .construct = TlsExtClientConstructSupportedGroups,
+        .construct = TlsExtClntConstructSupportedGroups,
     },
     {
         .type = EXT_TYPE_SIGNATURE_ALGORITHMS,
         .context = TLSEXT_CLIENT_HELLO,
         .init = TlsExtInitSigAlgs,
-        .parse = TlsExtClientParseSigAlgs,
-        .construct = TlsExtClientConstructSigAlgs,
+        .parse = TlsExtClntParseSigAlgs,
+        .construct = TlsExtClntConstructSigAlgs,
         .final = TlsExtFinalSigAlgs,
     },
     {
         .type = EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
         .context = TLSEXT_CLIENT_HELLO,
-        .check = TlsExtClientCheckAlpn,
-        .construct = TlsExtClientConstructAlpn,
+        .check = TlsExtClntCheckAlpn,
+        .construct = TlsExtClntConstructAlpn,
+    },
+    {
+        .type = EXT_TYPE_SUPPORTED_VERSIONS,
+        .context = TLSEXT_CLIENT_HELLO,
+        .construct = TlsExtClntConstructSupportedVersion,
     },
     {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_CLIENT_HELLO,
-        .construct = TlsExtClientConstructQuicTransParam,
+        .construct = TlsExtClntConstructQuicTransParam,
     },
 };
 
@@ -150,39 +158,61 @@ static QuicTransParamDefinition client_transport_param[] = {
 
 #define QUIC_TRANS_PARAM_NUM QUIC_NELEM(client_transport_param)
 
-static int TlsExtClientCheckServerName(QUIC_TLS *)
+static int TlsExtClntCheckServerName(QUIC_TLS *)
 {
     return -1;
 }
 
-static int TlsExtClientConstructServerName(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructServerName(QUIC_TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
     return 0;
 }
 
-static int TlsExtClientConstructSupportedGroups(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructSupportedGroups(QUIC_TLS *tls, WPacket *pkt,
+                                    uint32_t context, X509 *x,
+                                    size_t chainidx)
+{
+    const uint16_t *pgroups = NULL;
+    uint16_t id = 0;
+    size_t pgroupslen = 0;
+    size_t i = 0;
+
+    if (WPacketStartSubU16(pkt) < 0) { 
+        return -1;
+    }
+
+    TlsGetSupportedGroups(tls, &pgroups, &pgroupslen);
+
+    for (i = 0; i < pgroupslen; i++) {
+        id = pgroups[i];
+        if (WPacketPut2(pkt, id) < 0) {
+            return -1;
+        }
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int TlsExtClntParseSigAlgs(QUIC_TLS *tls, RPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
     return 0;
 }
 
-static int TlsExtClientParseSigAlgs(QUIC_TLS *tls, RPacket *pkt,
-                                    uint32_t context, X509 *x,
-                                    size_t chainidx)
-{
-    return 0;
-}
-
-static int TlsExtClientConstructSigAlgs(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructSigAlgs(QUIC_TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
     const uint16_t *salg = NULL;
     size_t salglen = 0;
-
 
     if (WPacketStartSubU16(pkt) < 0) { 
         return -1;
@@ -201,7 +231,7 @@ static int TlsExtClientConstructSigAlgs(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-static int TlsExtClientCheckAlpn(QUIC_TLS *tls)
+static int TlsExtClntCheckAlpn(QUIC_TLS *tls)
 {
     if (QuicDataIsEmpty(&tls->ext.alpn)) {
         return -1;
@@ -210,7 +240,7 @@ static int TlsExtClientCheckAlpn(QUIC_TLS *tls)
     return 0;
 }
 
-static int TlsExtClientConstructAlpn(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructAlpn(QUIC_TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
@@ -219,7 +249,27 @@ static int TlsExtClientConstructAlpn(QUIC_TLS *tls, WPacket *pkt,
     return WPacketSubMemcpyU16(pkt, alpn->data, alpn->len);
 }
 
-static int TlsExtClientConstructQuicTransParam(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructSupportedVersion(QUIC_TLS *, WPacket *pkt,
+                                        uint32_t context, X509 *x,
+                                        size_t chainidx)
+{
+    if (WPacketStartSubU8(pkt) < 0) { 
+        return -1;
+    }
+
+    if (WPacketPut2(pkt, TLS_VERSION_1_3) < 0) {
+        return -1;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int TlsExtClntConstructQuicTransParam(QUIC_TLS *tls, WPacket *pkt,
                             uint32_t context, X509 *x, size_t chainidx)
 {
     return TlsConstructQuicTransParamExtension(tls, pkt, client_transport_param,

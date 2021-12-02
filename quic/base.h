@@ -5,14 +5,19 @@
 #include <sys/types.h>
 
 typedef struct {
-    uint8_t *data;
+    union {
+        void *data;
+        uint16_t *ptr_u16;
+    };
     size_t len;
 } QUIC_DATA;
 
 int QuicDataIsEmpty(QUIC_DATA *);
-void QuicDataSet(QUIC_DATA *, const uint8_t *, size_t);
-void QuicDataGet(QUIC_DATA *, const uint8_t **, size_t *);
+void QuicDataSet(QUIC_DATA *, const void *, size_t);
+void QuicDataGet(QUIC_DATA *, const void **, size_t *);
+void QuicDataGetU16(QUIC_DATA *, const uint16_t **, size_t *);
 int QuicDataDup(QUIC_DATA *, const QUIC_DATA *);
+int QuicDataDupU16(QUIC_DATA *, const QUIC_DATA *);
 int QuicDataCopy(QUIC_DATA *, const uint8_t *, size_t);
 void QuicDataFree(QUIC_DATA *);
 

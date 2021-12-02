@@ -6,8 +6,9 @@
 
 #include <assert.h>
 #include <string.h>
-#include <tbquic/quic.h>
 #include <openssl/bio.h>
+#include <tbquic/quic.h>
+#include <tbquic/ec.h>
 
 #include "quic_local.h"
 #include "packet_local.h"
@@ -77,6 +78,8 @@ static uint16_t extension_defs[] = {
     EXT_TYPE_SIGNATURE_ALGORITHMS,
     EXT_TYPE_QUIC_TRANS_PARAMS,
     EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
+    EXT_TYPE_SUPPORTED_GROUPS,
+    EXT_TYPE_SUPPORTED_VERSIONS,
     EXT_TYPE_SERVER_NAME,
 };
 
@@ -191,13 +194,6 @@ out:
     return case_num;
 }
 
-static size_t QuicTlsTestGetPSigAlgs(const uint16_t **psigs)
-{
-    *psigs = tls_sigalgs;
-
-    return QUIC_NELEM(tls_sigalgs);
-}
-
 static const QuicTlsExtensionDefinition *QuicTlsTestGetExtension(const
         QuicTlsExtensionDefinition *ext, size_t num)
 {
@@ -247,6 +243,11 @@ int QuicTlsClientExtensionTest(void)
     WPacket pkt = {};
     uint8_t buf[sizeof(client_extension)] = {};
     const uint8_t alpn[] = "\x02\x68\x33";
+    uint16_t groups[] = {
+        QUIC_SUPPORTED_GROUPS_X25519,
+        QUIC_SUPPORTED_GROUPS_SECP256R1,
+        QUIC_SUPPORTED_GROUPS_SECP384R1,
+    };
     size_t wlen = 0;
     size_t i = 0;
     int offset = 0;
@@ -254,6 +255,16 @@ int QuicTlsClientExtensionTest(void)
 
     ctx = QuicCtxNew(QuicClientMethod());
     if (ctx == NULL) {
+        goto out;
+    }
+
+    if (QuicCtxCtrl(ctx, QUIC_CTRL_SET_GROUPS, groups,
+                QUIC_NELEM(groups)) < 0) {
+        goto out;
+    }
+
+    if (QuicCtxCtrl(ctx, QUIC_CTRL_SET_SIGALGS, (void *)tls_sigalgs,
+                QUIC_NELEM(tls_sigalgs)) < 0) {
         goto out;
     }
 
@@ -276,11 +287,11 @@ int QuicTlsClientExtensionTest(void)
         QUIC_set_transport_parameter(quic, p->type, &p->value, 0);
     }
 
-    TlsTestGetPSigAlgs = QuicTlsTestGetPSigAlgs;
     QuicTestExtensionHook = QuicTlsTestGetExtension;
     QuicTestTransParamHook = QuicTlsTestGetTransParams;
     if (TlsClientConstructExtensions(&quic->tls, &pkt, TLSEXT_CLIENT_HELLO,
                 NULL, 0) < 0) {
+        printf("Client Construct Extensions failed!\n");
         goto out;
     }
 

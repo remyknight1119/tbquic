@@ -1,5 +1,5 @@
-#ifndef TBQUIC_QUIC_EC_H_
-#define TBQUIC_QUIC_EC_H_
+#ifndef TBQUIC_INCLUDE_TBQUIC_EC_H_
+#define TBQUIC_INCLUDE_TBQUIC_EC_H_
 
 #define EC_NAMED_CURVE_SECT163K1        1
 #define EC_NAMED_CURVE_SECT163R1        2
@@ -31,6 +31,7 @@
 #define EC_NAMED_CURVE_BRAINPOOL512R1   28
 #define EC_NAMED_CURVE_X25519           29
 #define EC_NAMED_CURVE_X448             30
+
 
 
 #endif

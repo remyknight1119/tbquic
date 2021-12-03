@@ -189,6 +189,10 @@ int QuicTlsInit(QUIC_TLS *tls, QUIC_CTX *ctx)
 
 void QuicTlsFree(QUIC_TLS *tls)
 {
+    if (tls->ext.hostname != NULL) {
+        QuicMemFree(tls->ext.hostname);
+    }
+
     EVP_PKEY_free(tls->tmp_key);
     QuicDataFree(&tls->ext.supported_groups);
     QuicDataFree(&tls->ext.alpn);

@@ -6,7 +6,9 @@
 
 #include <stddef.h>
 #include <assert.h>
-#include <tbquic/quic.h>
+#include <string.h>
+#include <tbquic/tls.h>
+
 #include "sig_alg.h"
 #include "quic_local.h"
 #include "tls_lib.h"
@@ -14,9 +16,9 @@
 #include "packet_format.h"
 #include "log.h"
 
+static int TlsExtClntCheckServerName(QUIC_TLS *);
 static int TlsExtClntConstructServerName(QUIC_TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
-static int TlsExtClntCheckServerName(QUIC_TLS *);
 static int TlsExtClntConstructSupportedGroups(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntParseSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *,
@@ -30,8 +32,13 @@ static int TlsExtClntConstructAlpn(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 static int TlsExtClntConstructSupportedVersion(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
+static int TlsExtClntConstructKeyExchModes(QUIC_TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
 static int TlsExtClntConstructKeyShare(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
+static int TlsExtClntCheckUnknown(QUIC_TLS *);
+static int TlsExtClntConstructUnknown(QUIC_TLS *, WPacket *, uint32_t, X509 *,
+                                        size_t);
 
 static const QuicTlsExtensionDefinition client_ext_defs[] = {
     {
@@ -67,6 +74,11 @@ static const QuicTlsExtensionDefinition client_ext_defs[] = {
         .construct = TlsExtClntConstructSupportedVersion,
     },
     {
+        .type = EXT_TYPE_PSK_KEY_EXCHANGE_MODES,
+        .context = TLSEXT_CLIENT_HELLO,
+        .construct = TlsExtClntConstructKeyExchModes,
+    },
+    {
         .type = EXT_TYPE_KEY_SHARE,
         .context = TLSEXT_CLIENT_HELLO,
         .construct = TlsExtClntConstructKeyShare,
@@ -75,6 +87,12 @@ static const QuicTlsExtensionDefinition client_ext_defs[] = {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_CLIENT_HELLO,
         .construct = TlsExtClntConstructQuicTransParam,
+    },
+    {
+        .type = 0x4469,
+        .context = TLSEXT_CLIENT_HELLO,
+        .check = TlsExtClntCheckUnknown,
+        .construct = TlsExtClntConstructUnknown,
     },
 };
 
@@ -166,15 +184,38 @@ static QuicTransParamDefinition client_transport_param[] = {
 
 #define QUIC_TRANS_PARAM_NUM QUIC_NELEM(client_transport_param)
 
-static int TlsExtClntCheckServerName(QUIC_TLS *)
+static int TlsExtClntCheckServerName(QUIC_TLS *tls)
 {
-    return -1;
+    if (tls->ext.hostname == NULL) {
+        return -1;
+    }
+
+    return 0;
 }
 
 static int TlsExtClntConstructServerName(QUIC_TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
+    const char *hostname = tls->ext.hostname;
+
+    if (WPacketStartSubU16(pkt) < 0) { 
+        return -1;
+    }
+
+    if (WPacketPut1(pkt, TLSEXT_NAMETYPE_HOST_NAME) < 0) {
+        return -1;
+    }
+
+    if (WPacketSubMemcpyU16(pkt, hostname, strlen(hostname)) < 0) {
+        return -1;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return -1;
+    }
+
     return 0;
 }
 
@@ -277,6 +318,26 @@ static int TlsExtClntConstructSupportedVersion(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
+static int TlsExtClntConstructKeyExchModes(QUIC_TLS *tls, WPacket *pkt,
+                                        uint32_t context, X509 *x,
+                                        size_t chainidx)
+{
+    if (WPacketStartSubU8(pkt) < 0) {
+        return -1;
+    }
+
+    if (WPacketPut1(pkt, TLSEXT_KEX_MODE_KE_DHE) < 0) {
+        return -1;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 #ifdef QUIC_TEST
 size_t (*QuicTestEncodedpointHook)(unsigned char **point);
 #endif
@@ -359,6 +420,22 @@ static int TlsExtClntConstructKeyShare(QUIC_TLS *tls, WPacket *pkt,
     }
 
     return 0;
+}
+
+static int TlsExtClntCheckUnknown(QUIC_TLS *tls)
+{
+#ifdef QUIC_TEST
+    return 0;
+#endif
+    return -1;
+}
+
+static int TlsExtClntConstructUnknown(QUIC_TLS *tls, WPacket *pkt,
+                            uint32_t context, X509 *x, size_t chainidx)
+{
+    uint8_t data[] = "\x00\x03\x02\x68\x33";
+    
+    return WPacketMemcpy(pkt, data, sizeof(data) - 1);
 }
 
 static int TlsExtClntConstructQuicTransParam(QUIC_TLS *tls, WPacket *pkt,

@@ -77,6 +77,7 @@ struct QuicTls {
     uint16_t group_id;
     /* TLS extensions. */
     struct {
+        char *hostname;
         QuicTransParams trans_param;
         QUIC_DATA alpn;
         QUIC_DATA supported_groups;

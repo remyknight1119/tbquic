@@ -9,6 +9,8 @@
 #define TLSEXT_CLIENT_HELLO    0x0001
 #define TLSEXT_SERVER_HELLO    0x0002
 
+#define TLSEXT_KEX_MODE_KE_DHE     0x01
+
 typedef enum {
     EXT_TYPE_SERVER_NAME = 0,                             /* RFC 6066 */
     EXT_TYPE_MAX_FRAGMENT_LENGTH = 1,                     /* RFC 6066 */

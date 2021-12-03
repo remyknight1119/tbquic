@@ -46,6 +46,23 @@ void *QuicMemDup(const void *ptr, size_t size)
     return m;
 }
 
+char *QuicMemStrDup(const char *str)
+{
+    char *dst = NULL;
+
+    if (str == NULL) {
+        return NULL;
+    }
+
+    dst = QuicMemMalloc(strlen(str) + 1);
+    if (dst == NULL) {
+        return NULL;
+    }
+
+    strcpy(dst, str);
+    return dst;
+}
+
 void *QuicMemmove(void *dest, const void *src, size_t n)
 {
     return memmove(dest, src, n);

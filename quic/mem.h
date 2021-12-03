@@ -8,6 +8,7 @@ void *QuicMemCalloc(size_t);
 void QuicMemFree(void *);
 void *QuicMemcpy(void *, const void *, size_t);
 void *QuicMemDup(const void *, size_t);
+char *QuicMemStrDup(const char *);
 void *QuicMemmove(void *, const void *, size_t);
 
 #endif

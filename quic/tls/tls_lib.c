@@ -7,7 +7,7 @@
 #include <openssl/obj_mac.h>
 #include <openssl/ec.h>
 #include <tbquic/ec.h>
-#include <tbquic/quic.h>
+#include <tbquic/tls.h>
 
 #include "tls.h"
 #include "base.h"
@@ -24,11 +24,11 @@ static const uint16_t eccurves_default[] = {
 };
 
 static const uint16_t ffdh_group[] = {
-    QUIC_SUPPORTED_GROUPS_FFDHE2048,
-    QUIC_SUPPORTED_GROUPS_FFDHE3072,
-    QUIC_SUPPORTED_GROUPS_FFDHE4096,
-    QUIC_SUPPORTED_GROUPS_FFDHE6144,
-    QUIC_SUPPORTED_GROUPS_FFDHE8192,
+    TLS_SUPPORTED_GROUPS_FFDHE2048,
+    TLS_SUPPORTED_GROUPS_FFDHE3072,
+    TLS_SUPPORTED_GROUPS_FFDHE4096,
+    TLS_SUPPORTED_GROUPS_FFDHE6144,
+    TLS_SUPPORTED_GROUPS_FFDHE8192,
 };
 
 static const TlsGroupInfo group_nid_list[] = {

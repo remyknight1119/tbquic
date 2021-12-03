@@ -8,6 +8,7 @@
 #include <string.h>
 #include <openssl/bio.h>
 #include <tbquic/quic.h>
+#include <tbquic/tls.h>
 #include <tbquic/ec.h>
 
 #include "quic_local.h"
@@ -81,6 +82,8 @@ static uint16_t extension_defs[] = {
     EXT_TYPE_SUPPORTED_GROUPS,
     EXT_TYPE_SUPPORTED_VERSIONS,
     EXT_TYPE_KEY_SHARE,
+    0x4469,
+    EXT_TYPE_PSK_KEY_EXCHANGE_MODES,
     EXT_TYPE_SERVER_NAME,
 };
 
@@ -261,13 +264,13 @@ int QuicTlsClientExtensionTest(void)
     uint8_t buf[sizeof(client_extension)] = {};
     const uint8_t alpn[] = "\x02\x68\x33";
     uint16_t groups[] = {
-        QUIC_SUPPORTED_GROUPS_X25519,
-        QUIC_SUPPORTED_GROUPS_SECP256R1,
-        QUIC_SUPPORTED_GROUPS_SECP384R1,
+        TLS_SUPPORTED_GROUPS_X25519,
+        TLS_SUPPORTED_GROUPS_SECP256R1,
+        TLS_SUPPORTED_GROUPS_SECP384R1,
     };
     size_t wlen = 0;
+    size_t ext_len = 0;
     size_t i = 0;
-    int offset = 0;
     int ret = -1;
 
     ctx = QuicCtxNew(QuicClientMethod());
@@ -294,6 +297,11 @@ int QuicTlsClientExtensionTest(void)
         goto out;
     }
 
+    if (QuicCtrl(quic, QUIC_CTRL_SET_TLSEXT_HOSTNAME,
+                "www.example.org", 0) < 0) {
+        goto out;
+    }
+
     WPacketStaticBufInit(&pkt, buf, sizeof(buf));
 
     for (i = 0; i < QUIC_NELEM(test_param); i++) {
@@ -313,13 +321,12 @@ int QuicTlsClientExtensionTest(void)
         goto out;
     }
 
-    offset = 2;
     wlen = WPacket_get_written(&pkt);
-    if (memcmp(&buf[offset], &client_extension[offset],
-                wlen - offset) != 0) {
+    ext_len = sizeof(client_extension) - 1;
+    if (wlen != ext_len || memcmp(buf, client_extension, wlen) != 0) {
         printf("Client Extension content Inconsistent!\n");
         QuicPrint(buf, wlen);
-        QuicPrint(client_extension, sizeof(client_extension) - 1);
+        QuicPrint(client_extension, ext_len);
         goto out;
     }
 

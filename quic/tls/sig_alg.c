@@ -5,7 +5,7 @@
 #include "sig_alg.h"
 
 #include <openssl/evp.h>
-#include <tbquic/quic.h>
+#include <tbquic/tls.h>
 
 #include "extension.h"
 #include "cipher.h"

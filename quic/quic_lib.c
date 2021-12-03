@@ -3,8 +3,10 @@
  */
 #include "quic_local.h"
 
+#include <string.h>
 #include <tbquic/quic.h>
 #include <tbquic/cipher.h>
+#include <tbquic/tls.h>
 
 #include "statem.h"
 #include "mem.h"
@@ -192,6 +194,43 @@ out:
 
     QuicFree(quic);
     return NULL;
+}
+
+int QuicCtrl(QUIC *quic, uint32_t cmd, void *parg, long larg)
+{
+    QUIC_TLS *tls = &quic->tls;
+
+    switch (cmd) {
+        case QUIC_CTRL_SET_GROUPS:
+            return TlsSetSupportedGroups(&tls->ext.supported_groups.ptr_u16,
+                    &tls->ext.supported_groups.len,
+                    parg, larg);
+        case QUIC_CTRL_SET_SIGALGS:
+            return TlsSetSigalgs(tls->cert, parg, larg);
+        case QUIC_CTRL_SET_TLSEXT_HOSTNAME:
+            size_t len = 0;
+            QuicMemFree(tls->ext.hostname);
+            tls->ext.hostname = NULL;
+            if (parg == NULL) {
+                break;
+            }
+
+            len = strlen(parg);
+            if (len == 0 || len > TLSEXT_MAXLEN_HOST_NAME) {
+                return -1;
+            }
+
+            tls->ext.hostname = QuicMemStrDup(parg);
+            if (tls->ext.hostname == NULL) {
+                return -1;
+            }
+
+            break;
+        default:
+            return -1;
+    }
+
+    return 0;
 }
 
 int QuicDoHandshake(QUIC *quic)

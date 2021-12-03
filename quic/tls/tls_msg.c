@@ -70,8 +70,4 @@ int QuicTlsPutCompressionMethod(WPacket *pkt)
 {
     return WPacketPut1(pkt, 0);
 }
-    
-int QuicTlsPutExtension(QUIC_TLS *tls, WPacket *pkt)
-{
-    return 0;
-}
+

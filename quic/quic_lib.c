@@ -199,6 +199,7 @@ out:
 int QuicCtrl(QUIC *quic, uint32_t cmd, void *parg, long larg)
 {
     QUIC_TLS *tls = &quic->tls;
+    size_t len = 0;
 
     switch (cmd) {
         case QUIC_CTRL_SET_GROUPS:
@@ -208,7 +209,6 @@ int QuicCtrl(QUIC *quic, uint32_t cmd, void *parg, long larg)
         case QUIC_CTRL_SET_SIGALGS:
             return TlsSetSigalgs(tls->cert, parg, larg);
         case QUIC_CTRL_SET_TLSEXT_HOSTNAME:
-            size_t len = 0;
             QuicMemFree(tls->ext.hostname);
             tls->ext.hostname = NULL;
             if (parg == NULL) {

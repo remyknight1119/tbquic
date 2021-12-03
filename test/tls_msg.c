@@ -18,11 +18,6 @@
 #include "sig_alg.h"
 #include "common.h"
 
-typedef struct {
-    uint64_t type;
-    uint64_t value;
-} QuicTlsTestParam;
-
 static const uint16_t tls_sigalgs[] = {
     TLSEXT_SIGALG_ECDSA_SECP256R1_SHA256,
     TLSEXT_SIGALG_RSA_PSS_RSAE_SHA256,
@@ -135,81 +130,18 @@ static QuicTlsTestParam test_param[] = {
     },
 };
 
-int QuicTlsClientHelloTest(void)
-{
-    QUIC_CTX *ctx = NULL;
-    QUIC *quic = NULL;
-    QUIC_BUFFER *buffer = NULL;
-    BIO *rbio = NULL;
-    BIO *wbio = NULL;
-    int offset = 0;
-    int case_num = -1;
-    int ret = 0;
-
-    ctx = QuicCtxNew(QuicClientMethod());
-    if (ctx == NULL) {
-        goto out;
-    }
-
-    quic = QuicNew(ctx);
-    if (quic == NULL) {
-        goto out;
-    }
-
-    rbio = BIO_new(BIO_s_mem());
-    if (rbio == NULL) {
-        goto out;
-    }
-
-    wbio = BIO_new(BIO_s_mem());
-    if (wbio == NULL) {
-        goto out;
-    }
-    QUIC_set_bio(quic, rbio, wbio);
-
-    rbio = NULL;
-    wbio = NULL;
-
-    quic_random_test = client_random;
-    ret = QuicDoHandshake(quic);
-    if (ret < 0) {
-        printf("Do Client Handshake failed\n");
-        goto out;
-    }
-
-    buffer = &quic->tls.buffer;
-
-    offset = 4;
-    if (memcmp(QuicBufData(buffer) + offset, &client_hello[offset],
-                buffer->data_len - offset) != 0) {
-        printf("ClientHello content Inconsistent!\n");
-        QuicPrint(QuicBufData(buffer) + offset, buffer->data_len - offset);
-        QuicPrint(&client_hello[offset], buffer->data_len - offset);
-        goto out;
-    }
-
-    case_num = 1;
-out:
-    BIO_free(rbio);
-    BIO_free(wbio);
-    QuicFree(quic);
-    QuicCtxFree(ctx);
-
-    return case_num;
-}
-
+static size_t TlsExtIndex;
 static const QuicTlsExtensionDefinition *QuicTlsTestGetExtension(const
         QuicTlsExtensionDefinition *ext, size_t num)
 {
-    static size_t i = 0;
     size_t j = 0;
     uint16_t type = 0;
 
-    if (i >= QUIC_NELEM(extension_defs)) {
+    if (TlsExtIndex >= QUIC_NELEM(extension_defs)) {
         return NULL;
     }
-    type = extension_defs[i];
-    i++;
+    type = extension_defs[TlsExtIndex];
+    TlsExtIndex++;
     for (j = 0; j < num; j++) {
         if (type == ext[j].type) {
             return ext + j;
@@ -219,16 +151,16 @@ static const QuicTlsExtensionDefinition *QuicTlsTestGetExtension(const
     return NULL;
 }
 
+static size_t TlsTransParamIndex;
 static QuicTransParamDefinition *
 QuicTlsTestGetTransParams(QuicTransParamDefinition *param, size_t num)
 {
     QuicTlsTestParam *p = NULL;
-    static size_t i = 0;
     size_t j = 0;
 
-    if (i < QUIC_NELEM(test_param)) {
-        p = &test_param[i];
-        i++;
+    if (TlsTransParamIndex < QUIC_NELEM(test_param)) {
+        p = &test_param[TlsTransParamIndex];
+        TlsTransParamIndex++;
         for (j = 0; j < num; j++) {
             if (p->type == param[j].type) {
                 return param + j;
@@ -255,28 +187,15 @@ static size_t QuicTlsTestSetEncodedpoint(unsigned char **point)
     return len;
 }
 
-int QuicTlsClientExtensionTest(void)
+int QuicTlsCtxClientExtensionSet(QUIC_CTX *ctx)
 {
-    QUIC_CTX *ctx = NULL;
-    QUIC *quic = NULL;
-    QuicTlsTestParam *p = NULL;
-    WPacket pkt = {};
-    uint8_t buf[sizeof(client_extension)] = {};
     const uint8_t alpn[] = "\x02\x68\x33";
     uint16_t groups[] = {
         TLS_SUPPORTED_GROUPS_X25519,
         TLS_SUPPORTED_GROUPS_SECP256R1,
         TLS_SUPPORTED_GROUPS_SECP384R1,
     };
-    size_t wlen = 0;
-    size_t ext_len = 0;
-    size_t i = 0;
     int ret = -1;
-
-    ctx = QuicCtxNew(QuicClientMethod());
-    if (ctx == NULL) {
-        goto out;
-    }
 
     if (QuicCtxCtrl(ctx, QUIC_CTRL_SET_GROUPS, groups,
                 QUIC_NELEM(groups)) < 0) {
@@ -292,17 +211,21 @@ int QuicTlsClientExtensionTest(void)
         goto out;
     }
 
-    quic = QuicNew(ctx);
-    if (quic == NULL) {
-        goto out;
-    }
+    ret = 0;
+out:
+    return ret;
+}
+ 
+int QuicTlsClientExtensionSet(QUIC *quic)
+{
+    QuicTlsTestParam *p = NULL;
+    size_t i = 0;
+    int ret = -1;
 
     if (QuicCtrl(quic, QUIC_CTRL_SET_TLSEXT_HOSTNAME,
                 "www.example.org", 0) < 0) {
         goto out;
     }
-
-    WPacketStaticBufInit(&pkt, buf, sizeof(buf));
 
     for (i = 0; i < QUIC_NELEM(test_param); i++) {
         p = &test_param[i];
@@ -315,6 +238,113 @@ int QuicTlsClientExtensionTest(void)
     QuicTestExtensionHook = QuicTlsTestGetExtension;
     QuicTestTransParamHook = QuicTlsTestGetTransParams;
     QuicTestEncodedpointHook = QuicTlsTestSetEncodedpoint;
+
+    ret = 0;
+out:
+    return ret;
+}
+ 
+int QuicTlsClientHelloTest(void)
+{
+    QUIC_CTX *ctx = NULL;
+    QUIC *quic = NULL;
+    QUIC_BUFFER *buffer = NULL;
+    BIO *rbio = NULL;
+    BIO *wbio = NULL;
+    int case_num = -1;
+    int ret = 0;
+
+    ctx = QuicCtxNew(QuicClientMethod());
+    if (ctx == NULL) {
+        goto out;
+    }
+
+    if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
+        return -1;
+    }
+
+    quic = QuicNew(ctx);
+    if (quic == NULL) {
+        goto out;
+    }
+
+    if (QuicTlsClientExtensionSet(quic) < 0) {
+        return -1;
+    }
+
+    rbio = BIO_new(BIO_s_mem());
+    if (rbio == NULL) {
+        goto out;
+    }
+
+    wbio = BIO_new(BIO_s_mem());
+    if (wbio == NULL) {
+        goto out;
+    }
+    QUIC_set_bio(quic, rbio, wbio);
+
+    rbio = NULL;
+    wbio = NULL;
+
+    quic_random_test = client_random;
+    ret = QuicDoHandshake(quic);
+    if (ret < 0) {
+        printf("Do Client Handshake failed\n");
+        goto out;
+    }
+
+    buffer = &quic->tls.buffer;
+
+    if (memcmp(QuicBufData(buffer), client_hello,
+                buffer->data_len) != 0) {
+        printf("ClientHello content Inconsistent!\n");
+        QuicPrint(QuicBufData(buffer), buffer->data_len);
+        QuicPrint(client_hello, buffer->data_len);
+        goto out;
+    }
+
+    case_num = 1;
+out:
+    BIO_free(rbio);
+    BIO_free(wbio);
+    QuicFree(quic);
+    QuicCtxFree(ctx);
+
+    return case_num;
+}
+
+int QuicTlsClientExtensionTest(void)
+{
+    QUIC_CTX *ctx = NULL;
+    QUIC *quic = NULL;
+    WPacket pkt = {};
+    uint8_t buf[sizeof(client_extension)] = {};
+    size_t wlen = 0;
+    size_t ext_len = 0;
+    int ret = -1;
+
+    ctx = QuicCtxNew(QuicClientMethod());
+    if (ctx == NULL) {
+        goto out;
+    }
+
+    if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
+        return -1;
+    }
+
+    quic = QuicNew(ctx);
+    if (quic == NULL) {
+        goto out;
+    }
+
+    if (QuicTlsClientExtensionSet(quic) < 0) {
+        return -1;
+    }
+
+    WPacketStaticBufInit(&pkt, buf, sizeof(buf));
+
+    TlsExtIndex = 0;
+    TlsTransParamIndex = 0;
     if (TlsClientConstructExtensions(&quic->tls, &pkt, TLSEXT_CLIENT_HELLO,
                 NULL, 0) < 0) {
         printf("Client Construct Extensions failed!\n");

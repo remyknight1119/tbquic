@@ -108,6 +108,5 @@ int QuicTlsHandshake(QUIC_TLS *, const uint8_t *, size_t,
 int QuicTlsGenRandom(uint8_t *, size_t, WPacket *);
 int QuicTlsPutCipherList(QUIC_TLS *, WPacket *);
 int QuicTlsPutCompressionMethod(WPacket *);
-int QuicTlsPutExtension(QUIC_TLS *, WPacket *);
 
 #endif

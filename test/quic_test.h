@@ -6,6 +6,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <tbquic/types.h>
+
 #define ARRAY_SIZE(array)    (sizeof(array)/sizeof(array[0]))
 
 typedef union UdpConnKey {
@@ -14,9 +16,16 @@ typedef union UdpConnKey {
 	struct sockaddr_in6  	addr6;
 } QuicUdpConnKey;
 
+typedef struct {
+    uint64_t type;
+    uint64_t value;
+} QuicTlsTestParam;
+
 extern char *quic_cert;
 extern char *quic_key;
 
+int QuicTlsCtxClientExtensionSet(QUIC_CTX *ctx);
+int QuicTlsClientExtensionSet(QUIC *quic);
 int QuicVariableLengthDecodeTest(void);
 int QuicHkdfExtractExpandTest(void);
 int QuicHkdfExpandLabel(void);

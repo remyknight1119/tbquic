@@ -10,6 +10,7 @@
 #include "packet_local.h"
 #include "common.h"
 #include "tls_cipher.h"
+#include "extension.h"
 #include "log.h"
 
 static int QuicTlsClientHelloBuild(QUIC_TLS *, void *);
@@ -75,8 +76,9 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    if (QuicTlsPutExtension(tls, pkt) < 0) {
-        QUIC_LOG("Put extension failed\n");
+    if (TlsClientConstructExtensions(tls, pkt, TLSEXT_CLIENT_HELLO,
+                                        NULL, 0) < 0) {
+        QUIC_LOG("Construct extension failed\n");
         return -1;
     }
 

@@ -53,14 +53,16 @@ dkms.conf
 
 # Configure generated files
 Makefile
+Makefile.in
 config.h
 config.h.*
 config.log
 config.status
+autom4te.cache
 libtool
+*.m4
 .deps/
 .libs/
-Makefile
 stamp-h1
 test/quic_client
 test/quic_server

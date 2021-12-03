@@ -80,6 +80,7 @@ static uint16_t extension_defs[] = {
     EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
     EXT_TYPE_SUPPORTED_GROUPS,
     EXT_TYPE_SUPPORTED_VERSIONS,
+    EXT_TYPE_KEY_SHARE,
     EXT_TYPE_SERVER_NAME,
 };
 
@@ -235,6 +236,22 @@ QuicTlsTestGetTransParams(QuicTransParamDefinition *param, size_t num)
     return NULL;
 }
 
+static size_t QuicTlsTestSetEncodedpoint(unsigned char **point)
+{
+    unsigned char encoded_point[] =
+        "\xED\xC3\x0A\x02\x80\x93\x20\xAA\xF1\x1F\x0F\x7D\x9E\x6F\xC4\x78"
+        "\xF8\x62\x04\x15\x1B\x39\xAA\x67\x7D\xEA\x82\xEC\x77\xCE\x52\x3B";
+    size_t len = sizeof(encoded_point) - 1;
+
+    *point = malloc(len);
+    if (*point == NULL) {
+        return 0;
+    }
+
+    memcpy(*point, encoded_point, len);
+    return len;
+}
+
 int QuicTlsClientExtensionTest(void)
 {
     QUIC_CTX *ctx = NULL;
@@ -289,6 +306,7 @@ int QuicTlsClientExtensionTest(void)
 
     QuicTestExtensionHook = QuicTlsTestGetExtension;
     QuicTestTransParamHook = QuicTlsTestGetTransParams;
+    QuicTestEncodedpointHook = QuicTlsTestSetEncodedpoint;
     if (TlsClientConstructExtensions(&quic->tls, &pkt, TLSEXT_CLIENT_HELLO,
                 NULL, 0) < 0) {
         printf("Client Construct Extensions failed!\n");

@@ -79,6 +79,7 @@ extern const QuicTlsExtensionDefinition *(*QuicTestExtensionHook)(const
         QuicTlsExtensionDefinition *, size_t);
 extern QuicTransParamDefinition *
 (*QuicTestTransParamHook)(QuicTransParamDefinition *, size_t);
+extern size_t (*QuicTestEncodedpointHook)(unsigned char **point);
 #endif
 
 int TlsExtInitServerName(QUIC_TLS *, uint32_t);

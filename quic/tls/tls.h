@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#include <openssl/evp.h>
 #include <tbquic/types.h>
 #include "packet_local.h"
 #include "buffer.h"
@@ -72,11 +73,14 @@ struct QuicTls {
     struct hlist_head cipher_list;
     QUIC_BUFFER buffer;
     QuicCert *cert;
+    EVP_PKEY *tmp_key;
+    uint16_t group_id;
     /* TLS extensions. */
     struct {
         QuicTransParams trans_param;
         QUIC_DATA alpn;
         QUIC_DATA supported_groups;
+        size_t key_share_max_group_idx;
     } ext;
 };
 

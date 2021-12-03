@@ -5,6 +5,7 @@
 #include "extension.h"
 
 #include <stddef.h>
+#include <assert.h>
 #include <tbquic/quic.h>
 #include "sig_alg.h"
 #include "quic_local.h"
@@ -28,6 +29,8 @@ static int TlsExtClntCheckAlpn(QUIC_TLS *);
 static int TlsExtClntConstructAlpn(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 static int TlsExtClntConstructSupportedVersion(QUIC_TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
+static int TlsExtClntConstructKeyShare(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 
 static const QuicTlsExtensionDefinition client_ext_defs[] = {
@@ -62,6 +65,11 @@ static const QuicTlsExtensionDefinition client_ext_defs[] = {
         .type = EXT_TYPE_SUPPORTED_VERSIONS,
         .context = TLSEXT_CLIENT_HELLO,
         .construct = TlsExtClntConstructSupportedVersion,
+    },
+    {
+        .type = EXT_TYPE_KEY_SHARE,
+        .context = TLSEXT_CLIENT_HELLO,
+        .construct = TlsExtClntConstructKeyShare,
     },
     {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
@@ -249,7 +257,7 @@ static int TlsExtClntConstructAlpn(QUIC_TLS *tls, WPacket *pkt,
     return WPacketSubMemcpyU16(pkt, alpn->data, alpn->len);
 }
 
-static int TlsExtClntConstructSupportedVersion(QUIC_TLS *, WPacket *pkt,
+static int TlsExtClntConstructSupportedVersion(QUIC_TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
@@ -259,6 +267,90 @@ static int TlsExtClntConstructSupportedVersion(QUIC_TLS *, WPacket *pkt,
 
     if (WPacketPut2(pkt, TLS_VERSION_1_3) < 0) {
         return -1;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+#ifdef QUIC_TEST
+size_t (*QuicTestEncodedpointHook)(unsigned char **point);
+#endif
+static int TlsExtClntAddKeyShare(QUIC_TLS *tls, WPacket *pkt, uint16_t id)
+{
+    EVP_PKEY *key_share_key = NULL;
+    unsigned char *encoded_point = NULL;
+    size_t encodedlen = 0;
+
+    if (tls->tmp_key == NULL) {
+        key_share_key = TlsGeneratePkeyGroup(tls, id);
+        if (key_share_key == NULL) {
+            return -1;
+        }
+    } else {
+        key_share_key = tls->tmp_key;
+    }
+
+    /* Encode the public key. */
+    encodedlen = EVP_PKEY_get1_tls_encodedpoint(key_share_key, &encoded_point);
+#ifdef QUIC_TEST
+    if (QuicTestEncodedpointHook != NULL) {
+        encodedlen = QuicTestEncodedpointHook(&encoded_point);
+    }
+#endif
+    if (encodedlen == 0) {
+        goto out;
+    }
+
+    if (WPacketPut2(pkt, id) < 0) {
+        goto out;
+    }
+
+    if (WPacketSubMemcpyU16(pkt, encoded_point, encodedlen) < 0) {
+        goto out;
+    }
+
+    tls->tmp_key = key_share_key;
+    tls->group_id = id;
+    OPENSSL_free(encoded_point);
+    return 0;
+out:
+    if (tls->tmp_key == NULL) {
+        EVP_PKEY_free(key_share_key);
+    }
+
+    OPENSSL_free(encoded_point);
+    return -1;
+}
+
+static int TlsExtClntConstructKeyShare(QUIC_TLS *tls, WPacket *pkt,
+                                        uint32_t context, X509 *x,
+                                        size_t chainidx)
+{
+    const uint16_t *pgroups = NULL;
+    size_t pgroupslen = 0;
+    size_t max_idx = 0;
+    size_t i = 0;
+
+    if (WPacketStartSubU16(pkt) < 0) { 
+        return -1;
+    }
+
+    TlsGetSupportedGroups(tls, &pgroups, &pgroupslen);
+    max_idx = tls->ext.key_share_max_group_idx;
+    assert(pgroupslen != 0);
+    if (max_idx >= pgroupslen) {
+        max_idx = pgroupslen - 1;
+    }
+
+    for (i = 0; i <= max_idx; i++) {
+        if (TlsExtClntAddKeyShare(tls, pkt, pgroups[i]) < 0) {
+            return -1;
+        }
     }
 
     if (WPacketClose(pkt) < 0) {

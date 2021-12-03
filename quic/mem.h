@@ -10,5 +10,6 @@ void *QuicMemcpy(void *, const void *, size_t);
 void *QuicMemDup(const void *, size_t);
 char *QuicMemStrDup(const char *);
 void *QuicMemmove(void *, const void *, size_t);
+void *QuicMemset(void *, int, size_t);
 
 #endif

@@ -14,6 +14,7 @@
 #include "cipher.h"
 #include "tls_lib.h"
 #include "sig_alg.h"
+#include "common.h"
 
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
@@ -154,8 +155,6 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->statem = QUIC_STATEM_READY;
     quic->stream_state = QUIC_STREAM_STATE_READY;
     quic->rwstate = QUIC_NOTHING; 
-    //4 bytes packet number length
-    quic->pkt_num_len = 3;
     quic->do_handshake = ctx->method->quic_handshake; 
     quic->method = ctx->method;
     quic->mtu = ctx->mtu;
@@ -202,6 +201,13 @@ int QuicCtrl(QUIC *quic, uint32_t cmd, void *parg, long larg)
     size_t len = 0;
 
     switch (cmd) {
+        case QUIC_CTRL_SET_PKT_NUM_MAX_LEN:
+            len = *((size_t *)parg);
+            if (len == 0 || QUIC_GT(len, 4)) {
+                return -1;
+            }
+            quic->pkt_num_len = len - 1;
+            break;
         case QUIC_CTRL_SET_GROUPS:
             return TlsSetSupportedGroups(&tls->ext.supported_groups.ptr_u16,
                     &tls->ext.supported_groups.len,

@@ -67,3 +67,8 @@ void *QuicMemmove(void *dest, const void *src, size_t n)
 {
     return memmove(dest, src, n);
 }
+
+void *QuicMemset(void *s, int c, size_t n)
+{
+    return memset(s, c, n);
+}

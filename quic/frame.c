@@ -95,19 +95,7 @@ static int QuicFramePingParser(QUIC *quic, RPacket *pkt)
 
 int QuicFramePaddingBuild(WPacket *pkt, size_t len)
 {
-    uint8_t *dest;
-
-    if (len == 0) {
-        return 0;
-    }
-
-    if (WPacketAllocateBytes(pkt, len, &dest) < 0) {
-        return -1;
-    }
-
-    memset(dest, QUIC_FRAME_TYPE_PADDING, len);
-
-    return 0;
+    return WPacketMemset(pkt, 0, len);
 }
 
 int QuicFramePingBuild(WPacket *pkt)

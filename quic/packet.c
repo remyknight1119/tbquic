@@ -188,7 +188,7 @@ int RPacketPeekCopyBytes(const RPacket *pkt, uint8_t *data, size_t len)
         return -1;
     }
 
-    memcpy(data, pkt->curr, len);
+    QuicMemcpy(data, pkt->curr, len);
 
     return 0;
 }
@@ -317,7 +317,7 @@ int WPacketMemcpy(WPacket *pkt, const void *src, size_t len)
         return -1;
     }
 
-    memcpy(dest, src, len);
+    QuicMemcpy(dest, src, len);
 
     return 0;
 }
@@ -339,8 +339,25 @@ int WPacketMemmove(WPacket *pkt, const void *src, size_t len)
     }
 
     if (dest != src) {
-        memmove(dest, src, len);
+        QuicMemmove(dest, src, len);
     }
+
+    return 0;
+}
+
+int WPacketMemset(WPacket *pkt, int c, size_t len)
+{
+    uint8_t *dest;
+
+    if (len == 0) {
+        return 0;
+    }
+
+    if (WPacketAllocateBytes(pkt, len, &dest) < 0) {
+        return -1;
+    }
+
+    QuicMemset(dest, c, len);
 
     return 0;
 }

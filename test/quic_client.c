@@ -17,6 +17,7 @@
 #include <tbquic/ec.h>
 #include <tbquic/tls.h>
 
+#include "quic_local.h"
 #include "common.h"
 
 #define TEST_EVENT_MAX_NUM   10
@@ -59,6 +60,7 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
+    static uint8_t cid[] = "\x83\x94\xC8\xF0\x3E\x51\x57\x08";
     int sockfd = 0;
     int ret = 0;
 
@@ -94,7 +96,11 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    quic->dcid.data = cid;
+    quic->dcid.len = sizeof(cid) - 1;
     ret = QuicDoHandshake(quic);
+    quic->dcid.data = NULL;
+    quic->dcid.len = 0;
     if (ret < 0) {
         printf("Do Client Handshake failed\n");
         goto out;

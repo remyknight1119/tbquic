@@ -132,6 +132,7 @@ int QuicPktFormatTestClient(void)
     BIO *out_bio = NULL;
     static uint8_t buf[2048] = {};
     size_t msg_len = sizeof(client_init_packet) - 1;
+    size_t max_len = 4;
     int case_num = -1;
     int rlen = 0;
     int ret = 0;
@@ -167,6 +168,9 @@ int QuicPktFormatTestClient(void)
 
     QuicEncryptFrameHook = QuicPktPayloadInject;
 
+    if (QuicCtrl(quic, QUIC_CTRL_SET_PKT_NUM_MAX_LEN, &max_len, 0) < 0) {
+        goto out;
+    }
     ret = QuicDoHandshake(quic);
     quic->dcid.data = NULL;
     if (ret < 0) {

@@ -8,6 +8,8 @@
 
 #include "packet_local.h"
 
+#define QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN      1200
+
 #define QUIC_LPACKET_TYPE_INITIAL 	    0x00
 #define QUIC_LPACKET_TYPE_0RTT 	        0x01
 #define QUIC_LPACKET_TYPE_HANDSHAKE 	0x02

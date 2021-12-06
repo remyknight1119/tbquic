@@ -682,12 +682,14 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     if (QuicDecryptMessage(&cipher->pp_cipher, QuicBufData(buffer),
                 &buffer->data_len, QuicBufLength(buffer),
                 h_pkt_num, pkt_num_len, &message) < 0) {
+        QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
 
     printf("ttttttttttttttttlen = %lu\n", buffer->data_len);
     RPacketBufInit(&frame, (uint8_t *)buffer->buf->data, buffer->data_len);
     if (QuicFrameDoParser(quic, &frame) < 0) {
+        QUIC_LOG("Do parser failed!\n");
         return -1;
     }
 
@@ -819,6 +821,22 @@ static int QuicLHeaderGen(QUIC *quic, uint8_t **first_byte, WPacket *pkt,
     return 0;
 }
 
+static int QuicFrameBufferAddPadding(QUIC *quic, size_t padding_len)
+{
+    QUIC_BUFFER *frame_buffer = QUIC_FRAME_BUFFER(quic);
+    WPacket pkt = {};
+
+    WPacketStaticBufInit(&pkt, QuicBufTail(frame_buffer),
+            QuicBufRemaining(frame_buffer));
+
+    if (QuicFramePaddingBuild(&pkt, padding_len) < 0) {
+        return -1;
+    }
+
+    QuicBufAddDataLength(frame_buffer, padding_len);
+    return 0;
+}
+
 int QuicEncryptFrame(QUIC *quic, QuicPPCipher *pp_cipher, uint8_t *head,
                         size_t hlen, uint8_t *out, size_t out_len,
                         uint32_t pkt_num, uint8_t pkt_num_len)
@@ -865,9 +883,15 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
     uint8_t *pkt_num_start = NULL;
     uint8_t *dest = NULL;
     size_t cipher_len = 0;
+    size_t total_len = 0;
+    size_t padding_len = 0;
+    uint64_t var_len = 0;
     uint64_t len = 0;
     uint32_t pkt_num = 0;
     uint8_t pkt_num_len = quic->pkt_num_len + 1;
+    int wlen = 0;
+    int wlen_curr = 0;
+    int len_offset = 0;
     int offset = 0;
 
     if (QuicLHeaderGen(quic, &first_byte, pkt, QUIC_LPACKET_TYPE_INITIAL,
@@ -881,6 +905,7 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
         return -1;
     }
 
+    total_len = WPacket_get_written(pkt);
     cs = &quic->initial.encrypt;
     cs->pkt_num++;
 
@@ -893,6 +918,24 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
     }
 
     len = cipher_len + pkt_num_len;
+
+    wlen = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
+    if (wlen < 0) {
+        return -1;
+    }
+
+    total_len += len + wlen;
+    if (QUIC_LT(total_len, QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN)) {
+        padding_len = QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN - total_len;
+        len += padding_len;
+        wlen_curr = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
+        len_offset = wlen_curr - wlen;
+        assert(len_offset >= 0);
+        padding_len -= len_offset;
+        len -= len_offset;
+        cipher_len += padding_len;
+    }
+
     if (QuicVariableLengthWrite(pkt, len) < 0) {
         return -1;
     }
@@ -908,6 +951,10 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
 
     offset = dest - first_byte;
     assert(offset > 0);
+
+    if (QuicFrameBufferAddPadding(quic, padding_len) < 0) {
+        return -1;
+    }
 
     printf("clen = %lu\n", cipher_len);
     if (QuicEncryptFrame(quic, pp_cipher, first_byte, offset, dest, cipher_len,

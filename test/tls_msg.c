@@ -187,7 +187,7 @@ static size_t QuicTlsTestSetEncodedpoint(unsigned char **point)
     return len;
 }
 
-int QuicTlsCtxClientExtensionSet(QUIC_CTX *ctx)
+static int QuicTlsCtxClientExtensionSet(QUIC_CTX *ctx)
 {
     const uint8_t alpn[] = "\x02\x68\x33";
     uint16_t groups[] = {
@@ -216,7 +216,7 @@ out:
     return ret;
 }
  
-int QuicTlsClientExtensionSet(QUIC *quic)
+static int QuicTlsClientExtensionSet(QUIC *quic)
 {
     QuicTlsTestParam *p = NULL;
     size_t i = 0;

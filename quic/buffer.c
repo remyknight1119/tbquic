@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <openssl/buffer.h>
 
+#include "common.h"
 #include "log.h"
 
 int QuicBufInit(QUIC_BUFFER *qbuf, size_t len)
@@ -48,6 +49,13 @@ uint8_t *QuicBufData(QUIC_BUFFER *qbuf)
     return (uint8_t *)qbuf->buf->data;
 }
 
+uint8_t *QuicBufTail(QUIC_BUFFER *qbuf)
+{
+    assert(qbuf->buf != NULL);
+
+    return (uint8_t *)qbuf->buf->data + qbuf->data_len;
+}
+
 size_t QuicBufLength(QUIC_BUFFER *qbuf)
 {
     assert(qbuf->buf != NULL);
@@ -55,11 +63,32 @@ size_t QuicBufLength(QUIC_BUFFER *qbuf)
     return qbuf->buf->length;
 }
 
+size_t QuicBufRemaining(QUIC_BUFFER *qbuf)
+{
+    assert(qbuf->buf != NULL && QUIC_GE(qbuf->buf->length, qbuf->data_len));
+
+    return qbuf->buf->length - qbuf->data_len;
+}
+
 size_t QuicBufDataLength(QUIC_BUFFER *qbuf)
 {
     assert(qbuf->buf != NULL);
 
     return qbuf->data_len;
+}
+
+void QuicBufSetDataLength(QUIC_BUFFER *qbuf, size_t len)
+{
+    assert(qbuf->buf != NULL);
+
+    qbuf->data_len = len;
+}
+
+void QuicBufAddDataLength(QUIC_BUFFER *qbuf, size_t len)
+{
+    assert(qbuf->buf != NULL);
+
+    qbuf->data_len += len;
 }
 
 void QuicBufClear(QUIC_BUFFER *qbuf)

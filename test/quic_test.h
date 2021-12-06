@@ -24,8 +24,6 @@ typedef struct {
 extern char *quic_cert;
 extern char *quic_key;
 
-int QuicTlsCtxClientExtensionSet(QUIC_CTX *ctx);
-int QuicTlsClientExtensionSet(QUIC *quic);
 int QuicVariableLengthDecodeTest(void);
 int QuicHkdfExtractExpandTest(void);
 int QuicHkdfExpandLabel(void);

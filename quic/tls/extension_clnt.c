@@ -425,7 +425,9 @@ static int TlsExtClntConstructKeyShare(QUIC_TLS *tls, WPacket *pkt,
 static int TlsExtClntCheckUnknown(QUIC_TLS *tls)
 {
 #ifdef QUIC_TEST
-    return 0;
+    if (QuicTestExtensionHook) {
+        return 0;
+    }
 #endif
     return -1;
 }
@@ -457,7 +459,9 @@ static int
 QuicTransParamCheckGrease(QUIC_TLS *tls, QuicTransParams *param, size_t offset)
 {
 #ifdef QUIC_TEST
-    return 0;
+    if (QuicTestTransParamHook) {
+        return 0;
+    }
 #endif
     return -1;
 }

@@ -708,12 +708,11 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
 
     ret = QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
             crypto_buf->data_len);
-    if (ret < 0) {
-        QUIC_LOG("SSL handshake failed!\n");
+    if (ret == QUIC_FLOW_RET_ERROR) {
+        QUIC_LOG("TLS handshake failed!\n");
         return -1;
     }
 
-    quic->statem = QUIC_STATEM_INITIAL_RECV;
     printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h_pkt_num, initial->pkt_num);
     return 0;
 }
@@ -853,7 +852,7 @@ int QuicEncryptFrame(QUIC *quic, QuicPPCipher *pp_cipher, uint8_t *head,
 
     if (QuicEncryptMessage(pp_cipher, out, &outl, out_len, head, hlen, pkt_num,
                             pkt_num_len, QuicBufData(frame_buffer),
-                            QuicBufDataLength(frame_buffer)) < 0) {
+                            QuicBufGetDataLength(frame_buffer)) < 0) {
         return -1;
     }
 
@@ -879,7 +878,7 @@ static size_t QuicGetEncryptedFrameLen(QUIC *quic, QuicPPCipher *pp_cipher)
     }
 #endif
     return QuicCipherLenGet(pp_cipher->cipher.alg,
-                QuicBufDataLength(frame_buffer));
+                QuicBufGetDataLength(frame_buffer));
 }
 
 int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)

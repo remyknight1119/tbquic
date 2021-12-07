@@ -133,7 +133,6 @@ int TlsConstructQuicTransParamExtension(QUIC_TLS *tls, WPacket *pkt,
 #endif
         QuicTransParamGetOffset(p->type, &offset);
         if (p->check && p->check(tls, &tls->ext.trans_param, offset) < 0) {
-            printf("check failed\n");
             continue;
         }
 

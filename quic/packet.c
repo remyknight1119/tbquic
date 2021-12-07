@@ -29,6 +29,11 @@ void RPacketBufInit(RPacket *pkt, const uint8_t *buf, size_t len)
     RPacketHeadSync(pkt);
 }
 
+size_t RPacketReadLen(RPacket *pkt)
+{
+    return (pkt->curr - pkt->head);
+}
+
 void RPacketForward(RPacket *pkt, size_t len)
 {
     pkt->curr += len;
@@ -56,6 +61,11 @@ size_t RPacketRemaining(const RPacket *pkt)
 const uint8_t *RPacketData(const RPacket *pkt)
 {
     return pkt->curr;
+}
+
+void RPacketUpdate(RPacket *pkt)
+{
+    RPacketBufInit(pkt, RPacketData(pkt), RPacketRemaining(pkt));
 }
 
 static int RPacketPeekData(const RPacket *pkt, uint32_t *data, size_t len)

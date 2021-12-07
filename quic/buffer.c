@@ -70,7 +70,7 @@ size_t QuicBufRemaining(QUIC_BUFFER *qbuf)
     return qbuf->buf->length - qbuf->data_len;
 }
 
-size_t QuicBufDataLength(QUIC_BUFFER *qbuf)
+size_t QuicBufGetDataLength(QUIC_BUFFER *qbuf)
 {
     assert(qbuf->buf != NULL);
 

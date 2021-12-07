@@ -89,7 +89,7 @@ typedef struct {
     QuicFlowState flow_state;
     QuicTlsState next_state;
     HandshakeType handshake_type;
-    int (*handler)(QUIC_TLS *, void *);
+    QuicFlowReturn (*handler)(QUIC_TLS *, void *);
 } QuicTlsProcess;
 
 #ifdef QUIC_TEST
@@ -100,10 +100,10 @@ int QuicTlsInit(QUIC_TLS *, QUIC_CTX *);
 void QuicTlsFree(QUIC_TLS *);
 int QuicTlsClientInit(QUIC_TLS *, QUIC_CTX *);
 int QuicTlsServerInit(QUIC_TLS *, QUIC_CTX *);
-int QuicTlsDoHandshake(QUIC_TLS *, const uint8_t *, size_t);
+QuicFlowReturn QuicTlsDoHandshake(QUIC_TLS *, const uint8_t *, size_t);
 int QuicTlsDoProcess(QUIC_TLS *, RPacket *, WPacket *, const QuicTlsProcess *,
                         size_t);
-int QuicTlsHandshake(QUIC_TLS *, const uint8_t *, size_t,
+QuicFlowReturn QuicTlsHandshake(QUIC_TLS *, const uint8_t *, size_t,
                         const QuicTlsProcess *, size_t);
 int QuicTlsGenRandom(uint8_t *, size_t, WPacket *);
 int QuicTlsPutCipherList(QUIC_TLS *, WPacket *);

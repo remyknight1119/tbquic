@@ -15,14 +15,25 @@
 #include "rand.h"
 #include "log.h"
 
-static int QuicClientInitialSend(QUIC *);
+static QuicFlowReturn QuicClientInitialSend(QUIC *, void *);
+static QuicFlowReturn QuicClientInitialRecv(QUIC *, void *);
+
 static QuicStateMachine client_statem[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_READY] = {
-        .write = QuicClientInitialSend,
+        .flow_state = QUIC_FLOW_NOTHING, 
+        .next_state = QUIC_STATEM_INITIAL_SEND,
+    },
+    [QUIC_STATEM_INITIAL_SEND] = {
+        .flow_state = QUIC_FLOW_WRITING, 
+        .next_state = QUIC_STATEM_INITIAL_RECV,
+        .handler = QuicClientInitialSend,
+    },
+    [QUIC_STATEM_INITIAL_RECV] = {
+        .flow_state = QUIC_FLOW_READING, 
+        .next_state = QUIC_STATEM_HANDSHAKE_SEND,
+        .handler = QuicClientInitialRecv,
     },
 };
-
-#define QUIC_CLIENT_STATEM_NUM QUIC_NELEM(client_statem)
 
 static int QuicCidGen(QUIC_DATA *cid, size_t len)
 {
@@ -39,57 +50,48 @@ static int QuicCidGen(QUIC_DATA *cid, size_t len)
     return 0;
 }
 
-static int QuicClientInitialSend(QUIC *quic)
+static QuicFlowReturn QuicClientInitialSend(QUIC *quic, void *packet)
 {
     QUIC_DATA *cid = NULL;
-    QUIC_BUFFER *rbuffer = NULL;
-    QUIC_BUFFER *wbuffer = NULL;
-    WPacket pkt = {};
+    WPacket *pkt = packet;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
     cid = &quic->dcid;
     if (cid->data == NULL && QuicCidGen(cid, QUIC_MAX_CID_LENGTH) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
-    rbuffer = &quic->rbuffer;
-    if (QuicTlsDoHandshake(&quic->tls, QuicBufData(rbuffer),
-                QuicBufDataLength(rbuffer)) < 0) {
+    ret = QuicTlsDoHandshake(&quic->tls, NULL, 0);
+    if (ret == QUIC_FLOW_RET_ERROR) {
         QUIC_LOG("TLS handshake failed\n");
-        return -1;
+        return ret;
     }
 
     if (QuicInitialFrameBuild(quic) < 0) {
         QUIC_LOG("Initial frame build failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
-    wbuffer = &quic->wbuffer;
-    WPacketBufInit(&pkt, wbuffer->buf);
-
-    if (QuicInitialPacketGen(quic, &pkt) < 0) {
-        WPacketCleanup(&pkt);
-        return -1;
+    if (QuicInitialPacketGen(quic, pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
     }
 
-    wbuffer->data_len = WPacket_get_written(&pkt);
-    WPacketCleanup(&pkt);
-
-    if (QuicDatagramSend(quic) < 0) {
-        QUIC_LOG("Send failed\n");
-        return -1;
-    }
-
-    quic->statem = QUIC_STATEM_INITIAL_SENT;
     printf("client init\n");
-    return 0;
+    return QUIC_FLOW_RET_FINISH;
+}
+
+static QuicFlowReturn QuicClientInitialRecv(QUIC *quic, void *packet)
+{
+    printf("server init\n");
+    return QUIC_FLOW_RET_WANT_READ;
 }
 
 int QuicConnect(QUIC *quic)
 {
-    return QuicStateMachineAct(quic, client_statem, QUIC_CLIENT_STATEM_NUM);
+    return QuicStateMachineAct(quic, client_statem, QUIC_NELEM(client_statem));
 }
 

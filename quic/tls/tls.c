@@ -14,7 +14,8 @@
 #include "mem.h"
 #include "log.h"
 
-int QuicTlsDoHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len)
+QuicFlowReturn
+QuicTlsDoHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len)
 {
     return tls->handshake(tls, data, len);
 }
@@ -28,124 +29,118 @@ static void QuicTlsFlowFinish(QUIC_TLS *tls, QuicTlsState prev_state,
     }
 }
 
-static int QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p,
-                            RPacket *pkt)
+static QuicFlowReturn
+QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
 {
     QuicTlsState state = 0;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
     uint32_t type = 0;
 
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (RPacketGet1(pkt, &type) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_WANT_READ;
     }
 
     if (type != p->handshake_type) {
         QUIC_LOG("type not match\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     state = tls->handshake_state;
-    if (p->handler(tls, pkt) < 0) {
-        QUIC_LOG("Proc failed\n");
-        return -1;
+    ret = p->handler(tls, pkt);
+    if (ret != QUIC_FLOW_RET_FINISH) {
+        return ret;
     }
 
     QuicTlsFlowFinish(tls, state, p->next_state);
-    return 0;
+    return ret;
 }
 
-static int QuicTlsHandshakeWrite(QUIC_TLS *tls, const QuicTlsProcess *p,
-                            WPacket *pkt)
+static QuicFlowReturn
+QuicTlsHandshakeWrite(QUIC_TLS *tls, const QuicTlsProcess *p, WPacket *pkt)
 {
     QuicTlsState state = 0;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (WPacketPut1(pkt, p->handshake_type) < 0) {
         QUIC_LOG("Put handshake type failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     /* TLS handshake message length 3 byte */
     if (WPacketStartSubU24(pkt) < 0) { 
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
  
     state = tls->handshake_state;
-    if (p->handler(tls, pkt) < 0) {
-        QUIC_LOG("Proc failed\n");
-        return -1;
+    ret = p->handler(tls, pkt);
+    if (ret != QUIC_FLOW_RET_FINISH) {
+        return ret;
     }
 
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     QuicTlsFlowFinish(tls, state, p->next_state);
-    return 0;
+    return ret;
 }
 
-static int QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
-                                    const QuicTlsProcess *proc, size_t num)
+static QuicFlowReturn
+QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
+                        const QuicTlsProcess *proc, size_t num)
 {
     const QuicTlsProcess *p = NULL;
     QuicTlsState state = 0;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
     state = tls->handshake_state;
     assert(state >= 0 && state < num);
     p = &proc[state];
 
-    while (!QUIC_STATEM_FINISHED(p->flow_state)) {
+    while (!QUIC_FLOW_STATEM_FINISHED(p->flow_state)) {
         switch (p->flow_state) {
             case QUIC_FLOW_NOTHING:
                 tls->handshake_state = p->next_state;
                 break;
             case QUIC_FLOW_READING:
-                if (p->handler == NULL) {
-                    QUIC_LOG("No handler func found\n");
-                    return 0;
-                }
-                if (QuicTlsHandshakeRead(tls, p, rpkt) < 0) {
-                    return -1;
-                }
+                ret = QuicTlsHandshakeRead(tls, p, rpkt);
                 break;
             case QUIC_FLOW_WRITING:
-                if (p->handler == NULL) {
-                    QUIC_LOG("No handler func found\n");
-                    return 0;
-                }
-                if (QuicTlsHandshakeWrite(tls, p, wpkt) < 0) {
-                    return -1;
-                }
-
+                ret = QuicTlsHandshakeWrite(tls, p, wpkt);
                 break;
             default:
                 QUIC_LOG("Unknown flow state(%d)\n", p->flow_state);
-                return -1;
+                return QUIC_FLOW_RET_ERROR;
+        }
+        if (ret != QUIC_FLOW_RET_FINISH) {
+            return ret;
         }
         state = tls->handshake_state;
         assert(state >= 0 && state < num);
         p = &proc[state];
     }
 
-    return 0;
+    return QUIC_FLOW_RET_FINISH;
 }
 
-int QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
+QuicFlowReturn QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
                         const QuicTlsProcess *proc, size_t num)
 {
     QUIC_BUFFER *buffer = &tls->buffer;
     RPacket rpkt = {};
     WPacket wpkt = {};
-    int ret = 0;
+    QuicFlowReturn ret;
 
     RPacketBufInit(&rpkt, data, len);
     WPacketBufInit(&wpkt, buffer->buf);

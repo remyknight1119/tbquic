@@ -10,33 +10,37 @@
 #include "packet_format.h"
 #include "packet_local.h"
 
-static int QuicServerReadyRead(QUIC *);
-static int QuicServerReadyWrite(QUIC *);
+static QuicFlowReturn QuicServerInitialRecv(QUIC *, void *);
 
 static QuicStateMachine server_statem[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_READY] = {
-        .read = QuicServerReadyRead,
-        .write = QuicServerReadyWrite,
+        .flow_state = QUIC_FLOW_NOTHING, 
+        .next_state = QUIC_STATEM_INITIAL_RECV,
+    },
+    [QUIC_STATEM_INITIAL_RECV] = {
+        .flow_state = QUIC_FLOW_READING, 
+        .next_state = QUIC_STATEM_INITIAL_SEND,
+        .handler = QuicServerInitialRecv,
     },
 };
 
-#define QUIC_SERVER_STATEM_NUM QUIC_NELEM(server_statem)
-
-static int QuicServerReadyRead(QUIC *quic)
+static QuicFlowReturn QuicServerInitialRecv(QUIC *quic, void *packet)
 {
-    if (QuicStreamRead(quic) < 0) {
-        return -1;
+    RPacket *pkt = packet;
+    uint32_t flags = 0;
+
+    printf("xxxxxxxxxxxxxxxxxxxxxxxxxxready\n");
+    while (RPacketGet1(pkt, &flags) >= 0) {
+        if (QuicPacketParse(quic, pkt, flags) < 0) {
+            return -1;
+        }
+        RPacketHeadSync(pkt);
     }
 
     return 0;
 }
 
-static int QuicServerReadyWrite(QUIC *quic)
-{
-    return 0;
-}
-
 int QuicAccept(QUIC *quic)
 {
-    return QuicStateMachineAct(quic, server_statem, QUIC_SERVER_STATEM_NUM);
+    return QuicStateMachineAct(quic, server_statem, QUIC_NELEM(server_statem));
 }

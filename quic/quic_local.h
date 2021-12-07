@@ -27,6 +27,8 @@
 #define QUIC_P_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->plain_buffer)
 #define QUIC_W_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->wbuffer)
 
+#define QUIC_READ_BUFFER(quic) (&quic->rbuffer)
+#define QUIC_WRITE_BUFFER(quic) (&quic->wbuffer)
 #define QUIC_FRAME_BUFFER(quic) (&quic->plain_buffer)
 #define QUIC_TLS_BUFFER(quic) (&quic->tls.buffer)
 
@@ -63,12 +65,17 @@ typedef struct {
     bool cipher_initialed;
 } QuicCrypto;
 
+typedef struct {
+    QuicStatem state;
+    QuicReadState read_state;
+    QuicReadWriteState rwstate;
+} QUIC_STATEM;
+
 struct Quic {
     QUIC_TLS tls;
 #define quic_server tls.server
     QuicStreamState stream_state;
-    QuicStatem statem;
-    QuicReadWriteState rwstate;
+    QUIC_STATEM statem;
     uint32_t version;
     uint32_t mtu;
     uint64_t pkt_num_len:2;

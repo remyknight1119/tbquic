@@ -180,6 +180,8 @@ int QuicPktFormatTestClient(void)
 
     if (memcmp(client_iv, quic->initial.encrypt.ciphers.pp_cipher.iv,
                 sizeof(client_iv) - 1) != 0) {
+        QuicPrint(quic->initial.encrypt.ciphers.pp_cipher.iv,
+                sizeof(client_iv) - 1);
         printf("Client IV incorrect\n");
         goto out;
     }
@@ -263,6 +265,8 @@ int QuicPktFormatTestServer(void)
 
     if (memcmp(client_iv, quic->initial.decrypt.ciphers.pp_cipher.iv,
                 sizeof(client_iv) - 1) != 0) {
+        QuicPrint(quic->initial.encrypt.ciphers.pp_cipher.iv,
+                sizeof(client_iv) - 1);
         printf("Client IV incorrect\n");
         goto out;
     }

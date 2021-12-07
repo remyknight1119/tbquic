@@ -152,9 +152,10 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         return NULL;
     }
 
-    quic->statem = QUIC_STATEM_READY;
     quic->stream_state = QUIC_STREAM_STATE_READY;
-    quic->rwstate = QUIC_NOTHING; 
+    quic->statem.state = QUIC_STATEM_READY;
+    quic->statem.rwstate = QUIC_NOTHING; 
+    quic->statem.read_state = QUIC_WANT_DATA; 
     quic->do_handshake = ctx->method->quic_handshake; 
     quic->method = ctx->method;
     quic->mtu = ctx->mtu;

@@ -60,12 +60,12 @@ typedef enum {
     QUIC_TLS_ST_SR_CLIENT_HELLO,
     QUIC_TLS_ST_SW_SERVER_HELLO,
     QUIC_TLS_ST_SW_SERVER_CERTIFICATE,
+    QUIC_TLS_ST_HANDSHAKE_DONE,
     QUIC_TLS_ST_MAX,
 } QuicTlsState;
 
 struct QuicTls {
     QuicTlsState handshake_state;
-    QuicReadWriteState rwstate;
     uint8_t server:1;
     int (*handshake)(QUIC_TLS *, const uint8_t *, size_t);
     uint8_t client_random[TLS_RANDOM_BYTE_LEN];
@@ -86,7 +86,7 @@ struct QuicTls {
 };
 
 typedef struct {
-    QuicReadWriteState rwstate;
+    QuicFlowState flow_state;
     QuicTlsState next_state;
     HandshakeType handshake_type;
     int (*handler)(QUIC_TLS *, void *);

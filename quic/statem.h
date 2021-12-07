@@ -4,10 +4,10 @@
 #include <stddef.h>
 #include <tbquic/types.h>
 
-#define QUIC_STATEM_NOTHING(s) (s == QUIC_NOTHING)
-#define QUIC_STATEM_READING(s) (s == QUIC_READING)
-#define QUIC_STATEM_WRITING(s) (s == QUIC_WRITING)
-#define QUIC_STATEM_FINISHED(s) (s == QUIC_FINISHED)
+#define QUIC_STATEM_NOTHING(s) (s == QUIC_FLOW_NOTHING)
+#define QUIC_STATEM_READING(s) (s == QUIC_FLOW_READING)
+#define QUIC_STATEM_WRITING(s) (s == QUIC_FLOW_WRITING)
+#define QUIC_STATEM_FINISHED(s) (s == QUIC_FLOW_FINISHED)
 
 typedef enum {
 	QUIC_STATEM_READY = 0,
@@ -26,6 +26,14 @@ typedef enum {
     QUIC_ASYNC_PAUSED,
 	QUIC_FINISHED,
 } QuicReadWriteState;
+
+/* Read-Write state */
+typedef enum {
+	QUIC_FLOW_NOTHING = 0,
+	QUIC_FLOW_READING,
+	QUIC_FLOW_WRITING,
+	QUIC_FLOW_FINISHED,
+} QuicFlowState;
 
 typedef struct {
     int (*read)(QUIC *);

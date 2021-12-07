@@ -22,7 +22,6 @@ int QuicTlsDoHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len)
 static void QuicTlsFlowFinish(QUIC_TLS *tls, QuicTlsState prev_state,
                                 QuicTlsState next_state)
 {
-    tls->rwstate = QUIC_FINISHED;
     /* If proc not assign next_state, use default */
     if (prev_state == tls->handshake_state) {
         tls->handshake_state = next_state;
@@ -35,7 +34,6 @@ static int QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p,
     QuicTlsState state = 0;
     uint32_t type = 0;
 
-    tls->rwstate = p->rwstate;
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
         return -1;
@@ -65,7 +63,6 @@ static int QuicTlsHandshakeWrite(QUIC_TLS *tls, const QuicTlsProcess *p,
 {
     QuicTlsState state = 0;
 
-    tls->rwstate = p->rwstate;
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
         return -1;
@@ -106,12 +103,12 @@ static int QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
     assert(state >= 0 && state < num);
     p = &proc[state];
 
-    while (!QUIC_STATEM_FINISHED(p->rwstate)) {
-        switch (p->rwstate) {
-            case QUIC_NOTHING:
+    while (!QUIC_STATEM_FINISHED(p->flow_state)) {
+        switch (p->flow_state) {
+            case QUIC_FLOW_NOTHING:
                 tls->handshake_state = p->next_state;
                 break;
-            case QUIC_READING:
+            case QUIC_FLOW_READING:
                 if (p->handler == NULL) {
                     QUIC_LOG("No handler func found\n");
                     return 0;
@@ -120,7 +117,7 @@ static int QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
                     return -1;
                 }
                 break;
-            case QUIC_WRITING:
+            case QUIC_FLOW_WRITING:
                 if (p->handler == NULL) {
                     QUIC_LOG("No handler func found\n");
                     return 0;
@@ -131,7 +128,7 @@ static int QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
 
                 break;
             default:
-                QUIC_LOG("Unknown rw state(%d)\n", p->rwstate);
+                QUIC_LOG("Unknown flow state(%d)\n", p->flow_state);
                 return -1;
         }
         state = tls->handshake_state;

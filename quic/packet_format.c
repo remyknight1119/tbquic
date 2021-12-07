@@ -612,6 +612,7 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     uint64_t token_len = 0;
     uint64_t length = 0;
     uint64_t pkt_num = 0;
+    uint64_t pkt_len = 0;
     uint32_t h_pkt_num = 0;
     uint8_t pkt_num_len;
     int offset = 0;
@@ -641,14 +642,20 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     }
 
     offset = RPacketTotalLen(pkt) - remaining;
-    
     assert(offset >= 0);
+
+    pkt_len = offset + length;
+    if (pkt_len < QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN) {
+        QUIC_LOG("Length(%lu) smaller than (%d)\n", pkt_len,
+                QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN);
+        return -1;
+    }
 
     /*
      * Init message packet buffer for a single packet
      * For a buffer maybe contain multiple packets
      */
-    RPacketBufInit(&message, RPacketHead(pkt), length + offset);
+    RPacketBufInit(&message, RPacketHead(pkt), pkt_len);
     RPacketForward(&message, offset);
     RPacketForward(pkt, length);
 

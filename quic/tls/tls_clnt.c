@@ -17,17 +17,17 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *, void *);
 
 static const QuicTlsProcess client_proc[HANDSHAKE_MAX] = {
     [QUIC_TLS_ST_OK] = {
-        .rwstate = QUIC_NOTHING,
+        .flow_state = QUIC_FLOW_NOTHING,
         .next_state = QUIC_TLS_ST_CW_CLIENT_HELLO,
     },
     [QUIC_TLS_ST_CW_CLIENT_HELLO] = {
-        .rwstate = QUIC_WRITING,
+        .flow_state = QUIC_FLOW_WRITING,
         .next_state = QUIC_TLS_ST_CR_SERVER_HELLO,
         .handler = QuicTlsClientHelloBuild,
         .handshake_type = CLIENT_HELLO,
     },
     [QUIC_TLS_ST_CR_SERVER_HELLO] = {
-        .rwstate = QUIC_READING,
+        .flow_state = QUIC_FLOW_READING,
         .next_state = QUIC_TLS_ST_SW_SERVER_HELLO,
         .handshake_type = SERVER_HELLO,
     },

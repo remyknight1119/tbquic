@@ -30,16 +30,6 @@
 
 #define QUIC_PACKET_IS_LONG_PACKET(flags) (flags.header_form)
 
-typedef struct LPacketHeader QuicLPacketHeader;
-typedef int (*QuicLPacketPaser)(QUIC *, RPacket *, QuicLPacketHeader *);
-
-typedef struct {
-    uint8_t type;
-    uint32_t min_version;
-    uint32_t max_version;
-    QuicLPacketPaser parser;
-} QuicLongPacketParse;
-
 typedef union {
     uint8_t value;
     struct {
@@ -68,17 +58,17 @@ typedef union {
     };
 } QuicVarLenFirstByte;
 
-struct LPacketHeader {
-    QuicLPacketFlags flags;
-};
-
-int QuicPacketParse(QUIC *, RPacket *, uint8_t);
 int QuicVariableLengthEncode(uint8_t *, size_t , uint64_t);
 int QuicVariableLengthDecode(RPacket *, uint64_t *);
 int QuicVariableLengthWrite(WPacket *, uint64_t);
 int QuicVariableLengthValueWrite(WPacket *, uint64_t);
 uint32_t QuicPktNumberEncode(uint64_t, uint64_t, uint8_t);
 uint64_t QuicPktNumberDecode(uint64_t, uint32_t, uint8_t);
+int QuicLPacketHeaderParse(QUIC *, RPacket *);
+int QuicInitPacketPaser(QUIC *, RPacket *);
+int Quic0RttPacketPaser(QUIC *, RPacket *);
+int QuicHandshakePacketPaser(QUIC *, RPacket *);
+int QuicRetryPacketPaser(QUIC *, RPacket *);
 int QuicInitialPacketGen(QUIC *, WPacket *);
 int QuicInitialFrameBuild(QUIC *);
 

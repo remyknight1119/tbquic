@@ -9,6 +9,7 @@
 
 #include "packet_local.h"
 #include "common.h"
+#include "log.h"
 
 static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *, void *);
 static QuicFlowReturn QuicTlsServerHelloBuild(QUIC_TLS *, void *);

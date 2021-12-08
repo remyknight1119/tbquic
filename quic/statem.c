@@ -17,14 +17,14 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
     QUIC_STATEM *st = &quic->statem;
     QUIC_BUFFER *qbuf = QUIC_READ_BUFFER(quic);
     RPacket pkt = {};
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int rlen = 0;
 
     if (handler == NULL) {
         return QUIC_FLOW_RET_ERROR;
     }
 
-    while (1) {
+    while (ret != QUIC_FLOW_RET_FINISH) {
         if (st->read_state == QUIC_WANT_DATA) {
             rlen = QuicDatagramRecvBuffer(quic, qbuf);
             if (rlen < 0) {
@@ -74,6 +74,7 @@ QuicWriteStateMachine(QUIC *quic, QuicStatemHandler handler)
         QuicBufSetDataLength(qbuf, WPacket_get_written(&pkt));
         WPacketCleanup(&pkt);
         switch (ret) {
+            case QUIC_FLOW_RET_WANT_READ:
             case QUIC_FLOW_RET_FINISH:
                 break;
             default:
@@ -84,9 +85,13 @@ QuicWriteStateMachine(QUIC *quic, QuicStatemHandler handler)
         if (wlen < 0) {
             return QUIC_FLOW_RET_ERROR;
         }
+
+        if (ret == QUIC_FLOW_RET_WANT_READ) {
+            break;
+        }
     }
 
-    return QUIC_FLOW_RET_FINISH;
+    return ret;
 }
 
 QuicFlowReturn
@@ -105,17 +110,21 @@ QuicStateMachineAct(QUIC *quic, const QuicStateMachine *statem, size_t num)
                 break;
             case QUIC_FLOW_READING:
                 ret = QuicReadStateMachine(quic, sm->handler);
+                if (ret != QUIC_FLOW_RET_FINISH) {
+                    return ret;
+                }
+
                 break;
             case QUIC_FLOW_WRITING:
                 ret = QuicWriteStateMachine(quic, sm->handler);
+                if (ret == QUIC_FLOW_RET_ERROR) {
+                    return ret;
+                }
+
                 break;
             default:
                 QUIC_LOG("Unknown flow state(%d)\n", sm->flow_state);
                 return -1;
-        }
-
-        if (ret != QUIC_FLOW_RET_FINISH) {
-            return ret;
         }
 
         st->state = sm->next_state;

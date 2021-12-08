@@ -18,40 +18,6 @@
 #include "frame.h"
 #include "tls.h"
 
-static int QuicInitPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
-static int Quic0RttPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
-static int QuicHandshakePacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
-static int QuicRetryPacketPaser(QUIC *, RPacket *, QuicLPacketHeader *);
-
-static QuicLongPacketParse LPacketPaser[] = {
-    {
-        .min_version = QUIC_VERSION_1,
-        .max_version = QUIC_VERSION_1,
-        .type = QUIC_LPACKET_TYPE_INITIAL,
-        .parser = QuicInitPacketPaser,
-    },
-    {
-        .min_version = QUIC_VERSION_1,
-        .max_version = QUIC_VERSION_1,
-        .type = QUIC_LPACKET_TYPE_0RTT,
-        .parser = Quic0RttPacketPaser,
-    },
-    {
-        .min_version = QUIC_VERSION_1,
-        .max_version = QUIC_VERSION_1,
-        .type = QUIC_LPACKET_TYPE_HANDSHAKE,
-        .parser = QuicHandshakePacketPaser,
-    },
-    {
-        .min_version = QUIC_VERSION_1,
-        .max_version = QUIC_VERSION_1,
-        .type = QUIC_LPACKET_TYPE_RETRY,
-        .parser = QuicRetryPacketPaser,
-    },
-};
-
-#define LPACKET_PARSER_NUM     QUIC_NELEM(LPacketPaser) 
-
 static int QuicVersionSelect(QUIC *quic, uint32_t version)
 {
     return -1;
@@ -79,7 +45,7 @@ static int QuicCidParse(QUIC_DATA *cid, const uint8_t *data, size_t len)
     return 0;
 }
 
-static int QuicLPacketHeaderParse(QUIC *quic, QuicLPacketHeader *h, RPacket *pkt)
+int QuicLPacketHeaderParse(QUIC *quic, RPacket *pkt)
 {
     uint32_t version = 0;
     uint32_t len = 0;
@@ -127,51 +93,6 @@ static int QuicLPacketHeaderParse(QUIC *quic, QuicLPacketHeader *h, RPacket *pkt
     }
  
     return 0;
-}
-
-static int QuicLongPacketDoParse(QUIC *quic, RPacket *pkt, uint8_t flags)
-{
-    QuicLongPacketParse *p = NULL;
-    QuicLPacketHeader h = {};
-    uint32_t version = 0;
-    uint8_t type = 0;
-    int i = 0;
-
-    if (QuicLPacketHeaderParse(quic, &h, pkt) < 0) {
-        QUIC_LOG("Long Packet Header Parse failed\n");
-        return -1;
-    }
-
-    version = quic->version;
-    h.flags.value = flags;
-    type = h.flags.lpacket_type;
-    for (i = 0; i < LPACKET_PARSER_NUM; i++) {
-        p = &LPacketPaser[i];
-        if (p->type == type && p->min_version <= version &&
-                version <= p->max_version) {
-            return p->parser(quic, pkt, &h);
-        }
-    }
-
-    QUIC_LOG("No parser found\n");
-    return -1;
-}
-
-static int QuicShortPacketDoParse(QUIC *quic, RPacket *pkt, uint8_t flags)
-{
-    return -1;
-}
-
-int QuicPacketParse(QUIC *quic, RPacket *pkt, uint8_t flags)
-{
-    QuicPacketFlags pflags;
-
-    pflags.value = flags;
-    if (QUIC_PACKET_IS_LONG_PACKET(pflags)) {
-        return QuicLongPacketDoParse(quic, pkt, flags);
-    }
-
-    return QuicShortPacketDoParse(quic, pkt, flags);
 }
 
 static int QuicVariableLengthValueEncode(uint8_t *buf, size_t blen,
@@ -600,12 +521,11 @@ static int QuicTokenVerify(QUIC_DATA *token, const uint8_t *data, size_t len)
     return 0;
 }
 
-static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
+int QuicInitPacketPaser(QUIC *quic, RPacket *pkt)
 {
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
     QUIC_BUFFER *buffer = NULL;
-    QUIC_BUFFER *crypto_buf = &quic->tls.buffer;
     RPacket message = {};
     RPacket frame = {};
     size_t remaining = 0;
@@ -616,7 +536,6 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
     uint32_t h_pkt_num = 0;
     uint8_t pkt_num_len;
     int offset = 0;
-    int ret = 0;
 
     if (QuicVariableLengthDecode(pkt, &token_len) < 0) {
         QUIC_LOG("Token len decode failed!\n");
@@ -700,34 +619,20 @@ static int QuicInitPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
         return -1;
     }
 
-    if (crypto_buf->data_len == 0) {
-        return -1;
-    }
-
-    QuicPrint(QuicBufData(crypto_buf), crypto_buf->data_len);
-
-    ret = QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
-            crypto_buf->data_len);
-    if (ret == QUIC_FLOW_RET_ERROR) {
-        QUIC_LOG("TLS handshake failed!\n");
-        return -1;
-    }
-
-    printf("IIIint, f = %x, pkt_num = %u, ipkt = %lu\n", h->flags.value, h_pkt_num, initial->pkt_num);
     return 0;
 }
 
-static int Quic0RttPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
+int Quic0RttPacketPaser(QUIC *quic, RPacket *pkt)
 {
     return 0;
 }
 
-static int QuicHandshakePacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
+int QuicHandshakePacketPaser(QUIC *quic, RPacket *pkt)
 {
     return 0;
 }
 
-static int QuicRetryPacketPaser(QUIC *quic, RPacket *pkt, QuicLPacketHeader *h)
+int QuicRetryPacketPaser(QUIC *quic, RPacket *pkt)
 {
     return 0;
 }

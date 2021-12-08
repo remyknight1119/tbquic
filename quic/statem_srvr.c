@@ -9,6 +9,7 @@
 #include "datagram.h"
 #include "packet_format.h"
 #include "packet_local.h"
+#include "log.h"
 
 static QuicFlowReturn QuicServerInitialRecv(QUIC *, void *);
 
@@ -27,17 +28,37 @@ static QuicStateMachine server_statem[QUIC_STATEM_MAX] = {
 static QuicFlowReturn QuicServerInitialRecv(QUIC *quic, void *packet)
 {
     RPacket *pkt = packet;
-    uint32_t flags = 0;
+    QUIC_BUFFER *crypto_buf = QUIC_TLS_BUFFER(quic);
+    QuicLPacketFlags flags;
+    uint8_t type = 0;
 
-    printf("xxxxxxxxxxxxxxxxxxxxxxxxxxready\n");
-    while (RPacketGet1(pkt, &flags) >= 0) {
-        if (QuicPacketParse(quic, pkt, flags) < 0) {
-            return -1;
-        }
-        RPacketHeadSync(pkt);
+    if (RPacketGet1(pkt, (void *)&flags) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
     }
 
-    return 0;
+    if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicLPacketHeaderParse(quic, pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    type = flags.lpacket_type;
+    if (type != QUIC_LPACKET_TYPE_INITIAL) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicInitPacketPaser(quic, pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (crypto_buf->data_len == 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
+            crypto_buf->data_len);
 }
 
 int QuicAccept(QUIC *quic)

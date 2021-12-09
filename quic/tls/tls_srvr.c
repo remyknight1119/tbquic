@@ -35,7 +35,7 @@ static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
 
 #define QUIC_TLS_SERVER_PROC_NUM QUIC_NELEM(server_proc)
 
-int QuicTlsAccept(QUIC_TLS *tls, const uint8_t *data, size_t len)
+QuicFlowReturn QuicTlsAccept(QUIC_TLS *tls, const uint8_t *data, size_t len)
 {
     return QuicTlsHandshake(tls, data, len, server_proc,
                             QUIC_TLS_SERVER_PROC_NUM);
@@ -71,7 +71,7 @@ static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
 
 static QuicFlowReturn QuicTlsServerHelloBuild(QUIC_TLS *tls, void *packet)
 {
-    return QUIC_FLOW_RET_WANT_READ;
+    return QUIC_FLOW_RET_ERROR;
 }
 
 int QuicTlsServerInit(QUIC_TLS *tls, QUIC_CTX *ctx)

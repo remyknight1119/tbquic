@@ -8,6 +8,7 @@
 #include <openssl/err.h>
 
 #include "quic_local.h"
+#include "packet_format.h"
 #include "datagram.h"
 #include "log.h"
 
@@ -24,6 +25,7 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    st->read_state = QUIC_WANT_DATA;
     while (ret != QUIC_FLOW_RET_FINISH) {
         if (st->read_state == QUIC_WANT_DATA) {
             rlen = QuicDatagramRecvBuffer(quic, qbuf);
@@ -36,7 +38,7 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
             }
 
             RPacketBufInit(&pkt, QuicBufData(qbuf), QuicBufGetDataLength(qbuf));
-            st->read_state = QUIC_DATA_READY;
+            st->read_state = QUIC_WANT_DATA;
         } else {
             RPacketUpdate(&pkt);
         }
@@ -44,7 +46,9 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
         ret = handler(quic, &pkt);
         switch (ret) {
             case QUIC_FLOW_RET_WANT_READ:
-                st->read_state = QUIC_WANT_DATA;
+                if (!RPacketRemaining(&pkt)) {
+                    st->read_state = QUIC_WANT_DATA;
+                }
                 continue;
             case QUIC_FLOW_RET_FINISH:
                 break;
@@ -53,7 +57,7 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
         }
     }
 
-    return QUIC_FLOW_RET_FINISH;
+    return ret;
 }
 
 static QuicFlowReturn
@@ -94,7 +98,7 @@ QuicWriteStateMachine(QUIC *quic, QuicStatemHandler handler)
     return ret;
 }
 
-QuicFlowReturn
+int
 QuicStateMachineAct(QUIC *quic, const QuicStateMachine *statem, size_t num)
 {
     const QuicStateMachine *sm = NULL;
@@ -107,20 +111,13 @@ QuicStateMachineAct(QUIC *quic, const QuicStateMachine *statem, size_t num)
     while (!QUIC_FLOW_STATEM_FINISHED(sm->flow_state)) {
         switch (sm->flow_state) {
             case QUIC_FLOW_NOTHING:
+                ret = QUIC_FLOW_RET_CONTINUE;
                 break;
             case QUIC_FLOW_READING:
                 ret = QuicReadStateMachine(quic, sm->handler);
-                if (ret != QUIC_FLOW_RET_FINISH) {
-                    return ret;
-                }
-
                 break;
             case QUIC_FLOW_WRITING:
                 ret = QuicWriteStateMachine(quic, sm->handler);
-                if (ret == QUIC_FLOW_RET_ERROR) {
-                    return ret;
-                }
-
                 break;
             default:
                 QUIC_LOG("Unknown flow state(%d)\n", sm->flow_state);
@@ -130,8 +127,42 @@ QuicStateMachineAct(QUIC *quic, const QuicStateMachine *statem, size_t num)
         st->state = sm->next_state;
         assert(st->state >= 0 && st->state < num);
         sm = &statem[st->state];
+        if (ret != QUIC_FLOW_RET_CONTINUE) {
+            break;
+        }
     }
 
     return ret;
 }
+
+QuicFlowReturn QuicInitialRecv(QUIC *quic, void *packet)
+{
+    RPacket *pkt = packet;
+    QuicLPacketFlags flags;
+    uint8_t type = 0;
+
+    if (RPacketGet1(pkt, (void *)&flags) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicLPacketHeaderParse(quic, pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    type = flags.lpacket_type;
+    if (type != QUIC_LPACKET_TYPE_INITIAL) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicInitPacketPaser(quic, pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return QUIC_FLOW_RET_FINISH;
+}
+
 

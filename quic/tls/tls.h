@@ -67,7 +67,7 @@ typedef enum {
 struct QuicTls {
     QuicTlsState handshake_state;
     uint8_t server:1;
-    int (*handshake)(QUIC_TLS *, const uint8_t *, size_t);
+    QuicFlowReturn (*handshake)(QUIC_TLS *, const uint8_t *, size_t);
     uint8_t client_random[TLS_RANDOM_BYTE_LEN];
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;

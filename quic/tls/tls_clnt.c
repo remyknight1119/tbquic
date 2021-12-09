@@ -35,7 +35,7 @@ static const QuicTlsProcess client_proc[HANDSHAKE_MAX] = {
     },
 };
 
-int QuicTlsConnect(QUIC_TLS *tls, const uint8_t *data, size_t len)
+QuicFlowReturn QuicTlsConnect(QUIC_TLS *tls, const uint8_t *data, size_t len)
 {
     return QuicTlsHandshake(tls, data, len, client_proc,
                             QUIC_NELEM(client_proc));

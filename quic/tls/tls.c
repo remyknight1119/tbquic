@@ -102,16 +102,18 @@ QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
 {
     const QuicTlsProcess *p = NULL;
     QuicTlsState state = 0;
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
 
     state = tls->handshake_state;
     assert(state >= 0 && state < num);
     p = &proc[state];
 
-    while (!QUIC_FLOW_STATEM_FINISHED(p->flow_state)) {
+    while (ret != QUIC_FLOW_RET_FINISH &&
+            !QUIC_FLOW_STATEM_FINISHED(p->flow_state)) {
         switch (p->flow_state) {
             case QUIC_FLOW_NOTHING:
                 tls->handshake_state = p->next_state;
+                ret = QUIC_FLOW_RET_CONTINUE;
                 break;
             case QUIC_FLOW_READING:
                 ret = QuicTlsHandshakeRead(tls, p, rpkt);
@@ -123,7 +125,8 @@ QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
                 QUIC_LOG("Unknown flow state(%d)\n", p->flow_state);
                 return QUIC_FLOW_RET_ERROR;
         }
-        if (ret != QUIC_FLOW_RET_FINISH) {
+
+        if (ret == QUIC_FLOW_RET_ERROR || ret == QUIC_FLOW_RET_WANT_READ) {
             return ret;
         }
         state = tls->handshake_state;

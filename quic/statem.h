@@ -12,6 +12,7 @@
 typedef enum {
     QUIC_FLOW_RET_ERROR,
     QUIC_FLOW_RET_WANT_READ,
+    QUIC_FLOW_RET_CONTINUE,
     QUIC_FLOW_RET_FINISH,
 } QuicFlowReturn;
 
@@ -56,7 +57,8 @@ typedef struct {
     QuicStatemHandler handler;
 } QuicStateMachine;
 
-QuicFlowReturn QuicStateMachineAct(QUIC *, const QuicStateMachine *, size_t);
+QuicFlowReturn QuicInitialRecv(QUIC *, void *);
+int QuicStateMachineAct(QUIC *, const QuicStateMachine *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
 int QuicStreamRead(QUIC *);

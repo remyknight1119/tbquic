@@ -526,6 +526,7 @@ int QuicInitPacketPaser(QUIC *quic, RPacket *pkt)
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
     QUIC_BUFFER *buffer = NULL;
+    QUIC_BUFFER *crypto_buf = QUIC_TLS_BUFFER(quic);
     RPacket message = {};
     RPacket frame = {};
     size_t remaining = 0;
@@ -616,6 +617,15 @@ int QuicInitPacketPaser(QUIC *quic, RPacket *pkt)
     RPacketBufInit(&frame, (uint8_t *)buffer->buf->data, buffer->data_len);
     if (QuicFrameDoParser(quic, &frame) < 0) {
         QUIC_LOG("Do parser failed!\n");
+        return -1;
+    }
+
+    if (crypto_buf->data_len == 0) {
+        return -1;
+    }
+
+    if (QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
+            crypto_buf->data_len) == QUIC_FLOW_RET_ERROR) {
         return -1;
     }
 

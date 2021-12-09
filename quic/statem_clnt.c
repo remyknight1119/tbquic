@@ -87,7 +87,7 @@ static QuicFlowReturn QuicClientInitialSend(QUIC *quic, void *packet)
 static QuicFlowReturn QuicClientInitialRecv(QUIC *quic, void *packet)
 {
     printf("server init\n");
-    return QUIC_FLOW_RET_WANT_READ;
+    return QuicInitialRecv(quic, packet); 
 }
 
 int QuicConnect(QUIC *quic)

@@ -27,38 +27,7 @@ static QuicStateMachine server_statem[QUIC_STATEM_MAX] = {
 
 static QuicFlowReturn QuicServerInitialRecv(QUIC *quic, void *packet)
 {
-    RPacket *pkt = packet;
-    QUIC_BUFFER *crypto_buf = QUIC_TLS_BUFFER(quic);
-    QuicLPacketFlags flags;
-    uint8_t type = 0;
-
-    if (RPacketGet1(pkt, (void *)&flags) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
-    }
-
-    if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (QuicLPacketHeaderParse(quic, pkt) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    type = flags.lpacket_type;
-    if (type != QUIC_LPACKET_TYPE_INITIAL) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (QuicInitPacketPaser(quic, pkt) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (crypto_buf->data_len == 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    return QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
-            crypto_buf->data_len);
+    return QuicInitialRecv(quic, packet); 
 }
 
 int QuicAccept(QUIC *quic)

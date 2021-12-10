@@ -8,6 +8,12 @@
 //MTU - IP Header - UDP Header
 #define QUIC_DATAGRAM_SIZE_MAX_DEF  (1500 - 20 - 8)
 
+#define QUIC_ERROR_NONE         0
+#define QUIC_ERROR_QUIC         1
+#define QUIC_ERROR_WANT_READ    2
+#define QUIC_ERROR_WANT_WRITE   3
+#define QUIC_ERROR_WANT_ASYNC   4
+
 #define QUIC_TRANS_PARAM_ORIGINAL_DESTINATION_CONNECTION_ID     0x00
 #define QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT                       0x01
 #define QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN                  0x02
@@ -31,13 +37,6 @@ enum {
     QUIC_FILE_TYPE_ASN1,
     QUIC_FILE_TYPE_PEM,
     QUIC_FILE_TYPE_MAX,
-};
-
-enum {
-    QUIC_ERROR_NONE,
-    QUIC_ERROR_WANT_READ,
-    QUIC_ERROR_WANT_WRITE,
-    QUIC_ERROR_WANT_ASYNC,
 };
 
 enum {
@@ -68,14 +67,16 @@ extern QUIC_METHOD *QuicClientMethod(void);
 extern QUIC_METHOD *QuicServerMethod(void);
 extern QUIC *QuicNew(QUIC_CTX *ctx);
 extern void QuicFree(QUIC *quic);
+extern void QUIC_set_accept_state(QUIC *quic);
+extern void QUIC_set_connect_state(QUIC *quic);
 extern int QuicCtrl(QUIC *quic, uint32_t cmd, void *parg, long larg);
 extern int QuicDoHandshake(QUIC *quic);
-
 extern BIO *QUIC_get_rbio(const QUIC *quic);
 extern BIO *QUIC_get_wbio(const QUIC *quic);
 extern void QUIC_set_rbio(QUIC *quic, BIO *rbio);
 extern void QUIC_set_wbio(QUIC *quic, BIO *wbio);
 extern void QUIC_set_bio(QUIC *quic, BIO *rbio, BIO *wbio);
 extern int QUIC_set_fd(QUIC *quic, int fd);
+extern int QUIC_get_error(QUIC *quic, int ret);
 
 #endif

@@ -127,6 +127,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                             goto out;
                         }
 
+                        QUIC_set_accept_state(quic);
                         rbio = BIO_new(BIO_s_mem());
                         if (rbio == NULL) {
                             goto out;

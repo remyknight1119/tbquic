@@ -252,6 +252,7 @@ int QuicTlsClientHelloTest(void)
     BIO *rbio = NULL;
     BIO *wbio = NULL;
     int case_num = -1;
+    int err = 0;
     int ret = 0;
 
     ctx = QuicCtxNew(QuicClientMethod());
@@ -268,6 +269,7 @@ int QuicTlsClientHelloTest(void)
         goto out;
     }
 
+    QUIC_set_connect_state(quic);
     if (QuicTlsClientExtensionSet(quic) < 0) {
         return -1;
     }
@@ -289,13 +291,17 @@ int QuicTlsClientHelloTest(void)
     quic_random_test = client_random;
     ret = QuicDoHandshake(quic);
     if (ret < 0) {
-        printf("Do Client Handshake failed\n");
-        goto out;
+        err = QUIC_get_error(quic, ret);
+        if (err != QUIC_ERROR_WANT_READ) {
+            printf("Do Client Handshake failed\n");
+            goto out;
+        }
     }
 
     buffer = &quic->tls.buffer;
 
-    if (memcmp(QuicBufData(buffer), client_hello,
+    if (buffer->data_len != sizeof(client_hello) - 1 ||
+            memcmp(QuicBufData(buffer), client_hello,
                 buffer->data_len) != 0) {
         printf("ClientHello content Inconsistent!\n");
         QuicPrint(QuicBufData(buffer), buffer->data_len);
@@ -337,6 +343,7 @@ int QuicTlsClientExtensionTest(void)
         goto out;
     }
 
+    QUIC_set_connect_state(quic);
     if (QuicTlsClientExtensionSet(quic) < 0) {
         return -1;
     }

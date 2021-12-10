@@ -92,10 +92,7 @@ static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
     return QUIC_FLOW_RET_WANT_READ;
 }
 
-int QuicTlsClientInit(QUIC_TLS *tls, QUIC_CTX *ctx)
+void QuicTlsClientInit(QUIC_TLS *tls)
 {
     tls->handshake = QuicTlsConnect;
-    tls->server = 0;
-
-    return QuicTlsInit(tls, ctx);
 }

@@ -13,7 +13,7 @@
 
 static QuicFlowReturn QuicServerInitialRecv(QUIC *, void *);
 
-static QuicStateMachine server_statem[QUIC_STATEM_MAX] = {
+static QuicStateMachineFlow server_statem[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_READY] = {
         .flow_state = QUIC_FLOW_NOTHING, 
         .next_state = QUIC_STATEM_INITIAL_RECV,
@@ -32,5 +32,6 @@ static QuicFlowReturn QuicServerInitialRecv(QUIC *quic, void *packet)
 
 int QuicAccept(QUIC *quic)
 {
+    return QuicStateMachine(quic);
     return QuicStateMachineAct(quic, server_statem, QUIC_NELEM(server_statem));
 }

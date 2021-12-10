@@ -9,14 +9,12 @@
 
 static QUIC_METHOD QuicClientMeth = {
     .version = QUIC_VERSION_1,
-    .quic_handshake = QuicConnect,
-    .tls_init = QuicTlsClientInit,
+    .quic_connect = QuicConnect,
 }; 
 
 static QUIC_METHOD QuicServerMeth = {
     .version = QUIC_VERSION_1,
-    .quic_handshake = QuicAccept,
-    .tls_init = QuicTlsServerInit,
+    .quic_accept = QuicAccept,
 }; 
 
 

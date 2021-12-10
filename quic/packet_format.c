@@ -621,11 +621,13 @@ int QuicInitPacketPaser(QUIC *quic, RPacket *pkt)
     }
 
     if (crypto_buf->data_len == 0) {
+        QUIC_LOG("No crypto data!\n");
         return -1;
     }
 
     if (QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
             crypto_buf->data_len) == QUIC_FLOW_RET_ERROR) {
+        QUIC_LOG("TLS Hadshake failed!\n");
         return -1;
     }
 

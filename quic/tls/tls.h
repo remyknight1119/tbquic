@@ -98,8 +98,8 @@ extern uint8_t *quic_random_test;
 
 int QuicTlsInit(QUIC_TLS *, QUIC_CTX *);
 void QuicTlsFree(QUIC_TLS *);
-int QuicTlsClientInit(QUIC_TLS *, QUIC_CTX *);
-int QuicTlsServerInit(QUIC_TLS *, QUIC_CTX *);
+void QuicTlsClientInit(QUIC_TLS *);
+void QuicTlsServerInit(QUIC_TLS *);
 QuicFlowReturn QuicTlsDoHandshake(QUIC_TLS *, const uint8_t *, size_t);
 int QuicTlsDoProcess(QUIC_TLS *, RPacket *, WPacket *, const QuicTlsProcess *,
                         size_t);

@@ -191,6 +191,7 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    QUIC_set_connect_state(quic);
     if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
         goto out;
     }
@@ -208,7 +209,10 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
-    ret = QuicDoHandshake(quic);
+    while (1) {
+        ret = QuicDoHandshake(quic);
+        sleep(1);
+    }
     quic->dcid.data = NULL;
     quic->dcid.len = 0;
     if (ret < 0) {

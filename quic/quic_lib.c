@@ -156,14 +156,13 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->statem.state = QUIC_STATEM_READY;
     quic->statem.rwstate = QUIC_NOTHING; 
     quic->statem.read_state = QUIC_WANT_DATA; 
-    quic->do_handshake = ctx->method->quic_handshake; 
     quic->method = ctx->method;
     quic->mtu = ctx->mtu;
     quic->version = ctx->method->version;
     quic->tls.ext.trans_param = ctx->ext.trans_param;
     quic->ctx = ctx;
 
-    if (quic->method->tls_init(&quic->tls, ctx) < 0) {
+    if (QuicTlsInit(&quic->tls, ctx) < 0) {
         goto out;
     }
 
@@ -194,6 +193,22 @@ out:
 
     QuicFree(quic);
     return NULL;
+}
+
+void QUIC_set_accept_state(QUIC *quic)
+{
+    quic->quic_server = 1;
+    quic->do_handshake = quic->method->quic_accept;
+    quic->statem.flow_state = QUIC_FLOW_READING;
+    QuicTlsServerInit(&quic->tls);
+}
+
+void QUIC_set_connect_state(QUIC *quic)
+{
+    quic->quic_server = 0;
+    quic->do_handshake = quic->method->quic_connect;
+    quic->statem.flow_state = QUIC_FLOW_WRITING;
+    QuicTlsClientInit(&quic->tls);
 }
 
 int QuicCtrl(QUIC *quic, uint32_t cmd, void *parg, long larg)
@@ -350,5 +365,32 @@ int QUIC_set_fd(QUIC *quic, int fd)
 
 err:
     return ret;
+}
+
+bool QuicWantRead(QUIC *quic)
+{
+    return quic->statem.rwstate == QUIC_READING;
+}
+
+bool QuicWantWrite(QUIC *quic)
+{
+    return quic->statem.rwstate == QUIC_WRITING;
+}
+
+int QUIC_get_error(QUIC *quic, int ret)
+{
+    if (ret == 0) {
+        return QUIC_ERROR_NONE;
+    }
+
+    if (QuicWantRead(quic)) {
+        return QUIC_ERROR_WANT_READ;
+    }
+
+    if (QuicWantWrite(quic)) {
+        return QUIC_ERROR_WANT_WRITE;
+    }
+
+    return QUIC_ERROR_QUIC;
 }
 

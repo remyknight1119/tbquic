@@ -18,7 +18,7 @@
 static QuicFlowReturn QuicClientInitialSend(QUIC *, void *);
 static QuicFlowReturn QuicClientInitialRecv(QUIC *, void *);
 
-static QuicStateMachine client_statem[QUIC_STATEM_MAX] = {
+static QuicStateMachineFlow client_statem[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_READY] = {
         .flow_state = QUIC_FLOW_NOTHING, 
         .next_state = QUIC_STATEM_INITIAL_SEND,
@@ -34,21 +34,6 @@ static QuicStateMachine client_statem[QUIC_STATEM_MAX] = {
         .handler = QuicClientInitialRecv,
     },
 };
-
-static int QuicCidGen(QUIC_DATA *cid, size_t len)
-{
-    assert(cid->data == NULL);
-
-    cid->data = QuicMemMalloc(len);
-    if (cid->data == NULL) {
-        return -1;
-    }
-
-    QuicRandBytes(cid->data, len);
-    cid->len = len;
-
-    return 0;
-}
 
 static QuicFlowReturn QuicClientInitialSend(QUIC *quic, void *packet)
 {
@@ -80,7 +65,7 @@ static QuicFlowReturn QuicClientInitialSend(QUIC *quic, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    printf("client init\n");
+    printf("client init, ret = %d\n", ret);
     return ret;
 }
 
@@ -92,6 +77,7 @@ static QuicFlowReturn QuicClientInitialRecv(QUIC *quic, void *packet)
 
 int QuicConnect(QUIC *quic)
 {
+    return QuicStateMachine(quic);
     return QuicStateMachineAct(quic, client_statem, QUIC_NELEM(client_statem));
 }
 

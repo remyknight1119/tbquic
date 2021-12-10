@@ -74,10 +74,7 @@ static QuicFlowReturn QuicTlsServerHelloBuild(QUIC_TLS *tls, void *packet)
     return QUIC_FLOW_RET_ERROR;
 }
 
-int QuicTlsServerInit(QUIC_TLS *tls, QUIC_CTX *ctx)
+void QuicTlsServerInit(QUIC_TLS *tls)
 {
     tls->handshake = QuicTlsAccept;
-    tls->server = 1;
-
-    return QuicTlsInit(tls, ctx);
 }

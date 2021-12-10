@@ -15,10 +15,12 @@
 
 static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt);
 static int QuicFramePingParser(QUIC *quic, RPacket *pkt);
+static int QuicFrameAckParser(QUIC *quic, RPacket *pkt);
 
 static QuicFrameParser frame_parser[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_CRYPTO] = QuicFrameCryptoParser,
     [QUIC_FRAME_TYPE_PING] = QuicFramePingParser,
+    [QUIC_FRAME_TYPE_ACK] = QuicFrameAckParser,
 };
 
 int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
@@ -89,6 +91,11 @@ static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt)
 }
 
 static int QuicFramePingParser(QUIC *quic, RPacket *pkt)
+{
+    return 0;
+}
+
+static int QuicFrameAckParser(QUIC *quic, RPacket *pkt)
 {
     return 0;
 }

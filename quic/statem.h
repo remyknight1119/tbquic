@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <tbquic/types.h>
 
+#include "base.h"
+
 #define QUIC_FLOW_STATEM_NOTHING(s) (s == QUIC_FLOW_NOTHING)
 #define QUIC_FLOW_STATEM_READING(s) (s == QUIC_FLOW_READING)
 #define QUIC_FLOW_STATEM_WRITING(s) (s == QUIC_FLOW_WRITING)
@@ -14,6 +16,7 @@ typedef enum {
     QUIC_FLOW_RET_WANT_READ,
     QUIC_FLOW_RET_CONTINUE,
     QUIC_FLOW_RET_FINISH,
+    QUIC_FLOW_RET_END,
 } QuicFlowReturn;
 
 typedef QuicFlowReturn (*QuicStatemHandler)(QUIC *, void *);
@@ -55,12 +58,14 @@ typedef struct {
     QuicFlowState flow_state;
     QuicStatem next_state;
     QuicStatemHandler handler;
-} QuicStateMachine;
+} QuicStateMachineFlow;
 
 QuicFlowReturn QuicInitialRecv(QUIC *, void *);
-int QuicStateMachineAct(QUIC *, const QuicStateMachine *, size_t);
+int QuicStateMachineAct(QUIC *, const QuicStateMachineFlow *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
 int QuicStreamRead(QUIC *);
+int QuicStateMachine(QUIC *);
+int QuicCidGen(QUIC_DATA *, size_t);
 
 #endif

@@ -108,8 +108,7 @@ QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
     assert(state >= 0 && state < num);
     p = &proc[state];
 
-    while (ret != QUIC_FLOW_RET_FINISH &&
-            !QUIC_FLOW_STATEM_FINISHED(p->flow_state)) {
+    while (!QUIC_FLOW_STATEM_FINISHED(p->flow_state)) {
         switch (p->flow_state) {
             case QUIC_FLOW_NOTHING:
                 tls->handshake_state = p->next_state;
@@ -117,6 +116,9 @@ QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
                 break;
             case QUIC_FLOW_READING:
                 ret = QuicTlsHandshakeRead(tls, p, rpkt);
+                if (ret == QUIC_FLOW_RET_FINISH) {
+                    return ret;
+                }
                 break;
             case QUIC_FLOW_WRITING:
                 ret = QuicTlsHandshakeWrite(tls, p, wpkt);

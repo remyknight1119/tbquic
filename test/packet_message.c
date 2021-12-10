@@ -135,6 +135,7 @@ int QuicPktFormatTestClient(void)
     size_t max_len = 4;
     int case_num = -1;
     int rlen = 0;
+    int err = 0;
     int ret = 0;
 
     ctx = QuicCtxNew(QuicClientMethod());
@@ -146,6 +147,8 @@ int QuicPktFormatTestClient(void)
     if (quic == NULL) {
         goto out;
     }
+
+    QUIC_set_connect_state(quic);
 
     rbio = BIO_new(BIO_s_mem());
     if (rbio == NULL) {
@@ -174,8 +177,11 @@ int QuicPktFormatTestClient(void)
     ret = QuicDoHandshake(quic);
     quic->dcid.data = NULL;
     if (ret < 0) {
-        printf("Do Client Handshake failed\n");
-        goto out;
+        err = QUIC_get_error(quic, ret);
+        if (err != QUIC_ERROR_WANT_READ) {
+            printf("Do Client Handshake failed\n");
+            goto out;
+        }
     }
 
     if (memcmp(client_iv, quic->initial.encrypt.ciphers.pp_cipher.iv,
@@ -220,7 +226,6 @@ int QuicPktFormatTestServer(void)
     BIO *rbio = NULL;
     BIO *wbio = NULL;
     int case_num = -1;
-    int ret = 0;
 
     ctx = QuicCtxNew(QuicServerMethod());
     if (ctx == NULL) {
@@ -232,6 +237,7 @@ int QuicPktFormatTestServer(void)
         goto out;
     }
 
+    QUIC_set_accept_state(quic);
     rbio = BIO_new(BIO_s_mem());
     if (rbio == NULL) {
         goto out;
@@ -257,12 +263,7 @@ int QuicPktFormatTestServer(void)
         goto out;
     }
 
-    ret = QuicDoHandshake(quic);
-    if (ret < 0) {
-        printf("Do Server Handshake failed\n");
-        goto out;
-    }
-
+    QuicDoHandshake(quic);
     if (memcmp(client_iv, quic->initial.decrypt.ciphers.pp_cipher.iv,
                 sizeof(client_iv) - 1) != 0) {
         QuicPrint(quic->initial.encrypt.ciphers.pp_cipher.iv,

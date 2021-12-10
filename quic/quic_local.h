@@ -36,10 +36,16 @@
 #define QUIC_IS_READING(q) QUIC_STATEM_READING(q->rwstate)
 #define QUIC_IS_WRITNG(q) QUIC_STATEM_WRITNG(q->rwstate)
 
+#define QUIC_GET_FLOW_STATE(q) ((q)->statem.flow_state)
+#define QUIC_SET_FLOW_STATE(q, v) \
+    do { \
+        (q)->statem.flow_state = v; \
+    } while (0)
+
 struct QuicMethod {
     uint32_t version;
-    int (*quic_handshake)(QUIC *);
-    int (*tls_init)(QUIC_TLS *, QUIC_CTX *);
+    int (*quic_connect)(QUIC *);
+    int (*quic_accept)(QUIC *);
 };
 
 struct QuicCtx {
@@ -69,6 +75,7 @@ typedef struct {
     QuicStatem state;
     QuicReadState read_state;
     QuicReadWriteState rwstate;
+    QuicFlowState flow_state; 
 } QUIC_STATEM;
 
 struct Quic {

@@ -22,11 +22,8 @@ typedef enum {
 typedef QuicFlowReturn (*QuicStatemHandler)(QUIC *, void *);
 
 typedef enum {
-	QUIC_STATEM_READY = 0,
-	QUIC_STATEM_INITIAL_SEND,
-	QUIC_STATEM_INITIAL_RECV,
-	QUIC_STATEM_HANDSHAKE_RECV,
-	QUIC_STATEM_HANDSHAKE_SEND,
+	QUIC_STATEM_INITIAL = 0,
+	QUIC_STATEM_HANDSHAKE,
 	QUIC_STATEM_HANDSHAKE_DONE,
 	QUIC_STATEM_MAX,
 } QuicStatem;
@@ -55,9 +52,8 @@ typedef enum {
 } QuicFlowState;
 
 typedef struct {
-    QuicFlowState flow_state;
-    QuicStatem next_state;
-    QuicStatemHandler handler;
+    QuicStatemHandler recv;
+    QuicStatemHandler send;
 } QuicStateMachineFlow;
 
 QuicFlowReturn QuicInitialRecv(QUIC *, void *);

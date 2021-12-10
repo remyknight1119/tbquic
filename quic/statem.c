@@ -8,7 +8,7 @@
 #include <openssl/err.h>
 
 #include "quic_local.h"
-#include "packet_format.h"
+#include "format.h"
 #include "rand.h"
 #include "datagram.h"
 #include "mem.h"
@@ -32,15 +32,11 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
         if (st->read_state == QUIC_WANT_DATA) {
             rlen = QuicDatagramRecvBuffer(quic, qbuf);
             if (rlen < 0) {
-                if (st->rwstate == QUIC_READING) {
-                    return QUIC_FLOW_RET_WANT_READ;
-                }
-
                 return QUIC_FLOW_RET_ERROR;
             }
 
             RPacketBufInit(&pkt, QuicBufData(qbuf), QuicBufGetDataLength(qbuf));
-            st->read_state = QUIC_WANT_DATA;
+            st->read_state = QUIC_DATA_READY;
         } else {
             RPacketUpdate(&pkt);
         }
@@ -103,34 +99,33 @@ QuicStateMachineAct(QUIC *quic, const QuicStateMachineFlow *statem, size_t num)
     QUIC_STATEM *st = &quic->statem;
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
-    assert(st->state >= 0 && st->state < num);
-    sm = &statem[st->state];
+    while (QUIC_GET_FLOW_STATE(quic) != QUIC_FLOW_FINISHED) {
+        assert(st->state >= 0 && st->state < num);
+        sm = &statem[st->state];
 
-    while (!QUIC_FLOW_STATEM_FINISHED(sm->flow_state)) {
-        switch (sm->flow_state) {
-            case QUIC_FLOW_NOTHING:
-                ret = QUIC_FLOW_RET_CONTINUE;
-                break;
+        if (st->state == QUIC_STATEM_HANDSHAKE_DONE) {
+            return QUIC_FLOW_RET_FINISH;
+        }
+
+        switch (QUIC_GET_FLOW_STATE(quic)) {
             case QUIC_FLOW_READING:
-                ret = QuicReadStateMachine(quic, sm->handler);
+                ret = QuicReadStateMachine(quic, sm->recv);
+                if (ret == QUIC_FLOW_RET_FINISH) {
+                    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_WRITING);
+                }
                 break;
             case QUIC_FLOW_WRITING:
-                ret = QuicWriteStateMachine(quic, sm->handler);
+                ret = QuicWriteStateMachine(quic, sm->send);
+                if (ret == QUIC_FLOW_RET_WANT_READ) {
+                    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_READING);
+                }
                 break;
             default:
-                QUIC_LOG("Unknown flow state(%d)\n", sm->flow_state);
                 return -1;
         }
 
-        if (ret == QUIC_FLOW_RET_ERROR || ret == QUIC_FLOW_RET_WANT_READ) {
-            return ret;
-        }
-
-        st->state = sm->next_state;
-        assert(st->state >= 0 && st->state < num);
-        sm = &statem[st->state];
-        if (ret != QUIC_FLOW_RET_CONTINUE) {
-            break;
+        if (ret == QUIC_FLOW_RET_ERROR) {
+            return -1;
         }
     }
 
@@ -167,164 +162,23 @@ QuicFlowReturn QuicInitialRecv(QUIC *quic, void *packet)
     }
 
     if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
-        QUIC_LOG("out\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
     if (QuicLPacketHeaderParse(quic, pkt) < 0) {
-        QUIC_LOG("out\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
     type = flags.lpacket_type;
     if (type != QUIC_LPACKET_TYPE_INITIAL) {
-        QUIC_LOG("out\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
-    if (QuicInitPacketPaser(quic, pkt) < 0) {
-        QUIC_LOG("out\n");
+    if (QuicInitPacketParse(quic, pkt) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
     return QUIC_FLOW_RET_FINISH;
 }
 
-
-static QuicFlowReturn QuicInitialSend(QUIC *quic, void *packet)
-{
-    QUIC_DATA *cid = NULL;
-    WPacket *pkt = packet;
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
-
-    cid = &quic->dcid;
-    if (cid->data == NULL && QuicCidGen(cid, QUIC_MAX_CID_LENGTH) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    ret = QuicTlsDoHandshake(&quic->tls, NULL, 0);
-    if (ret == QUIC_FLOW_RET_ERROR) {
-        QUIC_LOG("TLS handshake failed\n");
-        return ret;
-    }
-
-    if (QuicInitialFrameBuild(quic) < 0) {
-        QUIC_LOG("Initial frame build failed\n");
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (QuicInitialPacketGen(quic, pkt) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    printf("client init, ret = %d\n", ret);
-    return ret;
-}
-
-static QuicFlowReturn
-QuicReadStateMachine2(QUIC *quic)
-{
-    QUIC_STATEM *st = &quic->statem;
-    QUIC_BUFFER *qbuf = QUIC_READ_BUFFER(quic);
-    RPacket pkt = {};
-    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
-    int rlen = 0;
-
-    QUIC_LOG("in\n");
-    st->read_state = QUIC_WANT_DATA;
-    while (ret != QUIC_FLOW_RET_FINISH) {
-        if (st->read_state == QUIC_WANT_DATA) {
-            rlen = QuicDatagramRecvBuffer(quic, qbuf);
-            if (rlen < 0) {
-                return QUIC_FLOW_RET_ERROR;
-            }
-
-            RPacketBufInit(&pkt, QuicBufData(qbuf), QuicBufGetDataLength(qbuf));
-            st->read_state = QUIC_DATA_READY;
-        } else {
-            RPacketUpdate(&pkt);
-        }
-
-        ret = QuicInitialRecv(quic, &pkt);
-    QUIC_LOG("ret = %d\n", ret);
-        switch (ret) {
-            case QUIC_FLOW_RET_WANT_READ:
-                if (!RPacketRemaining(&pkt)) {
-                    st->read_state = QUIC_WANT_DATA;
-                }
-                continue;
-            case QUIC_FLOW_RET_FINISH:
-                break;
-            default:
-                return QUIC_FLOW_RET_ERROR;
-        }
-    }
-
-    return ret;
-}
-
-static QuicFlowReturn
-QuicWriteStateMachine2(QUIC *quic)
-{
-    QUIC_BUFFER *qbuf = QUIC_WRITE_BUFFER(quic);
-    WPacket pkt = {};
-    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
-    int wlen = -1;
-
-    while (ret != QUIC_FLOW_RET_FINISH && ret != QUIC_FLOW_RET_WANT_READ) {
-        WPacketBufInit(&pkt, qbuf->buf);
-        ret = QuicInitialSend(quic, &pkt);
-        QuicBufSetDataLength(qbuf, WPacket_get_written(&pkt));
-        WPacketCleanup(&pkt);
-        switch (ret) {
-            case QUIC_FLOW_RET_WANT_READ:
-            case QUIC_FLOW_RET_FINISH:
-                break;
-            default:
-                return QUIC_FLOW_RET_ERROR;
-        }
-
-        wlen = QuicDatagramSendBuffer(quic, qbuf);
-        if (wlen < 0) {
-            return QUIC_FLOW_RET_ERROR;
-        }
-    }
-
-    return ret;
-}
-
-
-int QuicStateMachine(QUIC *quic)
-{
-    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
-
-    while (QUIC_GET_FLOW_STATE(quic) != QUIC_FLOW_FINISHED) {
-        switch (QUIC_GET_FLOW_STATE(quic)) {
-            case QUIC_FLOW_READING:
-                ret = QuicReadStateMachine2(quic);
-                if (ret == QUIC_FLOW_RET_FINISH) {
-                    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_WRITING);
-                }
-                break;
-            case QUIC_FLOW_WRITING:
-                ret = QuicWriteStateMachine2(quic);
-                if (ret == QUIC_FLOW_RET_WANT_READ) {
-                    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_READING);
-                }
-                break;
-            default:
-                return -1;
-        }
-
-        if (ret == QUIC_FLOW_RET_ERROR) {
-            return -1;
-        }
-    }
-
-    return 0;
-}
 

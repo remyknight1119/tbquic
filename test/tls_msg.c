@@ -13,7 +13,7 @@
 
 #include "quic_local.h"
 #include "packet_local.h"
-#include "packet_format.h"
+#include "format.h"
 #include "extension.h"
 #include "sig_alg.h"
 #include "common.h"

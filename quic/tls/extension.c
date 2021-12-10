@@ -4,7 +4,7 @@
 
 #include "extension.h"
 
-#include "packet_format.h"
+#include "format.h"
 #include "common.h"
 #include "log.h"
 

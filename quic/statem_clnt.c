@@ -8,30 +8,26 @@
 #include <openssl/rand.h>
 
 #include "quic_local.h"
-#include "packet_format.h"
+#include "format.h"
 #include "common.h"
 #include "datagram.h"
 #include "mem.h"
 #include "rand.h"
 #include "log.h"
 
-static QuicFlowReturn QuicClientInitialSend(QUIC *, void *);
 static QuicFlowReturn QuicClientInitialRecv(QUIC *, void *);
+static QuicFlowReturn QuicClientInitialSend(QUIC *, void *);
+static QuicFlowReturn QuicClientHandshakeRecv(QUIC *, void *);
+static QuicFlowReturn QuicClientHandshakeSend(QUIC *, void *);
 
 static QuicStateMachineFlow client_statem[QUIC_STATEM_MAX] = {
-    [QUIC_STATEM_READY] = {
-        .flow_state = QUIC_FLOW_NOTHING, 
-        .next_state = QUIC_STATEM_INITIAL_SEND,
+    [QUIC_STATEM_INITIAL] = {
+        .recv = QuicClientInitialRecv,
+        .send = QuicClientInitialSend,
     },
-    [QUIC_STATEM_INITIAL_SEND] = {
-        .flow_state = QUIC_FLOW_WRITING, 
-        .next_state = QUIC_STATEM_INITIAL_RECV,
-        .handler = QuicClientInitialSend,
-    },
-    [QUIC_STATEM_INITIAL_RECV] = {
-        .flow_state = QUIC_FLOW_READING, 
-        .next_state = QUIC_STATEM_HANDSHAKE_SEND,
-        .handler = QuicClientInitialRecv,
+    [QUIC_STATEM_HANDSHAKE] = {
+        .recv = QuicClientHandshakeRecv,
+        .send = QuicClientHandshakeSend,
     },
 };
 
@@ -42,7 +38,7 @@ static QuicFlowReturn QuicClientInitialSend(QUIC *quic, void *packet)
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
     cid = &quic->dcid;
-    if (cid->data == NULL && QuicCidGen(cid, QUIC_MAX_CID_LENGTH) < 0) {
+    if (cid->data == NULL && QuicCidGen(cid, quic->cid_len) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -71,13 +67,29 @@ static QuicFlowReturn QuicClientInitialSend(QUIC *quic, void *packet)
 
 static QuicFlowReturn QuicClientInitialRecv(QUIC *quic, void *packet)
 {
-    printf("server init\n");
-    return QuicInitialRecv(quic, packet); 
+    QuicFlowReturn ret;
+
+    ret = QuicInitialRecv(quic, packet);
+    printf("server init, ret = %d\n", ret);
+    if (ret != QUIC_FLOW_RET_ERROR) {
+        quic->statem.state = QUIC_STATEM_HANDSHAKE;
+    }
+
+    return ret;
+}
+
+static QuicFlowReturn QuicClientHandshakeRecv(QUIC *quic, void *packet)
+{
+    return QUIC_FLOW_RET_FINISH;
+}
+
+static QuicFlowReturn QuicClientHandshakeSend(QUIC *quic, void *packet)
+{
+    return QUIC_FLOW_RET_FINISH;
 }
 
 int QuicConnect(QUIC *quic)
 {
-    return QuicStateMachine(quic);
     return QuicStateMachineAct(quic, client_statem, QUIC_NELEM(client_statem));
 }
 

@@ -13,7 +13,7 @@
 #include "quic_local.h"
 #include "tls_lib.h"
 #include "common.h"
-#include "packet_format.h"
+#include "format.h"
 #include "log.h"
 
 static int TlsExtClntCheckServerName(QUIC_TLS *);

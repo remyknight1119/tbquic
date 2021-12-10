@@ -175,6 +175,7 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
     QUIC *quic = NULL;
     int sockfd = 0;
     int ret = 0;
+    int err = 0;
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
         perror("socket");
@@ -191,7 +192,6 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
-    QUIC_set_connect_state(quic);
     if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
         goto out;
     }
@@ -201,6 +201,7 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    QUIC_set_connect_state(quic);
     if (QUIC_set_fd(quic, sockfd) < 0) {
         goto out;
     }
@@ -211,7 +212,10 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
 
     while (1) {
         ret = QuicDoHandshake(quic);
-        sleep(1);
+        err = QUIC_get_error(quic, ret);
+        if (err != QUIC_ERROR_WANT_READ) {
+            goto out;
+        }
     }
     quic->dcid.data = NULL;
     quic->dcid.len = 0;

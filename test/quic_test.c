@@ -10,7 +10,7 @@
 #include <getopt.h>
 #include <arpa/inet.h>
 
-#include "packet_format.h"
+#include "format.h"
 #include "packet_local.h"
 #include "common.h"
 

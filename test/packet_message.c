@@ -12,7 +12,7 @@
 
 #include "quic_local.h"
 #include "packet_local.h"
-#include "packet_format.h"
+#include "format.h"
 #include "common.h"
 
 static uint8_t cid[] = "\x83\x94\xC8\xF0\x3E\x51\x57\x08";

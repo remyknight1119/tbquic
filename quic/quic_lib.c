@@ -15,6 +15,7 @@
 #include "tls_lib.h"
 #include "sig_alg.h"
 #include "common.h"
+#include "format.h"
 
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
@@ -153,11 +154,12 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     }
 
     quic->stream_state = QUIC_STREAM_STATE_READY;
-    quic->statem.state = QUIC_STATEM_READY;
+    quic->statem.state = QUIC_STATEM_INITIAL;
     quic->statem.rwstate = QUIC_NOTHING; 
     quic->statem.read_state = QUIC_WANT_DATA; 
     quic->method = ctx->method;
     quic->mtu = ctx->mtu;
+    quic->cid_len = QUIC_MIN_CID_LENGTH;
     quic->version = ctx->method->version;
     quic->tls.ext.trans_param = ctx->ext.trans_param;
     quic->ctx = ctx;
@@ -187,6 +189,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     }
 
     quic->initial.cipher_initialed = false;
+    QBuffHeadInit(&quic->tx_queue);
 
     return quic;
 out:
@@ -199,7 +202,7 @@ void QUIC_set_accept_state(QUIC *quic)
 {
     quic->quic_server = 1;
     quic->do_handshake = quic->method->quic_accept;
-    quic->statem.flow_state = QUIC_FLOW_READING;
+    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_READING);
     QuicTlsServerInit(&quic->tls);
 }
 
@@ -207,7 +210,7 @@ void QUIC_set_connect_state(QUIC *quic)
 {
     quic->quic_server = 0;
     quic->do_handshake = quic->method->quic_connect;
-    quic->statem.flow_state = QUIC_FLOW_WRITING;
+    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_WRITING);
     QuicTlsClientInit(&quic->tls);
 }
 
@@ -284,6 +287,7 @@ void QuicFree(QUIC *quic)
     BIO_free_all(quic->rbio);
     BIO_free_all(quic->wbio);
 
+    QBuffQueueDestroy(&quic->tx_queue);
     QuicCipherCtxFree(&quic->zero_rtt.ciphers);
     QuicCipherCtxFree(&quic->handshake.client.ciphers);
     QuicCipherCtxFree(&quic->handshake.server.ciphers);

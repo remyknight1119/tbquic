@@ -2,7 +2,7 @@
  * Remy Lewis(remyknight1119@gmail.com)
  */
 
-#include "packet_format.h"
+#include "format.h"
 
 #include <string.h>
 #include <math.h>
@@ -65,12 +65,17 @@ int QuicLPacketHeaderParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    if ((version == QUIC_VERSION_1 && len > QUIC_MAX_CID_LENGTH) || len == 0) {
+    if ((version == QUIC_VERSION_1 && len > QUIC_MAX_CID_LENGTH)) {
         QUIC_LOG("CID len is too long(%u)\n", len);
         return -1;
     }
 
-    if (len < QUIC_MIN_CID_LENGTH) {
+    if (quic->quic_server && len == 0) {
+        QUIC_LOG("DCID len is zero\n");
+        return -1;
+    } 
+
+    if (len > 0 && len < QUIC_MIN_CID_LENGTH) {
         QUIC_LOG("CID len is too short(%u)\n", len);
         return -1;
     }
@@ -92,6 +97,8 @@ int QuicLPacketHeaderParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
  
+    RPacketForward(pkt, len);
+
     return 0;
 }
 
@@ -521,7 +528,7 @@ static int QuicTokenVerify(QUIC_DATA *token, const uint8_t *data, size_t len)
     return 0;
 }
 
-int QuicInitPacketPaser(QUIC *quic, RPacket *pkt)
+int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 {
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
@@ -565,12 +572,6 @@ int QuicInitPacketPaser(QUIC *quic, RPacket *pkt)
     assert(offset >= 0);
 
     pkt_len = offset + length;
-    if (pkt_len < QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN) {
-        QUIC_LOG("Length(%lu) smaller than (%d)\n", pkt_len,
-                QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN);
-        return -1;
-    }
-
     /*
      * Init message packet buffer for a single packet
      * For a buffer maybe contain multiple packets
@@ -634,17 +635,17 @@ int QuicInitPacketPaser(QUIC *quic, RPacket *pkt)
     return 0;
 }
 
-int Quic0RttPacketPaser(QUIC *quic, RPacket *pkt)
+int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
 {
     return 0;
 }
 
-int QuicHandshakePacketPaser(QUIC *quic, RPacket *pkt)
+int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
 {
     return 0;
 }
 
-int QuicRetryPacketPaser(QUIC *quic, RPacket *pkt)
+int QuicRetryPacketParse(QUIC *quic, RPacket *pkt)
 {
     return 0;
 }

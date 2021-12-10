@@ -8,7 +8,7 @@
 
 #include "common.h"
 #include "log.h"
-#include "packet_format.h"
+#include "format.h"
 #include "quic_local.h"
 #include "buffer.h"
 
@@ -97,6 +97,46 @@ static int QuicFramePingParser(QUIC *quic, RPacket *pkt)
 
 static int QuicFrameAckParser(QUIC *quic, RPacket *pkt)
 {
+    uint64_t largest_acked = 0;
+    uint64_t ack_delay = 0;
+    uint64_t range_count = 0;
+    uint64_t first_ack_range = 0;
+    uint64_t gap = 0;
+    uint64_t ack_range_len = 0;
+    uint64_t i = 0;
+
+    if (QuicVariableLengthDecode(pkt, &largest_acked) < 0) {
+        QUIC_LOG("Offset decodd failed!\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &ack_delay) < 0) {
+        QUIC_LOG("Offset decodd failed!\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &range_count) < 0) {
+        QUIC_LOG("Offset decodd failed!\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &first_ack_range) < 0) {
+        QUIC_LOG("Offset decodd failed!\n");
+        return -1;
+    }
+
+    for (i = 0; i < range_count; i++) {
+        if (QuicVariableLengthDecode(pkt, &gap) < 0) {
+            QUIC_LOG("Offset decodd failed!\n");
+            return -1;
+        }
+
+        if (QuicVariableLengthDecode(pkt, &ack_range_len) < 0) {
+            QUIC_LOG("Offset decodd failed!\n");
+            return -1;
+        }
+    }
+
     return 0;
 }
 

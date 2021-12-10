@@ -1,5 +1,5 @@
-#ifndef TBQUIC_QUIC_PACKET_FORMAT_H_
-#define TBQUIC_QUIC_PACKET_FORMAT_H_
+#ifndef TBQUIC_QUIC_FORMAT_H_
+#define TBQUIC_QUIC_FORMAT_H_
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -65,10 +65,10 @@ int QuicVariableLengthValueWrite(WPacket *, uint64_t);
 uint32_t QuicPktNumberEncode(uint64_t, uint64_t, uint8_t);
 uint64_t QuicPktNumberDecode(uint64_t, uint32_t, uint8_t);
 int QuicLPacketHeaderParse(QUIC *, RPacket *);
-int QuicInitPacketPaser(QUIC *, RPacket *);
-int Quic0RttPacketPaser(QUIC *, RPacket *);
-int QuicHandshakePacketPaser(QUIC *, RPacket *);
-int QuicRetryPacketPaser(QUIC *, RPacket *);
+int QuicInitPacketParse(QUIC *, RPacket *);
+int Quic0RttPacketParse(QUIC *, RPacket *);
+int QuicHandshakePacketParse(QUIC *, RPacket *);
+int QuicRetryPacketParse(QUIC *, RPacket *);
 int QuicInitialPacketGen(QUIC *, WPacket *);
 int QuicInitialFrameBuild(QUIC *);
 

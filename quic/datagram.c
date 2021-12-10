@@ -6,6 +6,8 @@
 
 #include "quic_local.h"
 #include "buffer.h"
+#include "format.h"
+#include "log.h"
 
 int QuicDatagramRecvBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
 {
@@ -19,6 +21,12 @@ int QuicDatagramRecvBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
     quic->statem.rwstate = QUIC_READING;
     read_bytes = BIO_read(quic->rbio, QuicBufData(qbuf), QuicBufLength(qbuf));
     if (read_bytes < 0) {
+        return -1;
+    }
+
+    if (read_bytes < QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN) {
+        QUIC_LOG("Read length(%d) smaller than (%d)\n", read_bytes,
+                QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN);
         return -1;
     }
 
@@ -36,6 +44,10 @@ int QuicDatagramRecv(QUIC *quic)
 int QuicDatagramSendBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
 {
     int write_bytes = 0;
+
+    if (QuicBufGetDataLength(qbuf) == 0) {
+        return 0;
+    }
 
     quic->statem.rwstate = QUIC_NOTHING;
     if (quic->wbio == NULL) {

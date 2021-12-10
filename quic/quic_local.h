@@ -14,6 +14,7 @@
 #include "buffer.h"
 #include "tls.h"
 #include "cert.h"
+#include "q_buff.h"
 
 #define QUIC_VERSION_1      0x01
 
@@ -79,6 +80,7 @@ typedef struct {
 } QUIC_STATEM;
 
 struct Quic {
+    /* This member must be first */
     QUIC_TLS tls;
 #define quic_server tls.server
     QuicStreamState stream_state;
@@ -86,6 +88,7 @@ struct Quic {
     uint32_t version;
     uint32_t mtu;
     uint64_t pkt_num_len:2;
+    uint64_t cid_len:8;
     const QUIC_CTX *ctx;
     const QUIC_METHOD *method;
     BIO *rbio;
@@ -107,6 +110,7 @@ struct Quic {
         QuicCipherSpace client;
         QuicCipherSpace server;
     } handshake;
+    QBuffHead tx_queue;
 };
 
 static inline QUIC *QuicTlsTrans(QUIC_TLS *tls)

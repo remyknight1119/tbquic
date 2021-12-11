@@ -189,7 +189,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     }
 
     quic->initial.cipher_initialed = false;
-    QBuffHeadInit(&quic->tx_queue);
+    QBuffQueueHeadInit(&quic->tx_queue);
 
     return quic;
 out:

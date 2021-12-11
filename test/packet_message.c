@@ -113,14 +113,14 @@ static uint8_t payload_plaintext[1162] =
     "\x75\x30\x09\x01\x10\x0F\x08\x83\x94\xC8\xF0\x3E\x51\x57\x08\x06"
     "\x04\x80\x00\xFF\xFF";
 
-static void QuicPktPayloadInject(QUIC_BUFFER *buffer)
+static void QuicPktPayloadInject(QBUFF *qb)
 {
     size_t len = sizeof(payload_plaintext);
 
-    assert(QUIC_GE(QuicBufLength(buffer), len));
+    assert(QUIC_GE(QBuffLen(qb), len));
 
-    memcpy(QuicBufData(buffer), payload_plaintext, len);
-    buffer->data_len = len;
+    memcpy(QBuffHead(qb), payload_plaintext, len);
+    QBuffSetDataLen(qb, len);
 }
 
 int QuicPktFormatTestClient(void)
@@ -169,7 +169,7 @@ int QuicPktFormatTestClient(void)
     quic->dcid.len = sizeof(cid) - 1;
     quic->initial.encrypt.pkt_num = 1;
 
-    QuicEncryptFrameHook = QuicPktPayloadInject;
+    QuicEncryptPayloadHook = QuicPktPayloadInject;
 
     if (QuicCtrl(quic, QUIC_CTRL_SET_PKT_NUM_MAX_LEN, &max_len, 0) < 0) {
         goto out;

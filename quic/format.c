@@ -745,32 +745,30 @@ static int QuicLHeaderGen(QUIC *quic, uint8_t **first_byte, WPacket *pkt,
     return 0;
 }
 
-static int QuicFrameBufferAddPadding(QUIC *quic, size_t padding_len)
+static int QuicFrameBufferAddPadding(QUIC *quic, size_t padding_len, QBUFF *qb)
 {
-    QUIC_BUFFER *frame_buffer = QUIC_FRAME_BUFFER(quic);
     WPacket pkt = {};
 
-    WPacketStaticBufInit(&pkt, QuicBufTail(frame_buffer),
-            QuicBufRemaining(frame_buffer));
+    WPacketStaticBufInit(&pkt, QBuffTail(qb), QBuffSpace(qb));
 
     if (QuicFramePaddingBuild(&pkt, padding_len) < 0) {
+        WPacketCleanup(&pkt);
         return -1;
     }
+    WPacketCleanup(&pkt);
 
-    QuicBufAddDataLength(frame_buffer, padding_len);
-    return 0;
+    return QBuffAddDataLen(qb, padding_len);
 }
 
-int QuicEncryptFrame(QUIC *quic, QuicPPCipher *pp_cipher, uint8_t *head,
+int QuicEncryptPayload(QUIC *quic, QuicPPCipher *pp_cipher, uint8_t *head,
                         size_t hlen, uint8_t *out, size_t out_len,
-                        uint32_t pkt_num, uint8_t pkt_num_len)
+                        uint32_t pkt_num, uint8_t pkt_num_len, QBUFF *qb)
 {
-    QUIC_BUFFER *frame_buffer = QUIC_FRAME_BUFFER(quic);
     size_t outl = 0;
 
     if (QuicEncryptMessage(pp_cipher, out, &outl, out_len, head, hlen, pkt_num,
-                            pkt_num_len, QuicBufData(frame_buffer),
-                            QuicBufGetDataLength(frame_buffer)) < 0) {
+                            pkt_num_len, QBuffHead(qb),
+                            QBuffGetDataLen(qb)) < 0) {
         return -1;
     }
 
@@ -783,23 +781,21 @@ int QuicEncryptFrame(QUIC *quic, QuicPPCipher *pp_cipher, uint8_t *head,
 }
 
 #ifdef QUIC_TEST
-void (*QuicEncryptFrameHook)(QUIC_BUFFER *buffer);
+void (*QuicEncryptPayloadHook)(QBUFF *qb);
 #endif
 
-static size_t QuicGetEncryptedFrameLen(QUIC *quic, QuicPPCipher *pp_cipher)
+static size_t
+QuicGetEncryptedPayloadLen(QUIC *quic, QuicPPCipher *pp_cipher, QBUFF *qb)
 {
-    QUIC_BUFFER *frame_buffer = QUIC_FRAME_BUFFER(quic);
-
 #ifdef QUIC_TEST
-    if (QuicEncryptFrameHook != NULL) {
-        QuicEncryptFrameHook(frame_buffer);
+    if (QuicEncryptPayloadHook != NULL) {
+        QuicEncryptPayloadHook(qb);
     }
 #endif
-    return QuicCipherLenGet(pp_cipher->cipher.alg,
-                QuicBufGetDataLength(frame_buffer));
+    return QuicCipherLenGet(pp_cipher->cipher.alg, QBuffGetDataLen(qb));
 }
 
-int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
+int QuicInitialPacketGen(QUIC *quic, WPacket *pkt, QBUFF *qb)
 {
     QuicCipherSpace *cs = NULL;
     QuicPPCipher *pp_cipher = NULL;
@@ -833,10 +829,11 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
     cs = &quic->initial.encrypt;
     cs->pkt_num++;
 
+    qb->pkt_num = cs->pkt_num;
     pkt_num = QuicPktNumberEncode(cs->pkt_num, cs->pkt_acked, pkt_num_len*8);
 
     pp_cipher = &cs->ciphers.pp_cipher;
-    cipher_len = QuicGetEncryptedFrameLen(quic, pp_cipher);
+    cipher_len = QuicGetEncryptedPayloadLen(quic, pp_cipher, qb);
     if (cipher_len == 0) {
         return -1;
     }
@@ -876,13 +873,13 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
     offset = dest - first_byte;
     assert(offset > 0);
 
-    if (QuicFrameBufferAddPadding(quic, padding_len) < 0) {
+    if (QuicFrameBufferAddPadding(quic, padding_len, qb) < 0) {
         return -1;
     }
 
     printf("clen = %lu\n", cipher_len);
-    if (QuicEncryptFrame(quic, pp_cipher, first_byte, offset, dest, cipher_len,
-                            pkt_num, pkt_num_len) < 0) {
+    if (QuicEncryptPayload(quic, pp_cipher, first_byte, offset, dest, cipher_len,
+                            pkt_num, pkt_num_len, qb) < 0) {
         return -1;
     }
 
@@ -891,24 +888,53 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt)
                             QUIC_LPACKET_TYPE_RESV_MASK);
 }
 
-int QuicInitialFrameBuild(QUIC *quic)
+int QuicInitialPacketBuild(QUIC *quic, QBUFF *qb)
+{
+    QUIC_BUFFER *qbuf = QUIC_WRITE_BUFFER(quic);
+    WPacket pkt = {};
+    int ret = 0;
+
+    WPacketBufInit(&pkt, qbuf->buf);
+    ret = QuicInitialPacketGen(quic, &pkt, qb);
+    QuicBufSetDataLength(qbuf, WPacket_get_written(&pkt));
+    WPacketCleanup(&pkt);
+
+    return ret;
+}
+
+int QuicInitialFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
 {
     QUIC_BUFFER *frame_buffer = QUIC_FRAME_BUFFER(quic);
+    QBUFF *qb = NULL;
     WPacket pkt = {};
+    int ret = -1;
 
-    WPacketBufInit(&pkt, frame_buffer->buf);
-
-    if (QuicFramePingBuild(&pkt) < 0) {
-        WPacketCleanup(&pkt);
+    qb = QBuffNew(quic->mtu, build_pkt);
+    if (qb == NULL) {
         return -1;
+    }
+
+    WPacketStaticBufInit(&pkt, QBuffHead(qb), QBuffLen(qb));
+    if (QuicFramePingBuild(&pkt) < 0) {
+        goto out;
     }
 
     if (QuicFrameCryptoBuild(quic, &pkt) < 0) {
-        WPacketCleanup(&pkt);
-        return -1;
+        goto out;
     }
 
-    frame_buffer->data_len = WPacket_get_written(&pkt);
+    if (QBuffSetDataLen(qb, WPacket_get_written(&pkt)) < 0) {
+        goto out;
+    }
+
+    QBuffQueueAdd(&quic->tx_queue, qb);
+
+    QuicMemcpy(frame_buffer->buf->data, QBuffHead(qb), QBuffGetDataLen(qb));
+    frame_buffer->data_len = QBuffGetDataLen(qb);
+
+    ret = 0;
+out:
     WPacketCleanup(&pkt);
-    return 0;
+    return ret;
 }
+

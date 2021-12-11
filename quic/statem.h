@@ -57,6 +57,7 @@ typedef struct {
 } QuicStateMachineFlow;
 
 QuicFlowReturn QuicInitialRecv(QUIC *, void *);
+QuicFlowReturn QuicInitialSend(QUIC *, void *);
 int QuicStateMachineAct(QUIC *, const QuicStateMachineFlow *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);

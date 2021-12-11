@@ -33,36 +33,7 @@ static QuicStateMachineFlow client_statem[QUIC_STATEM_MAX] = {
 
 static QuicFlowReturn QuicClientInitialSend(QUIC *quic, void *packet)
 {
-    QUIC_DATA *cid = NULL;
-    WPacket *pkt = packet;
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
-
-    cid = &quic->dcid;
-    if (cid->data == NULL && QuicCidGen(cid, quic->cid_len) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    ret = QuicTlsDoHandshake(&quic->tls, NULL, 0);
-    if (ret == QUIC_FLOW_RET_ERROR) {
-        QUIC_LOG("TLS handshake failed\n");
-        return ret;
-    }
-
-    if (QuicInitialFrameBuild(quic) < 0) {
-        QUIC_LOG("Initial frame build failed\n");
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (QuicInitialPacketGen(quic, pkt) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    printf("client init, ret = %d\n", ret);
-    return ret;
+    return QuicInitialSend(quic, packet);
 }
 
 static QuicFlowReturn QuicClientInitialRecv(QUIC *quic, void *packet)

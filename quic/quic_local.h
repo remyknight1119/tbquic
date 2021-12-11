@@ -110,7 +110,7 @@ struct Quic {
         QuicCipherSpace client;
         QuicCipherSpace server;
     } handshake;
-    QBuffHead tx_queue;
+    QBuffQueueHead tx_queue;
 };
 
 static inline QUIC *QuicTlsTrans(QUIC_TLS *tls)

@@ -11,6 +11,7 @@
 #include "format.h"
 #include "rand.h"
 #include "datagram.h"
+#include "q_buff.h"
 #include "mem.h"
 #include "log.h"
 
@@ -61,8 +62,7 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
 static QuicFlowReturn
 QuicWriteStateMachine(QUIC *quic, QuicStatemHandler handler)
 {
-    QUIC_BUFFER *qbuf = QUIC_WRITE_BUFFER(quic);
-    WPacket pkt = {};
+    QBUFF *qb = NULL;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int wlen = -1;
 
@@ -71,10 +71,7 @@ QuicWriteStateMachine(QUIC *quic, QuicStatemHandler handler)
     }
 
     while (ret != QUIC_FLOW_RET_FINISH && ret != QUIC_FLOW_RET_WANT_READ) {
-        WPacketBufInit(&pkt, qbuf->buf);
-        ret = handler(quic, &pkt);
-        QuicBufSetDataLength(qbuf, WPacket_get_written(&pkt));
-        WPacketCleanup(&pkt);
+        ret = handler(quic, NULL);
         switch (ret) {
             case QUIC_FLOW_RET_WANT_READ:
             case QUIC_FLOW_RET_FINISH:
@@ -82,11 +79,17 @@ QuicWriteStateMachine(QUIC *quic, QuicStatemHandler handler)
             default:
                 return QUIC_FLOW_RET_ERROR;
         }
+    }
 
-        wlen = QuicDatagramSendBuffer(quic, qbuf);
-        if (wlen < 0) {
+    QBUF_LIST_FOR_EACH(qb, &quic->tx_queue) {
+        if (QBuffBuildPkt(quic, qb) < 0) {
             return QUIC_FLOW_RET_ERROR;
         }
+    }
+
+    wlen = QuicDatagramSend(quic);
+    if (wlen < 0) {
+        return QUIC_FLOW_RET_ERROR;
     }
 
     return ret;
@@ -179,6 +182,35 @@ QuicFlowReturn QuicInitialRecv(QUIC *quic, void *packet)
     }
 
     return QUIC_FLOW_RET_FINISH;
+}
+
+QuicFlowReturn QuicInitialSend(QUIC *quic, void *packet)
+{
+    QUIC_DATA *cid = NULL;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
+
+    cid = &quic->dcid;
+    if (cid->data == NULL && QuicCidGen(cid, quic->cid_len) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    ret = QuicTlsDoHandshake(&quic->tls, NULL, 0);
+    if (ret == QUIC_FLOW_RET_ERROR) {
+        QUIC_LOG("TLS handshake failed\n");
+        return ret;
+    }
+
+    if (QuicInitialFrameBuild(quic, QuicInitialPacketBuild) < 0) {
+        QUIC_LOG("Initial frame build failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    printf("client init, ret = %d\n", ret);
+    return ret;
 }
 
 

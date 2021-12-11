@@ -2,6 +2,7 @@
 #define TBQUIC_QUIC_COMMON_H_
 
 #include <stddef.h>
+#include <stdio.h>
 
 #define QUIC_NELEM(x)    (sizeof(x)/sizeof(x[0]))
 

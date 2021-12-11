@@ -7,6 +7,7 @@
 #include <tbquic/types.h>
 
 #include "packet_local.h"
+#include "q_buff.h"
 
 #define QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN      1200
 
@@ -69,11 +70,12 @@ int QuicInitPacketParse(QUIC *, RPacket *);
 int Quic0RttPacketParse(QUIC *, RPacket *);
 int QuicHandshakePacketParse(QUIC *, RPacket *);
 int QuicRetryPacketParse(QUIC *, RPacket *);
-int QuicInitialPacketGen(QUIC *, WPacket *);
-int QuicInitialFrameBuild(QUIC *);
+int QuicInitialPacketGen(QUIC *, WPacket *, QBUFF *);
+int QuicInitialPacketBuild(QUIC *, QBUFF *);
+int QuicInitialFrameBuild(QUIC *, QBuffPktBuilder);
 
 #ifdef QUIC_TEST
-extern void (*QuicEncryptFrameHook)(QUIC_BUFFER *buffer);
+extern void (*QuicEncryptPayloadHook)(QBUFF *qb);
 #endif
 
 #endif

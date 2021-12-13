@@ -68,6 +68,17 @@ void RPacketUpdate(RPacket *pkt)
     RPacketBufInit(pkt, RPacketData(pkt), RPacketRemaining(pkt));
 }
 
+int RPacketPull(RPacket *pkt, size_t len)
+{
+    if (RPacketRemaining(pkt) < len) {
+        return -1;
+    }
+
+    RPacketForward(pkt, len);
+
+    return 0;
+}
+
 static int RPacketPeekData(const RPacket *pkt, uint32_t *data, size_t len)
 {
     int i = 0;

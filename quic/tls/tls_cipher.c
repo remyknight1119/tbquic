@@ -96,6 +96,43 @@ const TlsCipher *QuicGetTlsCipherById(uint16_t id)
     return NULL;
 }
 
+int QuicTlsParseCipherList(struct hlist_head *h, RPacket *pkt, size_t len)
+{
+    const TlsCipher *cipher = NULL;
+    TlsCipherListNode *node = NULL;
+    struct hlist_node *tail = NULL;
+    uint32_t id = 0;
+    size_t rlen = 0;
+
+    for (rlen = 0; rlen < len; rlen += 2) {
+        if (RPacketGet2(pkt, &id) < 0) {
+            goto err;
+        }
+
+        cipher = QuicGetTlsCipherById(id);
+        if (cipher == NULL) {
+            QUIC_LOG("Cipher ID(%X) not valid\n", id);
+            goto err;
+        }
+        node = QuicMemCalloc(sizeof(*node));
+        if (node == NULL) {
+            goto err;
+        }
+        node->cipher = cipher;
+        if (tail == NULL) {
+            hlist_add_head(&node->node, h);
+        } else {
+            hlist_add_behind(&node->node, tail);
+        }
+        tail = &node->node;
+    }
+
+    return 0;
+err:
+    QuicTlsDestroyCipherList(h);
+    return -1;
+}
+
 int QuicTlsCreateCipherList(struct hlist_head *h, const char *cipher_str,
                             size_t cipher_str_len)
 {

@@ -8,6 +8,7 @@
 #include <tbquic/quic.h>
 
 #include "packet_local.h"
+#include "tls_cipher.h"
 #include "common.h"
 #include "log.h"
 
@@ -44,33 +45,40 @@ QuicFlowReturn QuicTlsAccept(QUIC_TLS *tls, const uint8_t *data, size_t len)
 static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
 {
     RPacket *pkt = packet;
-    RPacket msg = {};
-    uint32_t len = 0;
-    uint32_t legacy_version = 0;
+    HLIST_HEAD(cipher_list);
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
+    uint32_t cipher_len = 0;
 
-    if (RPacketGet3(pkt, &len) < 0) {
+    ret = QuicTlsHelloHeadParse(tls, pkt, tls->client_random,
+                sizeof(tls->client_random));
+    if (ret != QUIC_FLOW_RET_FINISH) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGet2(pkt, &cipher_len) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
     }
 
-    if (RPacketTransfer(&msg, pkt, len) < 0) {
+    if (cipher_len & 0x01) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketRemaining(pkt) < cipher_len) {
         return QUIC_FLOW_RET_WANT_READ;
     }
 
-    if (RPacketGet2(&msg, &legacy_version) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+    if (QuicTlsParseCipherList(&cipher_list, pkt, cipher_len) < 0) {
+        return QUIC_FLOW_RET_ERROR;
     }
 
-    if (RPacketCopyBytes(&msg, tls->client_random,
-                sizeof(tls->client_random)) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
-    }
+    QuicTlsDestroyCipherList(&cipher_list);
 
-    printf("len = %x, version = %x\n", len, legacy_version);
-    return QUIC_FLOW_RET_FINISH;
+    return ret;
 }
 
 static QuicFlowReturn QuicTlsServerHelloBuild(QUIC_TLS *tls, void *packet)
 {
+    printf("SSSSSSSSSSSSSSSSSSSSSServerhello Build\n");
     return QUIC_FLOW_RET_ERROR;
 }
 

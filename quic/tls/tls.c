@@ -32,9 +32,11 @@ static void QuicTlsFlowFinish(QUIC_TLS *tls, QuicTlsState prev_state,
 static QuicFlowReturn
 QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
 {
+    RPacket msg = {};
     QuicTlsState state = 0;
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
     uint32_t type = 0;
+    uint32_t len = 0;
 
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
@@ -50,8 +52,16 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    if (RPacketGet3(pkt, &len) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    if (RPacketTransfer(&msg, pkt, len) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+ 
     state = tls->handshake_state;
-    ret = p->handler(tls, pkt);
+    ret = p->handler(tls, &msg);
     if (ret != QUIC_FLOW_RET_FINISH) {
         return ret;
     }
@@ -116,9 +126,6 @@ QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
                 break;
             case QUIC_FLOW_READING:
                 ret = QuicTlsHandshakeRead(tls, p, rpkt);
-                if (ret == QUIC_FLOW_RET_FINISH) {
-                    return ret;
-                }
                 break;
             case QUIC_FLOW_WRITING:
                 ret = QuicTlsHandshakeWrite(tls, p, wpkt);
@@ -128,12 +135,20 @@ QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
                 return QUIC_FLOW_RET_ERROR;
         }
 
-        if (ret == QUIC_FLOW_RET_ERROR || ret == QUIC_FLOW_RET_WANT_READ) {
+        if (ret == QUIC_FLOW_RET_ERROR) {
             return ret;
         }
+
+        if (ret == QUIC_FLOW_RET_WANT_READ) {
+            return ret;
+        }
+
         state = tls->handshake_state;
         assert(state >= 0 && state < num);
         p = &proc[state];
+        if (ret == QUIC_FLOW_RET_FINISH) {
+            break;
+        }
     }
 
     return QUIC_FLOW_RET_FINISH;
@@ -155,6 +170,32 @@ QuicFlowReturn QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
     WPacketCleanup(&wpkt);
 
     return ret;
+}
+
+QuicFlowReturn QuicTlsHelloHeadParse(QUIC_TLS *tls, RPacket *pkt,
+                            uint8_t *random, size_t random_size)
+{
+    uint32_t session_id_len = 0;
+    uint32_t legacy_version = 0;
+
+    if (RPacketGet2(pkt, &legacy_version) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    if (RPacketCopyBytes(pkt, random, random_size) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    printf("version = %x\n", legacy_version);
+    if (RPacketGet1(pkt, &session_id_len) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    if (RPacketPull(pkt, session_id_len) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    return QUIC_FLOW_RET_FINISH;
 }
 
 int QuicTlsInit(QUIC_TLS *tls, QUIC_CTX *ctx)

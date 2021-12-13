@@ -4,6 +4,7 @@
 
 #include "tls.h"
 
+#include <assert.h>
 #include <tbquic/types.h>
 #include <tbquic/quic.h>
 
@@ -88,8 +89,53 @@ static QuicFlowReturn QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
 
 static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
 {
-    printf("TTTTTTTTTTTls server hello parse\n");
-    return QUIC_FLOW_RET_WANT_READ;
+    RPacket *pkt = packet;
+    const TlsCipher *cipher = NULL;
+    TlsCipherListNode *client_cipher = NULL;
+    TlsCipherListNode *server_cipher = NULL;
+    HLIST_HEAD(cipher_list);
+    QuicFlowReturn ret = QUIC_FLOW_RET_WANT_READ;//QUIC_FLOW_RET_FINISH;
+
+    ret = QuicTlsHelloHeadParse(tls, pkt, tls->server_random,
+                sizeof(tls->server_random));
+    if (ret != QUIC_FLOW_RET_FINISH) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicTlsParseCipherList(&cipher_list, pkt, 2) < 0) {
+        QUIC_LOG("Parse cipher list failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    /* Get the only one cipher member */
+    hlist_for_each_entry(server_cipher, &cipher_list, node) {
+        break;
+    }
+
+    if (server_cipher == NULL) {
+        QUIC_LOG("Get server cipher failed\n");
+        QuicTlsDestroyCipherList(&cipher_list);
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    cipher = server_cipher->cipher;
+    assert(cipher != NULL);
+
+    hlist_for_each_entry(client_cipher, &tls->cipher_list, node) {
+        assert(client_cipher->cipher != NULL);
+        if (client_cipher->cipher->id == cipher->id) {
+            break;
+        }
+    }
+
+    QuicTlsDestroyCipherList(&cipher_list);
+    if (client_cipher == NULL) {
+        QUIC_LOG("Get shared cipher failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    QUIC_LOG("TTTTTTTTTTTls server hello parse\n");
+    return ret;
 }
 
 void QuicTlsClientInit(QUIC_TLS *tls)

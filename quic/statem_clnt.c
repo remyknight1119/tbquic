@@ -51,12 +51,12 @@ static QuicFlowReturn QuicClientInitialRecv(QUIC *quic, void *packet)
 
 static QuicFlowReturn QuicClientHandshakeRecv(QUIC *quic, void *packet)
 {
-    return QUIC_FLOW_RET_FINISH;
+    return QUIC_FLOW_RET_WANT_READ;
 }
 
 static QuicFlowReturn QuicClientHandshakeSend(QUIC *quic, void *packet)
 {
-    return QUIC_FLOW_RET_FINISH;
+    return QUIC_FLOW_RET_WANT_READ;
 }
 
 int QuicConnect(QUIC *quic)

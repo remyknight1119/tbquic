@@ -106,6 +106,8 @@ int QuicTlsDoProcess(QUIC_TLS *, RPacket *, WPacket *, const QuicTlsProcess *,
 QuicFlowReturn QuicTlsHandshake(QUIC_TLS *, const uint8_t *, size_t,
                         const QuicTlsProcess *, size_t);
 int QuicTlsGenRandom(uint8_t *, size_t, WPacket *);
+
+QuicFlowReturn QuicTlsHelloHeadParse(QUIC_TLS *, RPacket *, uint8_t *, size_t);
 int QuicTlsPutCipherList(QUIC_TLS *, WPacket *);
 int QuicTlsPutCompressionMethod(WPacket *);
 

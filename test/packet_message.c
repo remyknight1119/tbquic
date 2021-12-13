@@ -226,6 +226,8 @@ int QuicPktFormatTestServer(void)
     BIO *rbio = NULL;
     BIO *wbio = NULL;
     int case_num = -1;
+    int err = 0;
+    int ret = 0;
 
     ctx = QuicCtxNew(QuicServerMethod());
     if (ctx == NULL) {
@@ -263,7 +265,15 @@ int QuicPktFormatTestServer(void)
         goto out;
     }
 
-    QuicDoHandshake(quic);
+    ret = QuicDoHandshake(quic);
+    if (ret < 0) {
+        err = QUIC_get_error(quic, ret);
+        if (err != QUIC_ERROR_WANT_READ) {
+            printf("Do Server Handshake failed\n");
+            goto out;
+        }
+    }
+
     if (memcmp(client_iv, quic->initial.decrypt.ciphers.pp_cipher.iv,
                 sizeof(client_iv) - 1) != 0) {
         QuicPrint(quic->initial.encrypt.ciphers.pp_cipher.iv,

@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "list.h"
+#include "packet_local.h"
 
 #define TLS_CIPHERS_SEP ":"
 
@@ -56,6 +57,7 @@ typedef struct {
 
 const TlsCipher *QuicGetTlsCipherByName(const char *, size_t);
 const TlsCipher *QuicGetTlsCipherById(uint16_t);
+int QuicTlsParseCipherList(struct hlist_head *, RPacket *, size_t);
 int QuicTlsCreateCipherList(struct hlist_head *, const char *, size_t);
 void QuicTlsDestroyCipherList(struct hlist_head *);
 

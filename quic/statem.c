@@ -210,7 +210,7 @@ QuicFlowReturn QuicInitialSend(QUIC *quic, void *packet)
     }
 
     printf("client init, ret = %d\n", ret);
-    return ret;
+    return QUIC_FLOW_RET_WANT_READ;
 }
 
 

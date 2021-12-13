@@ -31,12 +31,13 @@ typedef struct {
 
 void RPacketBufInit(RPacket *, const uint8_t *, size_t);
 void RPacketHeadSync(RPacket *);
-size_t RPacketTotalLen(const RPacket *pkt);
-const uint8_t *RPacketHead(const RPacket *pkt);
+size_t RPacketTotalLen(const RPacket *);
+const uint8_t *RPacketHead(const RPacket *);
 void RPacketForward(RPacket *, size_t);
 size_t RPacketRemaining(const RPacket *);
 const uint8_t *RPacketData(const RPacket *);
-void RPacketUpdate(RPacket *pkt);
+void RPacketUpdate(RPacket *);
+int RPacketPull(RPacket *, size_t);
 int RPacketPeekBytes(const RPacket *, const uint8_t **, size_t);
 int RPacketGetBytes(RPacket *, const uint8_t **, size_t);
 int RPacketPeekCopyBytes(const RPacket *, uint8_t *, size_t);

@@ -4,6 +4,7 @@
 
 #include "tls.h"
 
+#include <assert.h>
 #include <tbquic/types.h>
 #include <tbquic/quic.h>
 
@@ -45,14 +46,17 @@ QuicFlowReturn QuicTlsAccept(QUIC_TLS *tls, const uint8_t *data, size_t len)
 static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
 {
     RPacket *pkt = packet;
+    const TlsCipher *cipher = NULL;
+    TlsCipherListNode *server_cipher = NULL;
     HLIST_HEAD(cipher_list);
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
     uint32_t cipher_len = 0;
+    uint32_t compress_len = 0;
 
     ret = QuicTlsHelloHeadParse(tls, pkt, tls->client_random,
                 sizeof(tls->client_random));
     if (ret != QUIC_FLOW_RET_FINISH) {
-        return QUIC_FLOW_RET_ERROR;
+        return ret;
     }
 
     if (RPacketGet2(pkt, &cipher_len) < 0) {
@@ -71,7 +75,29 @@ static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    hlist_for_each_entry(server_cipher, &tls->cipher_list, node) {
+        assert(server_cipher->cipher != NULL);
+        cipher = QuicTlsCipherMatchListById(&cipher_list,
+                server_cipher->cipher->id);
+        if (cipher != NULL) {
+            break;
+        }
+    }
+
     QuicTlsDestroyCipherList(&cipher_list);
+    if (cipher == NULL) {
+        QUIC_LOG("No shared cipher found\n");
+    //    return QUIC_FLOW_RET_ERROR;
+    }
+
+    /* Skip legacy Compression Method */
+    if (RPacketGet1(pkt, &compress_len) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    if (RPacketPull(pkt, compress_len) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
 
     return ret;
 }

@@ -91,15 +91,15 @@ static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
 {
     RPacket *pkt = packet;
     const TlsCipher *cipher = NULL;
-    TlsCipherListNode *client_cipher = NULL;
     TlsCipherListNode *server_cipher = NULL;
     HLIST_HEAD(cipher_list);
     QuicFlowReturn ret = QUIC_FLOW_RET_WANT_READ;//QUIC_FLOW_RET_FINISH;
+    uint16_t id = 0;
 
     ret = QuicTlsHelloHeadParse(tls, pkt, tls->server_random,
                 sizeof(tls->server_random));
     if (ret != QUIC_FLOW_RET_FINISH) {
-        return QUIC_FLOW_RET_ERROR;
+        return ret;
     }
 
     if (QuicTlsParseCipherList(&cipher_list, pkt, 2) < 0) {
@@ -109,29 +109,27 @@ static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
 
     /* Get the only one cipher member */
     hlist_for_each_entry(server_cipher, &cipher_list, node) {
+        assert(server_cipher->cipher != NULL);
+        id = server_cipher->cipher->id;
         break;
     }
 
-    if (server_cipher == NULL) {
+    QuicTlsDestroyCipherList(&cipher_list);
+
+    if (id == 0) {
         QUIC_LOG("Get server cipher failed\n");
-        QuicTlsDestroyCipherList(&cipher_list);
         return QUIC_FLOW_RET_ERROR;
     }
 
-    cipher = server_cipher->cipher;
-    assert(cipher != NULL);
-
-    hlist_for_each_entry(client_cipher, &tls->cipher_list, node) {
-        assert(client_cipher->cipher != NULL);
-        if (client_cipher->cipher->id == cipher->id) {
-            break;
-        }
-    }
-
-    QuicTlsDestroyCipherList(&cipher_list);
-    if (client_cipher == NULL) {
+    cipher = QuicTlsCipherMatchListById(&tls->cipher_list, id);
+    if (cipher == NULL) {
         QUIC_LOG("Get shared cipher failed\n");
         return QUIC_FLOW_RET_ERROR;
+    }
+
+    /* Skip legacy Compression Method */
+    if (RPacketPull(pkt, 1) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
     }
 
     QUIC_LOG("TTTTTTTTTTTls server hello parse\n");

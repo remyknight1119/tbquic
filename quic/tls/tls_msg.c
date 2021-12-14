@@ -40,12 +40,6 @@ int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
     TlsCipherListNode *node = NULL;
     int ret = 0;
 
-    if (QuicTlsCreateCipherList(&tls->cipher_list, TLS_CIPHERS_DEF,
-                                sizeof(TLS_CIPHERS_DEF) - 1) < 0) {
-        QUIC_LOG("Create cipher list failed\n");
-        return -1;
-    }
-
     if (WPacketStartSubU16(pkt) < 0) { 
         return -1;
     }

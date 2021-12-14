@@ -133,6 +133,20 @@ err:
     return -1;
 }
 
+const TlsCipher *QuicTlsCipherMatchListById(struct hlist_head *h, uint16_t id)
+{
+    TlsCipherListNode *node = NULL;
+
+    hlist_for_each_entry(node, h, node) {
+        assert(node->cipher != NULL);
+        if (node->cipher->id == id) {
+            return node->cipher;
+        }
+    }
+
+    return NULL;
+}
+
 int QuicTlsCreateCipherList(struct hlist_head *h, const char *cipher_str,
                             size_t cipher_str_len)
 {

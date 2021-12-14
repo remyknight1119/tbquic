@@ -222,6 +222,13 @@ int QuicTlsInit(QUIC_TLS *tls, QUIC_CTX *ctx)
     }
 
     INIT_HLIST_HEAD(&tls->cipher_list);
+
+    if (QuicTlsCreateCipherList(&tls->cipher_list, TLS_CIPHERS_DEF,
+                                sizeof(TLS_CIPHERS_DEF) - 1) < 0) {
+        QUIC_LOG("Create cipher list failed\n");
+        return -1;
+    }
+
     return 0;
 }
 

@@ -87,7 +87,7 @@ static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
     QuicTlsDestroyCipherList(&cipher_list);
     if (cipher == NULL) {
         QUIC_LOG("No shared cipher found\n");
-    //    return QUIC_FLOW_RET_ERROR;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     /* Skip legacy Compression Method */
@@ -97,6 +97,11 @@ static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
 
     if (RPacketPull(pkt, compress_len) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    ret = QuicTlsExtLenParse(pkt);
+    if (ret != QUIC_FLOW_RET_FINISH) {
+        return ret;
     }
 
     return ret;

@@ -21,8 +21,10 @@ static int TlsExtClntConstructServerName(QUIC_TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
 static int TlsExtClntConstructSupportedGroups(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseSigAlgs(QUIC_TLS *, RPacket *, uint32_t, X509 *,
-                                        size_t);
+static int TlsExtClntParseSupportedVersion(QUIC_TLS *, RPacket *, size_t, uint32_t,
+                                        X509 *, size_t);
+static int TlsExtClntParseKeyShare(QUIC_TLS *, RPacket *, size_t, uint32_t,
+                                        X509 *, size_t);
 static int TlsExtClntConstructSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 static int TlsExtClntConstructQuicTransParam(QUIC_TLS *, WPacket *, uint32_t,
@@ -40,14 +42,12 @@ static int TlsExtClntCheckUnknown(QUIC_TLS *);
 static int TlsExtClntConstructUnknown(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 
-static const QuicTlsExtensionDefinition client_ext_defs[] = {
+static const QuicTlsExtConstruct client_ext_construct[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_CLIENT_HELLO,
-        .init = TlsExtInitServerName,
         .check = TlsExtClntCheckServerName,
         .construct = TlsExtClntConstructServerName,
-        .final = TlsExtFinalServerName,
     },
     {
         .type = EXT_TYPE_SUPPORTED_GROUPS,
@@ -57,10 +57,7 @@ static const QuicTlsExtensionDefinition client_ext_defs[] = {
     {
         .type = EXT_TYPE_SIGNATURE_ALGORITHMS,
         .context = TLSEXT_CLIENT_HELLO,
-        .init = TlsExtInitSigAlgs,
-        .parse = TlsExtClntParseSigAlgs,
         .construct = TlsExtClntConstructSigAlgs,
-        .final = TlsExtFinalSigAlgs,
     },
     {
         .type = EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
@@ -96,8 +93,19 @@ static const QuicTlsExtensionDefinition client_ext_defs[] = {
     },
 };
 
-#define TLS_CLIENT_EXTENSION_DEF_NUM QUIC_NELEM(client_ext_defs)
-
+static const QuicTlsExtParse client_ext_parse[] = {
+    {
+        .type = EXT_TYPE_SUPPORTED_VERSIONS,
+        .context = TLSEXT_SERVER_HELLO,
+        .parse = TlsExtClntParseSupportedVersion,
+    },
+    {
+        .type = EXT_TYPE_KEY_SHARE,
+        .context = TLSEXT_SERVER_HELLO,
+        .parse = TlsExtClntParseKeyShare,
+    },
+};
+ 
 static int QuicTransParamCheckGrease(QUIC_TLS *, QuicTransParams *, size_t);
 static int QuicTransParamConstructGrease(QUIC_TLS *, QuicTransParams *,
                                             size_t, WPacket *);
@@ -246,13 +254,6 @@ static int TlsExtClntConstructSupportedGroups(QUIC_TLS *tls, WPacket *pkt,
         return -1;
     }
 
-    return 0;
-}
-
-static int TlsExtClntParseSigAlgs(QUIC_TLS *tls, RPacket *pkt,
-                                    uint32_t context, X509 *x,
-                                    size_t chainidx)
-{
     return 0;
 }
 
@@ -451,8 +452,108 @@ int TlsClientConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
                              X509 *x, size_t chainidx)
 {
     return TlsConstructExtensions(tls, pkt, context, x, chainidx,
-                                    client_ext_defs,
-                                    TLS_CLIENT_EXTENSION_DEF_NUM);
+                                    client_ext_construct,
+                                    QUIC_NELEM(client_ext_construct));
+}
+
+static int TlsExtClntParseSupportedVersion(QUIC_TLS *tls, RPacket *pkt,
+                                size_t len, uint32_t context, X509 *x,
+                                size_t chainidx)
+{
+    uint32_t version = 0;
+
+    if (len != 2) {
+        return -1;
+    }
+
+    if (RPacketGet2(pkt, &version) < 0) {
+        return -1;
+    }
+
+    if (version != TLS_VERSION_1_3) {
+        return -1;
+    }
+
+    QUIC_LOG("OK, (%x)\n", version);
+    return 0;
+}
+
+static int TlsExtClntParseKeyShare(QUIC_TLS *tls, RPacket *pkt, size_t len,
+                                uint32_t context, X509 *x, size_t chainidx)
+{
+    EVP_PKEY *ckey = tls->tmp_key;
+    EVP_PKEY *skey = NULL;
+    const uint16_t *pgroups = NULL;
+    const uint8_t *key_ex_data = NULL;
+    size_t pgroupslen = 0;
+    size_t max_idx = 0;
+    size_t i = 0;
+    uint32_t group_id = 0;
+    uint32_t key_ex_len = 0;
+
+    if (ckey == NULL) {
+        return -1;
+    }
+
+    if (RPacketGet2(pkt, &group_id) < 0) {
+        return -1;
+    }
+
+    TlsGetSupportedGroups(tls, &pgroups, &pgroupslen);
+    max_idx = tls->ext.key_share_max_group_idx;
+    assert(pgroupslen != 0);
+    if (max_idx >= pgroupslen) {
+        max_idx = pgroupslen - 1;
+    }
+
+    for (i = 0; i <= max_idx; i++) {
+        if (pgroups[i] == group_id) {
+            break;
+        }
+    }
+
+    if (i > max_idx) {
+        QUIC_LOG("Group ID %u not found\n",  group_id);
+        return -1;
+    }
+
+    if (RPacketGet2(pkt, &key_ex_len) < 0) {
+        return -1;
+    }
+
+    key_ex_data = RPacketData(pkt);
+    if (RPacketPull(pkt, key_ex_len) < 0) {
+        return -1;
+    }
+
+    skey = EVP_PKEY_new();
+    if (skey == NULL || EVP_PKEY_copy_parameters(skey, ckey) <= 0) {
+        QUIC_LOG("Copy parameters failed\n");
+        EVP_PKEY_free(skey);
+        return -1;
+    }
+
+    if (!EVP_PKEY_set1_tls_encodedpoint(skey, key_ex_data, key_ex_len)) {
+        QUIC_LOG("Set TLS encodedpoint failed\n");
+        EVP_PKEY_free(skey);
+        return -1;
+    }
+
+    if (TlsKeyDerive(tls, ckey, skey, 1) < 0) {
+        QUIC_LOG("Derive key failed\n");
+        EVP_PKEY_free(skey);
+        return -1;
+    }
+
+    tls->peer_tmp_key = skey;
+    return 0;
+}
+
+int TlsClientParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
+                            X509 *x, size_t chainidx)
+{
+    return TlsParseExtensions(tls, pkt, context, x, chainidx, client_ext_parse,
+                                    QUIC_NELEM(client_ext_parse));
 }
 
 static int

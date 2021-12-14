@@ -198,6 +198,22 @@ QuicFlowReturn QuicTlsHelloHeadParse(QUIC_TLS *tls, RPacket *pkt,
     return QUIC_FLOW_RET_FINISH;
 }
 
+QuicFlowReturn QuicTlsExtLenParse(RPacket *pkt)
+{
+    uint32_t ext_len = 0;
+
+    if (RPacketGet2(pkt, &ext_len) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    if (RPacketRemaining(pkt) != ext_len) {
+        QUIC_LOG("Check extension len failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return QUIC_FLOW_RET_FINISH;
+}
+
 int QuicTlsInit(QUIC_TLS *tls, QUIC_CTX *ctx)
 {
     tls->handshake_state = QUIC_TLS_ST_OK;
@@ -238,6 +254,7 @@ void QuicTlsFree(QUIC_TLS *tls)
         QuicMemFree(tls->ext.hostname);
     }
 
+    EVP_PKEY_free(tls->peer_tmp_key);
     EVP_PKEY_free(tls->tmp_key);
     QuicDataFree(&tls->ext.supported_groups);
     QuicDataFree(&tls->ext.alpn);

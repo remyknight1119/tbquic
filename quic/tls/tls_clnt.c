@@ -132,6 +132,15 @@ static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
         return QUIC_FLOW_RET_WANT_READ;
     }
 
+    ret = QuicTlsExtLenParse(pkt);
+    if (ret != QUIC_FLOW_RET_FINISH) {
+        return ret;
+    }
+
+    if (TlsClientParseExtensions(tls, pkt, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     QUIC_LOG("TTTTTTTTTTTls server hello parse\n");
     return ret;
 }

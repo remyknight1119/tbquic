@@ -298,3 +298,8 @@ out:
     return pkey;
 }
 
+int TlsKeyDerive(QUIC_TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
+{
+    return 0;
+}
+

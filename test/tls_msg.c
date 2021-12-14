@@ -131,8 +131,8 @@ static QuicTlsTestParam test_param[] = {
 };
 
 static size_t TlsExtIndex;
-static const QuicTlsExtensionDefinition *QuicTlsTestGetExtension(const
-        QuicTlsExtensionDefinition *ext, size_t num)
+static const QuicTlsExtConstruct *QuicTlsTestGetExtension(const
+        QuicTlsExtConstruct *ext, size_t num)
 {
     size_t j = 0;
     uint16_t type = 0;

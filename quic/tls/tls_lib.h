@@ -3,6 +3,8 @@
 
 #include "tls.h"
 
+#include <openssl/evp.h>
+
 typedef struct {
     int nid;                /* Curve NID */
     uint32_t secbits;       /* Bits of security (from SP800-57) */
@@ -18,5 +20,6 @@ void TlsGetSupportedGroups(QUIC_TLS *, const uint16_t **, size_t *);
 int TlsSetSupportedGroups(uint16_t **, size_t *, uint16_t *, size_t);
 int TlsCheckFfdhGroup(uint16_t);
 EVP_PKEY *TlsGeneratePkeyGroup(QUIC_TLS *tls, uint16_t id);
+int TlsKeyDerive(QUIC_TLS *, EVP_PKEY *, EVP_PKEY *, int);
 
 #endif

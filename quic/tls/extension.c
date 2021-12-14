@@ -11,26 +11,6 @@
 #define QUIC_GET_U64_VALUE_BY_OFFSET(p, offset) \
     *((uint64_t *)((uint8_t *)p + offset))
 
-int TlsExtInitServerName(QUIC_TLS *tls, uint32_t context)
-{
-    return 0;
-}
-
-int TlsExtFinalServerName(QUIC_TLS *tls, uint32_t context, int sent)
-{
-    return 0;
-}
-
-int TlsExtInitSigAlgs(QUIC_TLS *tls, uint32_t context)
-{
-    return 0;
-}
-
-int TlsExtFinalSigAlgs(QUIC_TLS *tls, uint32_t context, int sent)
-{
-    return 0;
-}
-
 static int TlsShouldAddExtension(QUIC_TLS *tls, uint32_t extctx,
                                     uint32_t thisctx)
 {
@@ -42,16 +22,27 @@ static int TlsShouldAddExtension(QUIC_TLS *tls, uint32_t extctx,
     return 1;
 }
 
+static int TlsShouldParseExtension(QUIC_TLS *tls, uint32_t extctx,
+                                    uint32_t thisctx)
+{
+    /* Skip if not relevant for our context */
+    if ((extctx & thisctx) == 0) {
+        return 0;
+    }
+
+    return 1;
+}
+
 #ifdef QUIC_TEST
-const QuicTlsExtensionDefinition *(*QuicTestExtensionHook)(const
-        QuicTlsExtensionDefinition *, size_t);
+const QuicTlsExtConstruct *(*QuicTestExtensionHook)(const
+        QuicTlsExtConstruct *, size_t);
 #endif
 int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
                              X509 *x, size_t chainidx,
-                             const QuicTlsExtensionDefinition *ext,
+                             const QuicTlsExtConstruct *ext,
                              size_t num)
 {
-    const QuicTlsExtensionDefinition *thisexd = NULL;
+    const QuicTlsExtConstruct *thisexd = NULL;
     size_t i = 0;
     int ret = 0;
 
@@ -104,6 +95,59 @@ int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
         return -1;
+    }
+
+    return 0;
+}
+
+static const QuicTlsExtParse *
+TlsFindExtParser(uint32_t type, const QuicTlsExtParse *ext, size_t num)
+{
+    size_t i = 0;
+
+    for (i = 0; i < num; i++) {
+        if (ext[i].type  == type) {
+            return &ext[i];
+        }
+    }
+
+    return NULL;
+}
+ 
+int TlsParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
+                             X509 *x, size_t chainidx,
+                             const QuicTlsExtParse *ext,
+                             size_t num)
+{
+    const QuicTlsExtParse *thisexd = NULL;
+    uint32_t type = 0;
+    uint32_t len = 0;
+    int ret = 0;
+
+    while (RPacketRemaining(pkt)) {
+        if (RPacketGet2(pkt, &type) < 0) {
+            return -1;
+        }
+
+        if (RPacketGet2(pkt, &len) < 0) {
+            return -1;
+        }
+
+        thisexd = TlsFindExtParser(type, ext, num);
+        if (thisexd == NULL) {
+            RPacketPull(pkt, len);
+            continue;
+        }
+
+        /* Skip if not relevant for our context */
+        if (!TlsShouldParseExtension(tls, thisexd->context, context)) {
+            continue;
+        }
+
+        ret = thisexd->parse(tls, pkt, len, context, x, chainidx);
+        if (ret < 0) {
+            return -1;
+        }
     }
 
     return 0;

@@ -46,26 +46,24 @@ typedef struct {
      * protocol versions
      */
     uint32_t context;
-    /*
-     * Initialise extension before parsing. Always called for relevant contexts
-     * even if extension not present
-     */
-    int (*init)(QUIC_TLS *tls, uint32_t context);
-    /* Parse extension */
-    int (*parse)(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
-                                X509 *x, size_t chainidx);
     /* Check if need construct */
     int (*check)(QUIC_TLS *tls);
     /* Construct extension */
     int (*construct)(QUIC_TLS *tls, WPacket *pkt, uint32_t context, X509 *x,
                                     size_t chainidx);
+} QuicTlsExtConstruct;
+
+typedef struct {
+    uint16_t type;
     /*
-     * Finalise extension after parsing. Always called where an extensions was
-     * initialised even if the extension was not present. |sent| is set to 1 if
-     * the extension was seen, or 0 otherwise.
+     * The context that this extension applies to, e.g. what messages and
+     * protocol versions
      */
-    int (*final)(QUIC_TLS *tls, uint32_t context, int sent);
-} QuicTlsExtensionDefinition;
+    uint32_t context;
+    /* Parse extension */
+    int (*parse)(QUIC_TLS *tls, RPacket *pkt, size_t len, uint32_t context,
+                                X509 *x, size_t chainidx);
+} QuicTlsExtParse;
 
 typedef struct {
     uint64_t type;
@@ -77,8 +75,8 @@ typedef struct {
 } QuicTransParamDefinition;
 
 #ifdef QUIC_TEST
-extern const QuicTlsExtensionDefinition *(*QuicTestExtensionHook)(const
-        QuicTlsExtensionDefinition *, size_t);
+extern const QuicTlsExtConstruct *(*QuicTestExtensionHook)(const
+        QuicTlsExtConstruct *, size_t);
 extern QuicTransParamDefinition *
 (*QuicTestTransParamHook)(QuicTransParamDefinition *, size_t);
 extern size_t (*QuicTestEncodedpointHook)(unsigned char **point);
@@ -90,12 +88,14 @@ int TlsExtInitSigAlgs(QUIC_TLS *, uint32_t);
 int TlsExtFinalSigAlgs(QUIC_TLS *, uint32_t, int);
 
 int TlsConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t,
-                             const QuicTlsExtensionDefinition *ext,
-                             size_t);
+                             const QuicTlsExtConstruct *, size_t);
+int TlsParseExtensions(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t,
+                             const QuicTlsExtParse *, size_t);
 int TlsConstructQuicTransParamExtension(QUIC_TLS *, WPacket *,
                             QuicTransParamDefinition *, size_t);
 int TlsClientConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                             size_t);
+int TlsClientParseExtensions(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
 int QuicTransParamCheckInteger(QUIC_TLS *, QuicTransParams *, size_t);
 int QuicTransParamConstructInteger(QUIC_TLS *, QuicTransParams *, size_t,
                                     WPacket *);

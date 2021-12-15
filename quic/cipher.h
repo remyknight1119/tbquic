@@ -26,6 +26,7 @@ enum {
 
 struct QuicCipher {
     uint32_t alg;
+//    uint32_t digest;
     int enc;
     EVP_CIPHER_CTX *ctx;
 };
@@ -51,11 +52,14 @@ struct QuicCiphers {
 };
 
 int QuicCreateInitialDecoders(QUIC *, uint32_t);
+int QuicCreateHandshakeDecoders(QUIC *);
 void QuicCipherCtxFree(QUIC_CIPHERS *);
 int QuicCipherNidFind(uint32_t);
 size_t QuicCipherLenGet(uint32_t, size_t);
 int QuicCipherGetTagLen(uint32_t);
 int QuicDoCipher(QUIC_CIPHER *, uint8_t *, size_t *, size_t,
                     const uint8_t *, size_t);
+const EVP_MD *QuicMd(uint32_t);
+int QuicLoadCiphers(void);
 
 #endif

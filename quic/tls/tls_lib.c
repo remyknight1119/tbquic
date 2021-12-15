@@ -6,13 +6,18 @@
 
 #include <openssl/obj_mac.h>
 #include <openssl/ec.h>
+#include <openssl/kdf.h>
 #include <tbquic/ec.h>
 #include <tbquic/tls.h>
 
 #include "tls.h"
 #include "base.h"
+#include "crypto.h"
 #include "common.h"
+#include "cipher.h"
 #include "mem.h"
+
+static const uint8_t default_zeros[EVP_MAX_MD_SIZE];
 
 /* The default curves */
 static const uint16_t eccurves_default[] = {
@@ -298,8 +303,159 @@ out:
     return pkey;
 }
 
-int TlsKeyDerive(QUIC_TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey, int gensecret)
+const EVP_MD *TlsHandshakeMd(QUIC_TLS *tls)
 {
-    return 0;
+    if (tls->handshake_cipher == NULL) {
+        return NULL;
+    }
+
+    return QuicMd(tls->handshake_cipher->digest);
+}
+
+int TlsGenerateSecret(const EVP_MD *md, const uint8_t *prevsecret,
+        const uint8_t *insecret, size_t insecretlen,
+        uint8_t *outsecret)
+{
+    EVP_PKEY_CTX *pctx = NULL;
+    EVP_MD_CTX *mctx = NULL;
+    uint8_t hash[EVP_MAX_MD_SIZE] = {};
+    uint8_t preextractsec[EVP_MAX_MD_SIZE] = {};
+    static const char derived_secret_label[] = "derived";
+    size_t mdlen = 0;
+    size_t prevsecretlen = 0;
+    int mdleni = 0;
+    int retval = 0;
+    int ret = -1;
+
+    if (md == NULL) {
+        return -1;
+    }
+
+    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    if (pctx == NULL) {
+        return -1;
+    }
+
+    mdleni = EVP_MD_size(md);
+    if (mdleni < 0) {
+        return -1;
+    }
+
+    mdlen = (size_t)mdleni;
+    if (insecret == NULL) {
+        insecret = default_zeros;
+        insecretlen = mdlen;
+    }
+
+    if (prevsecret == NULL) {
+        prevsecret = default_zeros;
+        prevsecretlen = 0;
+    } else {
+        mctx = EVP_MD_CTX_new();
+        /* The pre-extract derive step uses a hash of no messages */
+        if (mctx == NULL) {
+            goto out;
+        }
+        
+        if (EVP_DigestInit_ex(mctx, md, NULL) <= 0) {
+            EVP_MD_CTX_free(mctx);
+            goto out;
+        }
+        
+        retval = EVP_DigestFinal_ex(mctx, hash, NULL);
+        EVP_MD_CTX_free(mctx);
+        if (retval <= 0) {
+            goto out;
+        }
+
+        /* Generate the pre-extract secret */
+        if (TLS13HkdfExpandLabel(md, prevsecret, mdlen, 
+                    (const uint8_t *)derived_secret_label,
+                    sizeof(derived_secret_label) - 1, hash,
+                    mdlen, preextractsec, mdlen)) {
+            goto out;
+        }
+
+        prevsecret = preextractsec;
+        prevsecretlen = mdlen;
+    }
+
+    if (EVP_PKEY_derive_init(pctx) <= 0) {
+        goto out;
+    }
+    
+    if (EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) <= 0) {
+        goto out;
+    }
+    
+    if (EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0) {
+        goto out;
+    }
+
+    if (EVP_PKEY_CTX_set1_hkdf_key(pctx, insecret, insecretlen) <= 0) {
+        goto out;
+    }
+
+    if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, prevsecret, prevsecretlen) <= 0) {
+        goto out;
+    }
+
+    if (EVP_PKEY_derive(pctx, outsecret, &mdlen) <= 0) {
+        goto out;
+    }
+
+    ret = 0;
+
+out:
+    EVP_PKEY_CTX_free(pctx);
+    return ret;
+}
+
+int TlsKeyDerive(QUIC_TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
+{
+    EVP_PKEY_CTX *pctx = NULL;
+    const EVP_MD *md = NULL;
+    unsigned char *pms = NULL;
+    size_t pmslen = 0;
+    int ret = -1;
+
+    if (privkey == NULL || pubkey == NULL) {
+        return -1;
+    }
+
+    pctx = EVP_PKEY_CTX_new(privkey, NULL);
+    if (EVP_PKEY_derive_init(pctx) <= 0) {
+        goto out;
+    }
+
+    if (EVP_PKEY_derive_set_peer(pctx, pubkey) <= 0) {
+        goto out;
+    }
+
+    if (EVP_PKEY_derive(pctx, NULL, &pmslen) <= 0) {
+        goto out;
+    }
+
+    pms = QuicMemMalloc(pmslen);
+    if (pms == NULL) {
+        goto out;
+    }
+
+    if (EVP_PKEY_derive(pctx, pms, &pmslen) <= 0) {
+        goto out;
+    }
+
+    md = TlsHandshakeMd(tls);
+    ret = TlsGenerateSecret(md, NULL, NULL, 0, tls->early_secret);
+    if (ret < 0) {
+        goto out;
+    }
+
+    ret = TlsGenerateSecret(md, tls->early_secret, pms, pmslen,
+                            tls->handshake_secret);
+out:
+    QuicMemFree(pms);
+    EVP_PKEY_CTX_free(pctx);
+    return ret;
 }
 

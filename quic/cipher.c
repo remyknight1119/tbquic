@@ -13,6 +13,7 @@
 #include "quic_local.h"
 #include "crypto.h"
 #include "common.h"
+#include "tls_lib.h"
 #include "evp.h"
 #include "log.h"
 
@@ -72,6 +73,15 @@ static const QuicCipherSuite cipher_suite[QUIC_ALG_MAX] = {
     },
 };
 
+static int quic_digest_method_map[QUIC_DIGEST_MAX] = {
+    [QUIC_DIGEST_SHA256] = NID_sha256,
+    [QUIC_DIGEST_SHA384] = NID_sha384,
+    [QUIC_DIGEST_SHA512] = NID_sha512,
+    [QUIC_DIGEST_SHA1] = NID_sha1,
+};
+
+static const EVP_MD *quic_digest_methods[QUIC_DIGEST_MAX];
+
 static const uint8_t handshake_salt_v1[] =
     "\x38\x76\x2C\xF7\xF5\x59\x34\xB3\x4D\x17"
     "\x9A\xE6\xA4\xC8\x0C\xAD\xCC\xBB\x7F\x0A";
@@ -83,9 +93,6 @@ static const QuicSalt handshake_salt[] = {
         .version = QUIC_VERSION_1,
     },
 };
-
-#define QUIC_HANDSHAKE_SALT_NUM QUIC_NELEM(handshake_salt)
-
 
 static const QuicSalt *QuicSaltFind(const QuicSalt *salt, size_t num,
                                     uint32_t version)
@@ -164,8 +171,8 @@ int QuicCipherGetTagLen(uint32_t alg)
 /*
  * Compute the initial secrets given Connection ID "cid".
  */
-static int QuicDeriveInitialSecrets(const QUIC_DATA *cid, uint8_t *client_secret,
-        uint8_t *server_secret, uint32_t version)
+static int QuicDeriveInitialSecrets(const QUIC_DATA *cid, const EVP_MD *md,
+        uint8_t *client_secret, uint8_t *server_secret, uint32_t version)
 {
     const QuicSalt *salt = NULL;
     uint8_t secret[HASH_SHA2_256_LENGTH];
@@ -173,23 +180,23 @@ static int QuicDeriveInitialSecrets(const QUIC_DATA *cid, uint8_t *client_secret
     static const uint8_t server_label[] = "server in";
     size_t secret_len = 0;
 
-    salt = QuicSaltFind(handshake_salt, QUIC_HANDSHAKE_SALT_NUM, version);
+    salt = QuicSaltFind(handshake_salt, QUIC_NELEM(handshake_salt), version);
     if (salt == NULL) {
         return -1;
     }
 
-    if (HkdfExtract(EVP_sha256(), salt->salt, salt->salt_len, cid->data,
+    if (HkdfExtract(md, salt->salt, salt->salt_len, cid->data,
                     cid->len, secret, &secret_len) == NULL) {
         return -1;
     }
 
-    if (QuicTLS13HkdfExpandLabel(EVP_sha256(), secret, sizeof(secret),
+    if (QuicTLS13HkdfExpandLabel(md, secret, sizeof(secret),
                         client_label, sizeof(client_label) - 1,
                         client_secret, HASH_SHA2_256_LENGTH) < 0) {
         return -1;
     }
 
-    if (QuicTLS13HkdfExpandLabel(EVP_sha256(), secret, sizeof(secret),
+    if (QuicTLS13HkdfExpandLabel(md, secret, sizeof(secret),
                         server_label, sizeof(server_label) - 1,
                         server_secret, HASH_SHA2_256_LENGTH) < 0) {
         return -1;
@@ -295,23 +302,42 @@ static int QuicPPCipherPrepare(QuicPPCipher *cipher, const EVP_MD *md,
 int QuicCiphersPrepare(QUIC_CIPHERS *ciphers, const EVP_MD *md,
                         uint8_t *secret, int enc)
 {
-    if (QuicHPCipherPrepare(&ciphers->hp_cipher, md, secret)
-            < 0) {
+    if (QuicHPCipherPrepare(&ciphers->hp_cipher, md, secret) < 0) {
         return 1;
     }
 
     return QuicPPCipherPrepare(&ciphers->pp_cipher, md, secret, enc);
 }
 
+static int QuicCreateDecoders(QuicCrypto *c, const EVP_MD *md,
+                                uint8_t *dec_secret, 
+                                uint8_t *enc_secret)
+{
+    if (QuicCiphersPrepare(&c->decrypt.ciphers, md, dec_secret,
+                QUIC_EVP_DECRYPT) < 0) {
+        return -1;
+    }
+
+    if (QuicCiphersPrepare(&c->encrypt.ciphers, md, enc_secret,
+                QUIC_EVP_ENCRYPT) < 0) {
+        return -1;
+    }
+
+    c->cipher_inited = true;
+    return 0;
+}
+
 int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 {
+    QuicCrypto *init = NULL;
     QUIC_DATA *cid = NULL;
     uint8_t *decrypt_secret = NULL;
     uint8_t *encrypt_secret = NULL;
     uint8_t client_secret[HASH_SHA2_256_LENGTH];
     uint8_t server_secret[HASH_SHA2_256_LENGTH];
     
-    if (quic->initial.cipher_initialed == true) {
+    init = &quic->initial;
+    if (init->cipher_inited == true) {
         return 0;
     }
 
@@ -329,23 +355,52 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
         encrypt_secret = client_secret;
     }
 
-    if (QuicDeriveInitialSecrets(cid, client_secret, server_secret,
-                version) < 0) {
+    if (QuicDeriveInitialSecrets(cid, EVP_sha256(), client_secret,
+                server_secret, version) < 0) {
         return -1;
     }
 
-    if (QuicCiphersPrepare(&quic->initial.decrypt.ciphers, EVP_sha256(),
-                decrypt_secret, QUIC_EVP_DECRYPT) < 0) {
+    return QuicCreateDecoders(init, EVP_sha256(), decrypt_secret,
+                            encrypt_secret);
+}
+
+int QuicCreateHandshakeDecoders(QUIC *quic)
+{
+    QUIC_TLS *tls = &quic->tls;
+    QuicCrypto *handshake = NULL;
+    const EVP_MD *md = NULL;
+    uint8_t *decrypt_secret = NULL;
+    uint8_t *encrypt_secret = NULL;
+    uint8_t client_secret[HASH_SHA2_MAX_LENGTH];
+    uint8_t server_secret[HASH_SHA2_MAX_LENGTH];
+    
+    md = TlsHandshakeMd(tls);
+    if (md == NULL) {
         return -1;
     }
 
-    if (QuicCiphersPrepare(&quic->initial.encrypt.ciphers, EVP_sha256(),
-                encrypt_secret, QUIC_EVP_ENCRYPT) < 0) {
-        return -1;
+    handshake = &quic->handshake;
+    if (handshake->cipher_inited == true) {
+        return 0;
     }
 
-    quic->initial.cipher_initialed = true;
-    return 0;
+    if (QUIC_IS_SERVER(quic)) {
+        decrypt_secret = client_secret;
+        encrypt_secret = server_secret;
+    } else {
+        decrypt_secret = server_secret;
+        encrypt_secret = client_secret;
+    }
+
+#if 0
+    if (TlsDeriveHandshakeSecrets(tls, md, client_secret,
+                server_secret) < 0) {
+        return -1;
+    }
+#endif
+
+    return QuicCreateDecoders(handshake, md, decrypt_secret,
+                            encrypt_secret);
 }
 
 int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,
@@ -372,6 +427,15 @@ int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,
     return 0;
 }
 
+const EVP_MD *QuicMd(uint32_t idx)
+{
+    if (QUIC_GE(idx, QUIC_DIGEST_MAX)) {
+        return NULL;
+    }
+    
+    return quic_digest_methods[idx];
+}
+
 static void QuicCipherFree(QUIC_CIPHER *cipher)
 {
     EVP_CIPHER_CTX_free(cipher->ctx);
@@ -382,5 +446,21 @@ void QuicCipherCtxFree(QUIC_CIPHERS *ciphers)
 {
     QuicCipherFree(&ciphers->hp_cipher.cipher);
     QuicCipherFree(&ciphers->pp_cipher.cipher);
+}
+
+int QuicLoadCiphers(void)
+{
+    const EVP_MD *md = NULL;
+    uint32_t md_id = 0;
+
+    for (md_id = 0; md_id < QUIC_DIGEST_MAX; md_id++) {
+        md = EVP_get_digestbynid(quic_digest_method_map[md_id]);
+        if (md == NULL) {
+            return -1;
+        }
+        quic_digest_methods[md_id] = md;
+    }
+
+    return 0;
 }
 

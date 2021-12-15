@@ -16,9 +16,6 @@
 #include "cipher.h"
 #include "mem.h"
 
-
-#define TLS_CIPHER_DEF_IDS_NUM  QUIC_NELEM(tls_cipher_def_ids)
-
 static const TlsCipher tls_ciphers[] = {
     {
         .name = TLS_RFC_AES_128_GCM_SHA256,

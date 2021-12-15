@@ -127,6 +127,7 @@ static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    tls->handshake_cipher = cipher;
     /* Skip legacy Compression Method */
     if (RPacketPull(pkt, 1) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
@@ -142,6 +143,8 @@ static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
     }
 
     QUIC_LOG("TTTTTTTTTTTls server hello parse\n");
+    //change cipher state
+
     return ret;
 }
 

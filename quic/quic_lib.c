@@ -188,7 +188,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         goto out;
     }
 
-    quic->initial.cipher_initialed = false;
+    quic->initial.cipher_inited = false;
     QBuffQueueHeadInit(&quic->tx_queue);
 
     return quic;
@@ -288,10 +288,10 @@ void QuicFree(QUIC *quic)
     BIO_free_all(quic->wbio);
 
     QBuffQueueDestroy(&quic->tx_queue);
-    QuicCipherCtxFree(&quic->zero_rtt.ciphers);
-    QuicCipherCtxFree(&quic->handshake.client.ciphers);
-    QuicCipherCtxFree(&quic->handshake.server.ciphers);
 
+    QuicCryptoFree(&quic->one_rtt);
+    QuicCryptoFree(&quic->handshake);
+    QuicCryptoFree(&quic->zero_rtt);
     QuicCryptoFree(&quic->initial);
 
     QuicBufFree(&quic->wbuffer);

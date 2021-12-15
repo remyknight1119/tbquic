@@ -348,13 +348,13 @@ static int TlsExtClntAddKeyShare(QUIC_TLS *tls, WPacket *pkt, uint16_t id)
     unsigned char *encoded_point = NULL;
     size_t encodedlen = 0;
 
-    if (tls->tmp_key == NULL) {
+    if (tls->kexch_key == NULL) {
         key_share_key = TlsGeneratePkeyGroup(tls, id);
         if (key_share_key == NULL) {
             return -1;
         }
     } else {
-        key_share_key = tls->tmp_key;
+        key_share_key = tls->kexch_key;
     }
 
     /* Encode the public key. */
@@ -376,12 +376,12 @@ static int TlsExtClntAddKeyShare(QUIC_TLS *tls, WPacket *pkt, uint16_t id)
         goto out;
     }
 
-    tls->tmp_key = key_share_key;
+    tls->kexch_key = key_share_key;
     tls->group_id = id;
     OPENSSL_free(encoded_point);
     return 0;
 out:
-    if (tls->tmp_key == NULL) {
+    if (tls->kexch_key == NULL) {
         EVP_PKEY_free(key_share_key);
     }
 
@@ -481,7 +481,7 @@ static int TlsExtClntParseSupportedVersion(QUIC_TLS *tls, RPacket *pkt,
 static int TlsExtClntParseKeyShare(QUIC_TLS *tls, RPacket *pkt, size_t len,
                                 uint32_t context, X509 *x, size_t chainidx)
 {
-    EVP_PKEY *ckey = tls->tmp_key;
+    EVP_PKEY *ckey = tls->kexch_key;
     EVP_PKEY *skey = NULL;
     const uint16_t *pgroups = NULL;
     const uint8_t *key_ex_data = NULL;
@@ -539,13 +539,13 @@ static int TlsExtClntParseKeyShare(QUIC_TLS *tls, RPacket *pkt, size_t len,
         return -1;
     }
 
-    if (TlsKeyDerive(tls, ckey, skey, 1) < 0) {
+    if (TlsKeyDerive(tls, ckey, skey) < 0) {
         QUIC_LOG("Derive key failed\n");
         EVP_PKEY_free(skey);
         return -1;
     }
 
-    tls->peer_tmp_key = skey;
+    tls->peer_kexch_key = skey;
     return 0;
 }
 

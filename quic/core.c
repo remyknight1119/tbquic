@@ -4,10 +4,14 @@
 
 #include <tbquic/quic.h>
 
-#include "format.h"
+#include "cipher.h"
 #include "log.h"
 
 int QuicInit(void)
 {
+    if (QuicLoadCiphers() < 0) {
+        return -1;
+    }
+
 	return 0;
 }

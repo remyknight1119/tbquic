@@ -19,7 +19,10 @@ typedef struct {
 void TlsGetSupportedGroups(QUIC_TLS *, const uint16_t **, size_t *);
 int TlsSetSupportedGroups(uint16_t **, size_t *, uint16_t *, size_t);
 int TlsCheckFfdhGroup(uint16_t);
-EVP_PKEY *TlsGeneratePkeyGroup(QUIC_TLS *tls, uint16_t id);
-int TlsKeyDerive(QUIC_TLS *, EVP_PKEY *, EVP_PKEY *, int);
+const EVP_MD *TlsHandshakeMd(QUIC_TLS *);
+EVP_PKEY *TlsGeneratePkeyGroup(QUIC_TLS *, uint16_t);
+int TlsGenerateSecret(const EVP_MD *, const uint8_t *, const uint8_t *, size_t,
+                        uint8_t *);
+int TlsKeyDerive(QUIC_TLS *, EVP_PKEY *, EVP_PKEY *);
 
 #endif

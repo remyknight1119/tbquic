@@ -14,6 +14,7 @@
 #include "transport.h"
 #include "base.h"
 #include "cert.h"
+#include "tls_cipher.h"
 
 #define TLS_RANDOM_BYTE_LEN     32
 #define TLS_HANDSHAKE_LEN_SIZE  3
@@ -73,9 +74,13 @@ struct QuicTls {
     struct hlist_head cipher_list;
     QUIC_BUFFER buffer;
     QuicCert *cert;
-    EVP_PKEY *tmp_key;
-    EVP_PKEY *peer_tmp_key;
+    const TlsCipher *handshake_cipher;
+    EVP_PKEY *kexch_key;
+    EVP_PKEY *peer_kexch_key;
     uint16_t group_id;
+    uint8_t early_secret[EVP_MAX_MD_SIZE];
+    uint8_t handshake_secret[EVP_MAX_MD_SIZE];
+    uint8_t master_secret[EVP_MAX_MD_SIZE];
     /* TLS extensions. */
     struct {
         char *hostname;

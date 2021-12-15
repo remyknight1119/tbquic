@@ -69,7 +69,7 @@ typedef struct {
 typedef struct {
     QuicCipherSpace decrypt;
     QuicCipherSpace encrypt;
-    bool cipher_initialed;
+    bool cipher_inited;
 } QuicCrypto;
 
 typedef struct {
@@ -103,13 +103,9 @@ struct Quic {
     QUIC_DATA scid;
     QUIC_DATA token;
     QuicCrypto initial;
-    struct {
-        QUIC_CIPHERS ciphers;
-    } zero_rtt;
-    struct {
-        QuicCipherSpace client;
-        QuicCipherSpace server;
-    } handshake;
+    QuicCrypto handshake;
+    QuicCrypto zero_rtt;
+    QuicCrypto one_rtt;
     QBuffQueueHead tx_queue;
 };
 

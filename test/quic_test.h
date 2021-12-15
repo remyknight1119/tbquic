@@ -34,5 +34,6 @@ int QuicPktNumberDecodeTest(void);
 int QuicVTlsCipherListTest(void);
 int QuicTlsClientHelloTest(void);
 int QuicTlsClientExtensionTest(void);
+int QuicTlsGenerateSecretTest(void);
 
 #endif

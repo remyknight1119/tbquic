@@ -254,8 +254,8 @@ void QuicTlsFree(QUIC_TLS *tls)
         QuicMemFree(tls->ext.hostname);
     }
 
-    EVP_PKEY_free(tls->peer_tmp_key);
-    EVP_PKEY_free(tls->tmp_key);
+    EVP_PKEY_free(tls->peer_kexch_key);
+    EVP_PKEY_free(tls->kexch_key);
     QuicDataFree(&tls->ext.supported_groups);
     QuicDataFree(&tls->ext.alpn);
 

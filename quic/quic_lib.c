@@ -144,6 +144,17 @@ int QUIC_set_initial_pp_cipher(QUIC *quic, uint32_t alg)
     return QUIC_set_pp_cipher_space_alg(&quic->initial.encrypt, alg);
 }
 
+static void QuicCipherSpaceInit(QuicCipherSpace *c)
+{
+    c->cipher_inited = false;
+}
+
+static void QuicCryptoCipherInit(QuicCrypto *c)
+{
+    QuicCipherSpaceInit(&c->decrypt);
+    QuicCipherSpaceInit(&c->encrypt);
+}
+
 QUIC *QuicNew(QUIC_CTX *ctx)
 {
     QUIC *quic = NULL;
@@ -188,7 +199,11 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         goto out;
     }
 
-    quic->initial.cipher_inited = false;
+    QuicCryptoCipherInit(&quic->initial);
+    QuicCryptoCipherInit(&quic->handshake);
+    QuicCryptoCipherInit(&quic->zero_rtt);
+    QuicCryptoCipherInit(&quic->one_rtt);
+
     QBuffQueueHeadInit(&quic->tx_queue);
 
     return quic;

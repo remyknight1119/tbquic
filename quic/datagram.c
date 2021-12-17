@@ -8,6 +8,7 @@
 #include "buffer.h"
 #include "format.h"
 #include "log.h"
+#include "common.h"
 
 int QuicDatagramRecvBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
 {

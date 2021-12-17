@@ -312,6 +312,26 @@ const EVP_MD *TlsHandshakeMd(QUIC_TLS *tls)
     return QuicMd(tls->handshake_cipher->digest);
 }
 
+int TlsHandshakeHash(QUIC_TLS *tls, const EVP_MD *md, uint8_t *hash)
+{
+    return 0;
+}
+
+int TlsDeriveSecrets(QUIC_TLS *tls, const EVP_MD *md, const uint8_t *in_secret,
+                        const uint8_t *label, size_t label_len,
+                        const uint8_t *hash, uint8_t *out)
+{
+    int len = 0;
+
+    len = EVP_MD_size(md);
+    if (len <= 0) {
+        return -1;
+    }
+
+    return TLS13HkdfExpandLabel(md, in_secret, len, label, label_len, hash,
+                                len, out, len);
+}
+
 int TlsGenerateSecret(const EVP_MD *md, const uint8_t *prevsecret,
         const uint8_t *insecret, size_t insecretlen,
         uint8_t *outsecret)

@@ -64,12 +64,12 @@ typedef struct {
     QUIC_CIPHERS ciphers;
     uint64_t pkt_num;
     uint64_t pkt_acked;
+    bool cipher_inited;
 } QuicCipherSpace;
 
 typedef struct {
     QuicCipherSpace decrypt;
     QuicCipherSpace encrypt;
-    bool cipher_inited;
 } QuicCrypto;
 
 typedef struct {

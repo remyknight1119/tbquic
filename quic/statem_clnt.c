@@ -51,7 +51,11 @@ static QuicFlowReturn QuicClientInitialRecv(QUIC *quic, void *packet)
 
 static QuicFlowReturn QuicClientHandshakeRecv(QUIC *quic, void *packet)
 {
-    return QUIC_FLOW_RET_WANT_READ;
+    QuicFlowReturn ret;
+
+    ret = QuicHandshakeRecv(quic, packet);
+    printf("handshake recv\n");
+    return ret;
 }
 
 static QuicFlowReturn QuicClientHandshakeSend(QUIC *quic, void *packet)

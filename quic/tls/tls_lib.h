@@ -21,6 +21,8 @@ int TlsSetSupportedGroups(uint16_t **, size_t *, uint16_t *, size_t);
 int TlsCheckFfdhGroup(uint16_t);
 const EVP_MD *TlsHandshakeMd(QUIC_TLS *);
 EVP_PKEY *TlsGeneratePkeyGroup(QUIC_TLS *, uint16_t);
+int TlsDeriveSecrets(QUIC_TLS *, const EVP_MD *, const uint8_t *,
+            const uint8_t *, size_t, const uint8_t *, uint8_t *);
 int TlsGenerateSecret(const EVP_MD *, const uint8_t *, const uint8_t *, size_t,
                         uint8_t *);
 int TlsKeyDerive(QUIC_TLS *, EVP_PKEY *, EVP_PKEY *);

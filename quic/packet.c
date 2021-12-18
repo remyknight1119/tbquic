@@ -50,6 +50,12 @@ const uint8_t *RPacketHead(const RPacket *pkt)
     return pkt->head;
 }
 
+void RPacketHeadPush(RPacket *pkt, size_t len)
+{
+    pkt->head -= len;
+    pkt->total_len += len;
+}
+
 /*
  * Returns the number of bytes remaining to be read in the RPacket
  */

@@ -387,12 +387,12 @@ static int QuicCreateDecoders(QUIC_TLS *tls, const EVP_MD *md,
     return QuicCiphersPrepare(&cs->ciphers, md, secret, QUIC_EVP_DECRYPT);
 }
 
-int QuicCreateHandshakeServerDecoders(QUIC *quic)
+static int QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label,
+                                        size_t label_len)
 {
     QUIC_TLS *tls = &quic->tls;
     QuicCrypto *handshake = NULL;
     const EVP_MD *md = NULL;
-    static const uint8_t server_handshake_traffic[] = "s hs traffic";
     uint8_t hash[EVP_MAX_MD_SIZE] = {};
     
     md = TlsHandshakeMd(tls);
@@ -400,11 +400,25 @@ int QuicCreateHandshakeServerDecoders(QUIC *quic)
         return -1;
     }
 
+    if (TlsDigestCachedRecords(tls) < 0) {
+        return -1;
+    }
+
+    if (TlsHandshakeHash(tls, md, hash) < 0) {
+        return -1;
+    }
+
     handshake = &quic->handshake;
-    return QuicCreateDecoders(tls, md, tls->handshake_secret,
-                    server_handshake_traffic,
-                    sizeof(server_handshake_traffic) - 1, hash,
-                    &handshake->decrypt);
+    return QuicCreateDecoders(tls, md, tls->handshake_secret, label, label_len,
+                                hash, &handshake->decrypt);
+}
+
+int QuicCreateHandshakeServerDecoders(QUIC *quic)
+{
+    static const uint8_t server_handshake_traffic[] = "s hs traffic";
+    
+    return QuicCreateHandshakeDecoders(quic, server_handshake_traffic,
+                    sizeof(server_handshake_traffic) - 1);
 }
 
 int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,

@@ -52,7 +52,7 @@ struct QuicCiphers {
 };
 
 int QuicCreateInitialDecoders(QUIC *, uint32_t);
-int QuicCreateHandshakeDecoders(QUIC *);
+int QuicCreateHandshakeServerDecoders(QUIC *);
 void QuicCipherCtxFree(QUIC_CIPHERS *);
 int QuicCipherNidFind(uint32_t);
 size_t QuicCipherLenGet(uint32_t, size_t);

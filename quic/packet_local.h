@@ -33,6 +33,7 @@ void RPacketBufInit(RPacket *, const uint8_t *, size_t);
 void RPacketHeadSync(RPacket *);
 size_t RPacketTotalLen(const RPacket *);
 const uint8_t *RPacketHead(const RPacket *);
+void RPacketHeadPush(RPacket *, size_t);
 void RPacketForward(RPacket *, size_t);
 size_t RPacketRemaining(const RPacket *);
 const uint8_t *RPacketData(const RPacket *);

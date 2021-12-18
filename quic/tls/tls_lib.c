@@ -312,9 +312,71 @@ const EVP_MD *TlsHandshakeMd(QUIC_TLS *tls)
     return QuicMd(tls->handshake_cipher->digest);
 }
 
+int TlsDigestCachedRecords(QUIC_TLS *tls)
+{
+    const EVP_MD *md = NULL;
+    long hdatalen = 0;
+    void *hdata = NULL;
+
+    if (tls->handshake_dgst != NULL) {
+        return 0;
+    }
+
+#if 0
+    hdatalen = BIO_get_mem_data(tls->handshake_buffer, &hdata);
+    if (hdatalen <= 0) {
+        return -1;
+    }
+#endif
+
+    tls->handshake_dgst = EVP_MD_CTX_new();
+    if (tls->handshake_dgst == NULL) {
+        return -1;
+    }
+
+    md = TlsHandshakeMd(tls);
+    if (md == NULL) {
+        return -1;
+    }
+    
+    if (!EVP_DigestInit_ex(tls->handshake_dgst, md, NULL)) {
+        return -1;
+    }
+    
+    if (!EVP_DigestUpdate(tls->handshake_dgst, hdata, hdatalen)) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int TlsHandshakeHash(QUIC_TLS *tls, const EVP_MD *md, uint8_t *hash)
 {
-    return 0;
+    EVP_MD_CTX *ctx = NULL;
+    EVP_MD_CTX *hdgst = tls->handshake_dgst;
+    int ret = -1;
+
+    if (hdgst == NULL) {
+        return -1;
+    }
+
+    ctx = EVP_MD_CTX_new();
+    if (ctx == NULL) {
+        return -1;
+    }
+
+    if (!EVP_MD_CTX_copy_ex(ctx, hdgst)) {
+        goto err;
+    }
+    
+    if (EVP_DigestFinal_ex(ctx, hash, NULL) <= 0) {
+        goto err;
+    }
+
+    ret = 0;
+ err:
+    EVP_MD_CTX_free(ctx);
+    return ret;
 }
 
 int TlsDeriveSecrets(QUIC_TLS *tls, const EVP_MD *md, const uint8_t *in_secret,

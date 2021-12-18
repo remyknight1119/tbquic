@@ -35,14 +35,17 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
     RPacket msg = {};
     QuicTlsState state = 0;
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
+    size_t remain = 0;
     uint32_t type = 0;
     uint32_t len = 0;
+    int offset = 0;
 
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
+    remain = RPacketRemaining(pkt);
     if (RPacketGet1(pkt, &type) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
     }
@@ -56,10 +59,13 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
         return QUIC_FLOW_RET_WANT_READ;
     }
 
+    offset = remain - RPacketRemaining(pkt);
+    assert(offset > 0);
     if (RPacketTransfer(&msg, pkt, len) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
     }
  
+    RPacketHeadPush(&msg, offset);
     state = tls->handshake_state;
     ret = p->handler(tls, &msg);
     if (ret != QUIC_FLOW_RET_FINISH) {
@@ -254,6 +260,7 @@ void QuicTlsFree(QUIC_TLS *tls)
         QuicMemFree(tls->ext.hostname);
     }
 
+    EVP_MD_CTX_free(tls->handshake_dgst);
     EVP_PKEY_free(tls->peer_kexch_key);
     EVP_PKEY_free(tls->kexch_key);
     QuicDataFree(&tls->ext.supported_groups);

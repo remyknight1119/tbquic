@@ -77,6 +77,7 @@ struct QuicTls {
     const TlsCipher *handshake_cipher;
     EVP_PKEY *kexch_key;
     EVP_PKEY *peer_kexch_key;
+    EVP_MD_CTX *handshake_dgst;
     uint16_t group_id;
     uint8_t early_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_secret[EVP_MAX_MD_SIZE];

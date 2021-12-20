@@ -247,11 +247,14 @@ int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
     return 0;
 }
 
-void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)
+void WPacketBufInit(WPacket *pkt, BUF_MEM *buf, size_t offset)
 {
+    assert(QUIC_LT(offset, WPACKET_BUF_MAX_LEN));
+
     memset(pkt, 0, sizeof(*pkt));
     pkt->buf = buf;
-    pkt->maxsize = WPACKET_BUF_MAX_LEN;
+    pkt->curr = offset;
+    pkt->maxsize = WPACKET_BUF_MAX_LEN - offset;
 }
 
 void WPacketStaticBufInit(WPacket *pkt, uint8_t *buf, size_t len)

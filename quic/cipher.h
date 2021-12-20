@@ -51,6 +51,10 @@ struct QuicCiphers {
     QuicPPCipher pp_cipher;
 };
 
+
+#ifdef QUIC_TEST
+extern void (*QuicSecretTest)(uint8_t *secret);
+#endif
 int QuicCreateInitialDecoders(QUIC *, uint32_t);
 int QuicCreateHandshakeServerDecoders(QUIC *);
 void QuicCipherCtxFree(QUIC_CIPHERS *);

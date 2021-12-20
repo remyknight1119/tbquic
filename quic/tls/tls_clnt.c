@@ -7,9 +7,11 @@
 #include <assert.h>
 #include <tbquic/types.h>
 #include <tbquic/quic.h>
+#include <tbquic/cipher.h>
 
 #include "packet_local.h"
 #include "common.h"
+#include "quic_local.h"
 #include "tls_cipher.h"
 #include "extension.h"
 #include "log.h"
@@ -89,6 +91,7 @@ static QuicFlowReturn QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
 
 static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
 {
+    QUIC *quic = QuicTlsTrans(tls);
     RPacket *pkt = packet;
     const TlsCipher *cipher = NULL;
     TlsCipherListNode *server_cipher = NULL;
@@ -144,7 +147,11 @@ static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
 
     QUIC_LOG("TTTTTTTTTTTls server hello parse\n");
     //change cipher state
+    if (QuicCreateHandshakeServerDecoders(quic) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
 
+    QuicBufClear(QUIC_TLS_BUFFER(quic));
     return ret;
 }
 

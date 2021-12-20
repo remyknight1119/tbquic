@@ -532,11 +532,12 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 {
     QuicCipherSpace *initial = NULL;
     QUIC_CIPHERS *cipher = NULL;
-    QUIC_BUFFER *buffer = NULL;
+    QUIC_BUFFER *buffer = QUIC_FRAME_BUFFER(quic);
     QUIC_BUFFER *crypto_buf = QUIC_TLS_BUFFER(quic);
     RPacket message = {};
     RPacket frame = {};
     size_t remaining = 0;
+    size_t data_len = 0;
     uint64_t token_len = 0;
     uint64_t length = 0;
     uint64_t pkt_num = 0;
@@ -606,7 +607,6 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 
     initial->pkt_num = pkt_num;
 
-    buffer = &quic->plain_buffer;
     if (QuicDecryptMessage(&cipher->pp_cipher, QuicBufData(buffer),
                 &buffer->data_len, QuicBufLength(buffer),
                 h_pkt_num, pkt_num_len, &message) < 0) {
@@ -614,20 +614,20 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    printf("ttttttttttttttttlen = %lu\n", buffer->data_len);
-    RPacketBufInit(&frame, (uint8_t *)buffer->buf->data, buffer->data_len);
+    RPacketBufInit(&frame, QuicBufData(buffer), QuicBufGetDataLength(buffer));
     if (QuicFrameDoParser(quic, &frame) < 0) {
         QUIC_LOG("Do parser failed!\n");
         return -1;
     }
 
-    if (crypto_buf->data_len == 0) {
+    data_len = QuicBufGetDataLength(crypto_buf);
+    if (data_len == 0) {
         QUIC_LOG("No crypto data!\n");
         return -1;
     }
 
     if (QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
-            crypto_buf->data_len) == QUIC_FLOW_RET_ERROR) {
+                data_len) == QUIC_FLOW_RET_ERROR) {
         QUIC_LOG("TLS Hadshake failed!\n");
         return -1;
     }
@@ -894,7 +894,7 @@ int QuicInitialPacketBuild(QUIC *quic, QBUFF *qb)
     WPacket pkt = {};
     int ret = 0;
 
-    WPacketBufInit(&pkt, qbuf->buf);
+    WPacketBufInit(&pkt, qbuf->buf, 0);
     ret = QuicInitialPacketGen(quic, &pkt, qb);
     QuicBufSetDataLength(qbuf, WPacket_get_written(&pkt));
     WPacketCleanup(&pkt);
@@ -904,7 +904,6 @@ int QuicInitialPacketBuild(QUIC *quic, QBUFF *qb)
 
 int QuicInitialFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
 {
-    QUIC_BUFFER *frame_buffer = QUIC_FRAME_BUFFER(quic);
     QBUFF *qb = NULL;
     WPacket pkt = {};
     int ret = -1;
@@ -928,9 +927,6 @@ int QuicInitialFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
     }
 
     QBuffQueueAdd(&quic->tx_queue, qb);
-
-    QuicMemcpy(frame_buffer->buf->data, QBuffHead(qb), QBuffGetDataLen(qb));
-    frame_buffer->data_len = QBuffGetDataLen(qb);
 
     ret = 0;
 out:

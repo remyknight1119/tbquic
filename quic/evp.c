@@ -5,7 +5,7 @@
 #include "evp.h"
 
 #include <openssl/evp.h>
-
+#include "log.h"
 
 int QuicEvpCipherInit(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
                         const uint8_t *key, const uint8_t *iv,
@@ -13,6 +13,7 @@ int QuicEvpCipherInit(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
 {
     if (EVP_CipherInit(ctx, cipher, (const unsigned char *)key,
                 (const unsigned char *)iv, enc) == 0) {
+        QUIC_LOG("EVP Cipher init failed\n");
         return -1;
     }
 

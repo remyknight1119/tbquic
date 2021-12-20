@@ -16,6 +16,7 @@
 #include "common.h"
 #include "cipher.h"
 #include "mem.h"
+#include "log.h"
 
 static const uint8_t default_zeros[EVP_MAX_MD_SIZE];
 
@@ -315,20 +316,22 @@ const EVP_MD *TlsHandshakeMd(QUIC_TLS *tls)
 int TlsDigestCachedRecords(QUIC_TLS *tls)
 {
     const EVP_MD *md = NULL;
-    long hdatalen = 0;
+    QUIC_BUFFER *buffer = NULL;
+    size_t hdatalen = 0;
     void *hdata = NULL;
 
     if (tls->handshake_dgst != NULL) {
         return 0;
     }
 
-#if 0
-    hdatalen = BIO_get_mem_data(tls->handshake_buffer, &hdata);
-    if (hdatalen <= 0) {
+    buffer = &tls->buffer;
+    hdatalen = QuicBufGetDataLength(buffer) + QuicBufOffset(buffer);
+    if (hdatalen == 0) {
         return -1;
     }
-#endif
 
+    hdata = QuicBufHead(buffer);
+//    QuicPrint(hdata, hdatalen);
     tls->handshake_dgst = EVP_MD_CTX_new();
     if (tls->handshake_dgst == NULL) {
         return -1;

@@ -6,9 +6,14 @@
 
 #include <string.h>
 #include <openssl/evp.h>
+#include <tbquic/quic.h>
+#include <tbquic/tls.h>
+
+#include "quic_local.h"
 #include "tls.h"
 #include "tls_lib.h"
 #include "common.h"
+#include "log.h"
 
 static uint8_t secret[] =
     "\x7E\xE8\x20\x6F\x55\x70\x02\x3E\x6D\xC7\x51\x9E\xB1\x07\x3B\xC4"
@@ -23,6 +28,24 @@ static uint8_t outsecret[] =
     "\x3E\x7E\xE2\xAC\x6A\x80\x1E\x08\x14\x3A\x90\xE4\x9A\x5F\x1D\xF1"
     "\xD8\xD2\xF4\xA6\x54\x58\x71\xCF\x47\x2B\x56\xA3\xF2\xBF\xFF\x58"
     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+static char clienthello_serverhello[] =
+    "010000CA03038CD8E41B97A7C1A5F3392799497AAEFD31DE6FB9D9926C86CCC0"
+    "856062E9457B207A1E6DF85B912E20465191012CDC8641AA73E21DA3F175528B"
+    "F36890EC108857000813021301130300FF01000079000B000403000102000A00"
+    "0C000A001D0017001E001900180016000000170000000D001E001C0403050306"
+    "03080708080809080A080B080408050806040105010601002B0003020304002D"
+    "00020101003300260024001D0020CB50694A5D86545F16DBC56C7695B5FE5CE3"
+    "38A44EA0C90DE01E4B3459DCDE3F020000760303F2682E53CDE0C2FEE52BC3AB"
+    "9328F3FED0EE0958134B5DA1701E07E4B9687592207A1E6DF85B912E20465191"
+    "012CDC8641AA73E21DA3F175528BF36890EC108857130200002E002B00020304"
+    "00330024001D00204C3A9E972860E0B36340F3FB412E1B28F044E8E856F74937"
+    "66A041B92151382F";
+static char handshake_insecret[] =
+    "6114AEC8B38268314754A3288867F9F9893D22F199AE377591E57C6AA1EB58DA"
+    "697ACA8EFD4DF27793522FA5EA7CF59200000000000000000000000000000000";
+static char handshake_secret[] =
+    "2A7703211520816EAE739D0F9493274BF0B1C7DD7E21DF60F094AA98032D3698"
+    "CFA5B5651E7E18648633418E915F668F";
 
 int QuicTlsGenerateSecretTest(void)
 {
@@ -50,3 +73,72 @@ int QuicTlsGenerateSecretTest(void)
 
     return 2;
 }
+
+static int handshake_secret_cmp_ok;
+
+static void QuicHandshakeSecretComp(uint8_t *secret)
+{
+    uint8_t hsecret[EVP_MAX_MD_SIZE] = {};
+    size_t len = 0;
+
+    len = (sizeof(handshake_secret) - 1)/2;
+    str2hex(hsecret, handshake_secret, len);
+    if (memcmp(secret, hsecret, len) == 0) {
+        handshake_secret_cmp_ok = 1;
+    } else {
+        handshake_secret_cmp_ok = 0;
+    }
+}
+
+int QuicTlsGenerateServerSecretTest(void)
+{
+    uint8_t *msg = NULL;
+    QUIC_CTX *ctx = NULL;
+    QUIC *quic = NULL;
+    QUIC_TLS *tls = NULL;
+    QUIC_BUFFER *buf = NULL;
+    size_t msg_len = 0;
+    int ret = -1;
+
+    ctx = QuicCtxNew(QuicClientMethod());
+    if (ctx == NULL) {
+        goto out;
+    }
+
+    quic = QuicNew(ctx);
+    if (quic == NULL) {
+        goto out;
+    }
+
+    buf = QUIC_TLS_BUFFER(quic);
+    msg = QuicBufData(buf);
+    msg_len = (sizeof(clienthello_serverhello) - 1)/2;
+    str2hex(msg, clienthello_serverhello, msg_len);
+    QuicBufSetDataLength(buf, msg_len);
+    tls = &quic->tls;
+    str2hex(tls->handshake_secret, handshake_insecret,
+            sizeof(tls->handshake_secret));
+    tls->handshake_cipher = QuicGetTlsCipherById(TLS_CK_AES_256_GCM_SHA384);
+    if (tls->handshake_cipher == NULL) {
+        printf("Find handshake cipher failed\n");
+        goto out;
+    }
+
+    QuicSecretTest = QuicHandshakeSecretComp;
+    if (QuicCreateHandshakeServerDecoders(quic) < 0) {
+        printf("Create handshake decoders failed\n");
+        goto out;
+    }
+
+    if (handshake_secret_cmp_ok == 0) {
+        printf("Handshake secret compare failed\n");
+        goto out;
+    }
+
+    ret = 1;
+out:
+    QuicFree(quic);
+    QuicCtxFree(ctx);
+    return ret;
+}
+

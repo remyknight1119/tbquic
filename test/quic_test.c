@@ -67,6 +67,10 @@ static QuicFuncTest test_funcs[] = {
         .test = QuicTlsGenerateSecretTest,
         .err_msg = "TLS GenerateSecret",
     },
+    {
+        .test = QuicTlsGenerateServerSecretTest,
+        .err_msg = "TLS Generate Server Secret",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)

@@ -2,6 +2,7 @@
 #define TBQUIC_TEST_QUIC_TEST_H_
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -21,6 +22,43 @@ typedef struct {
     uint64_t value;
 } QuicTlsTestParam;
 
+
+static inline uint8_t char2hex(char c)
+{
+	if ((c >= '0') && (c <= '9')) {
+		return c - 0x30;
+	}
+
+	if ((c >= 'A') && (c <= 'F')) {
+		return c - 0x37;
+	}
+
+	if ((c >= 'a') && (c <= 'f')) {
+		return c - 'a' + 10;
+	}
+
+	return 0;
+}
+
+static inline void str2hex(uint8_t *dest, char *src, size_t len)
+{
+	char h1 = 0;
+	char h2 = 0;
+	uint8_t s1 = 0;
+	uint8_t s2 = 0;
+	size_t i = 0;
+
+	for (i = 0; i < len; i++) {
+		h1 = src[2*i];
+		h2 = src[2*i + 1];
+
+		s1 = char2hex(h1);
+		s2 = char2hex(h2);
+
+		dest[i] = (s1 << 4) + s2;
+	}
+}
+
 extern char *quic_cert;
 extern char *quic_key;
 
@@ -35,5 +73,6 @@ int QuicVTlsCipherListTest(void);
 int QuicTlsClientHelloTest(void);
 int QuicTlsClientExtensionTest(void);
 int QuicTlsGenerateSecretTest(void);
+int QuicTlsGenerateServerSecretTest(void);
 
 #endif

@@ -169,10 +169,10 @@ QuicFlowReturn QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
     QuicFlowReturn ret;
 
     RPacketBufInit(&rpkt, data, len);
-    WPacketBufInit(&wpkt, buffer->buf);
+    WPacketBufInit(&wpkt, buffer->buf, QuicBufOffset(buffer));
 
     ret = QuicTlsHandshakeStatem(tls, &rpkt, &wpkt, proc, num);
-    buffer->data_len = WPacket_get_written(&wpkt);
+    QuicBufSetDataLength(buffer, WPacket_get_written(&wpkt));
     WPacketCleanup(&wpkt);
 
     return ret;

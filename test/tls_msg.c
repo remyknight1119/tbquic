@@ -251,6 +251,7 @@ int QuicTlsClientHelloTest(void)
     QUIC_BUFFER *buffer = NULL;
     BIO *rbio = NULL;
     BIO *wbio = NULL;
+    size_t data_len = 0;
     int case_num = -1;
     int err = 0;
     int ret = 0;
@@ -298,14 +299,14 @@ int QuicTlsClientHelloTest(void)
         }
     }
 
-    buffer = &quic->tls.buffer;
-
-    if (buffer->data_len != sizeof(client_hello) - 1 ||
-            memcmp(QuicBufData(buffer), client_hello,
-                buffer->data_len) != 0) {
+    buffer = QUIC_TLS_BUFFER(quic);
+    data_len = QuicBufOffset(buffer);
+    if (data_len != sizeof(client_hello) - 1 ||
+            memcmp(QuicBufHead(buffer), client_hello,
+                data_len) != 0) {
         printf("ClientHello content Inconsistent!\n");
-        QuicPrint(QuicBufData(buffer), buffer->data_len);
-        QuicPrint(client_hello, buffer->data_len);
+        QuicPrint(QuicBufData(buffer), data_len);
+        QuicPrint(client_hello, data_len);
         goto out;
     }
 
@@ -335,7 +336,7 @@ int QuicTlsClientExtensionTest(void)
     }
 
     if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
-        return -1;
+        goto out;
     }
 
     quic = QuicNew(ctx);
@@ -345,7 +346,7 @@ int QuicTlsClientExtensionTest(void)
 
     QUIC_set_connect_state(quic);
     if (QuicTlsClientExtensionSet(quic) < 0) {
-        return -1;
+        goto out;
     }
 
     WPacketStaticBufInit(&pkt, buf, sizeof(buf));

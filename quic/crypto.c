@@ -130,7 +130,7 @@ int TLS13HkdfExpandLabel(const EVP_MD *md, const uint8_t *secret,
         goto out;
     }
 
-    WPacketBufInit(&pkt, buf);
+    WPacketBufInit(&pkt, buf, 0);
 
     if (WPacketPut2(&pkt, out_len) < 0) {
         goto out;

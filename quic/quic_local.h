@@ -114,5 +114,7 @@ static inline QUIC *QuicTlsTrans(QUIC_TLS *tls)
     return (QUIC *)tls;
 }
 
+int QUIC_set_handshake_hp_cipher(QUIC *, uint32_t);
+int QUIC_set_pp_cipher_space_alg(QuicCipherSpace *, uint32_t);
 
 #endif

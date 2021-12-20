@@ -33,7 +33,11 @@ static QuicStateMachineFlow client_statem[QUIC_STATEM_MAX] = {
 
 static QuicFlowReturn QuicClientInitialSend(QUIC *quic, void *packet)
 {
-    return QuicInitialSend(quic, packet);
+    QuicFlowReturn ret;
+
+    ret = QuicInitialSend(quic, packet);
+    QuicBufReserve(QUIC_TLS_BUFFER(quic));
+    return ret;
 }
 
 static QuicFlowReturn QuicClientInitialRecv(QUIC *quic, void *packet)

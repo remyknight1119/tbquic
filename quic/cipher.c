@@ -274,11 +274,13 @@ static int QuicPPCipherPrepare(QuicPPCipher *cipher, const EVP_MD *md,
 
     c = QuicFindCipherByAlg(cipher->cipher.alg);
     if (c == NULL) {
+        QUIC_LOG("Find cipher by %d failed\n", cipher->cipher.alg);
         return -1;
     }
 
     key_len = EVP_CIPHER_key_length(c);
     if (key_len > sizeof(key)) {
+        QUIC_LOG("key len(%d) is too big(%lu)\n", key_len, sizeof(key));
         return -1;
     }
 
@@ -286,12 +288,14 @@ static int QuicPPCipherPrepare(QuicPPCipher *cipher, const EVP_MD *md,
         if (QuicTLS13HkdfExpandLabel(md, secret, EVP_MD_size(md),
                     quic_key_label, sizeof(quic_key_label) - 1,
                     key, key_len) < 0) {
+            QUIC_LOG("Gen Key failed\n");
             return -1;
         }
 
         if (QuicTLS13HkdfExpandLabel(md, secret, EVP_MD_size(md), quic_iv_label,
                     sizeof(quic_iv_label) - 1, cipher->iv, sizeof(cipher->iv))
                 < 0) {
+            QUIC_LOG("Gen IV failed\n");
             return -1;
         }
     }
@@ -367,6 +371,9 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
                             encrypt_secret);
 }
 
+#ifdef QUIC_TEST
+void (*QuicSecretTest)(uint8_t *secret);
+#endif
 static int QuicCreateDecoders(QUIC_TLS *tls, const EVP_MD *md,
                     const uint8_t *in_secret,
                     const uint8_t *label, size_t label_len,
@@ -375,15 +382,17 @@ static int QuicCreateDecoders(QUIC_TLS *tls, const EVP_MD *md,
 {
     uint8_t secret[EVP_MAX_MD_SIZE];
     
-    if (cs->cipher_inited == true) {
-        return 0;
-    }
-
     if (TlsDeriveSecrets(tls, md, in_secret, label, label_len, hash,
                             secret) < 0) {
+        QUIC_LOG("Derive secret failed\n");
         return -1;
     }
 
+#ifdef QUIC_TEST
+    if (QuicSecretTest != NULL) {
+        QuicSecretTest(secret);
+    }
+#endif
     return QuicCiphersPrepare(&cs->ciphers, md, secret, QUIC_EVP_DECRYPT);
 }
 
@@ -391,26 +400,50 @@ static int QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label,
                                         size_t label_len)
 {
     QUIC_TLS *tls = &quic->tls;
-    QuicCrypto *handshake = NULL;
+    const TlsCipher *cipher = NULL;
+    QuicCipherSpace *decrypt = NULL;
     const EVP_MD *md = NULL;
     uint8_t hash[EVP_MAX_MD_SIZE] = {};
     
+    decrypt = &quic->handshake.decrypt;
+    if (decrypt->cipher_inited == true) {
+        return 0;
+    }
+
+    cipher = tls->handshake_cipher;
+    if (cipher == NULL) {
+        QUIC_LOG("No cipher\n");
+        return -1;
+    }
+
     md = TlsHandshakeMd(tls);
     if (md == NULL) {
+        QUIC_LOG("Handshake MD failed\n");
         return -1;
     }
 
     if (TlsDigestCachedRecords(tls) < 0) {
+        QUIC_LOG("Gigest Cached Record failed\n");
         return -1;
     }
 
     if (TlsHandshakeHash(tls, md, hash) < 0) {
+        QUIC_LOG("Handshake Hash failed\n");
         return -1;
     }
 
-    handshake = &quic->handshake;
+    if (QUIC_set_handshake_hp_cipher(quic, QUIC_ALG_AES_128_ECB) < 0) {
+        QUIC_LOG("Set handshake HP cipher failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QUIC_set_pp_cipher_space_alg(decrypt, cipher->algorithm_enc) < 0) {
+        QUIC_LOG("Set handshake PP cipher failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     return QuicCreateDecoders(tls, md, tls->handshake_secret, label, label_len,
-                                hash, &handshake->decrypt);
+                                hash, decrypt);
 }
 
 int QuicCreateHandshakeServerDecoders(QUIC *quic)

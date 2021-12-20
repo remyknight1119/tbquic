@@ -7,6 +7,7 @@
 #include <openssl/buffer.h>
 
 #include "common.h"
+#include "mem.h"
 #include "log.h"
 
 int QuicBufInit(QUIC_BUFFER *qbuf, size_t len)
@@ -23,6 +24,7 @@ int QuicBufInit(QUIC_BUFFER *qbuf, size_t len)
     }
 
     qbuf->buf = buf;
+    qbuf->offset = 0;
     qbuf->data_len = 0;
 
     return 0;
@@ -46,6 +48,13 @@ uint8_t *QuicBufData(QUIC_BUFFER *qbuf)
 {
     assert(qbuf->buf != NULL);
 
+    return (uint8_t *)(&qbuf->buf->data[qbuf->offset]);
+}
+
+uint8_t *QuicBufHead(QUIC_BUFFER *qbuf)
+{
+    assert(qbuf->buf != NULL);
+
     return (uint8_t *)qbuf->buf->data;
 }
 
@@ -53,7 +62,7 @@ uint8_t *QuicBufTail(QUIC_BUFFER *qbuf)
 {
     assert(qbuf->buf != NULL);
 
-    return (uint8_t *)qbuf->buf->data + qbuf->data_len;
+    return QuicBufData(qbuf) + qbuf->data_len;
 }
 
 size_t QuicBufLength(QUIC_BUFFER *qbuf)
@@ -65,9 +74,11 @@ size_t QuicBufLength(QUIC_BUFFER *qbuf)
 
 size_t QuicBufRemaining(QUIC_BUFFER *qbuf)
 {
-    assert(qbuf->buf != NULL && QUIC_GE(qbuf->buf->length, qbuf->data_len));
+    size_t total_len = qbuf->offset + qbuf->data_len;
 
-    return qbuf->buf->length - qbuf->data_len;
+    assert(qbuf->buf != NULL && QUIC_GE(qbuf->buf->length, total_len));
+
+    return qbuf->buf->length - total_len;
 }
 
 size_t QuicBufGetDataLength(QUIC_BUFFER *qbuf)
@@ -75,6 +86,13 @@ size_t QuicBufGetDataLength(QUIC_BUFFER *qbuf)
     assert(qbuf->buf != NULL);
 
     return qbuf->data_len;
+}
+
+size_t QuicBufOffset(QUIC_BUFFER *qbuf)
+{
+    assert(qbuf->buf != NULL);
+
+    return qbuf->offset;
 }
 
 void QuicBufSetDataLength(QUIC_BUFFER *qbuf, size_t len)
@@ -91,7 +109,27 @@ void QuicBufAddDataLength(QUIC_BUFFER *qbuf, size_t len)
     qbuf->data_len += len;
 }
 
+void QuicBufReserve(QUIC_BUFFER *qbuf)
+{
+    qbuf->offset = qbuf->data_len;
+    qbuf->data_len = 0;
+}
+
+int QuicBufCopyData(QUIC_BUFFER *qbuf, const uint8_t *data, size_t len)
+{
+    assert(qbuf->buf != NULL);
+
+    if (QUIC_LT(QuicBufRemaining(qbuf), len)) {
+        return -1;
+    }
+
+    QuicMemcpy(QuicBufData(qbuf), data, len);
+    QuicBufSetDataLength(qbuf, len);
+    return 0;
+}
+
 void QuicBufClear(QUIC_BUFFER *qbuf)
 {
+    qbuf->offset = 0;
     qbuf->data_len = 0;
 }

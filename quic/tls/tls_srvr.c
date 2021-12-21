@@ -13,8 +13,8 @@
 #include "common.h"
 #include "log.h"
 
-static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *, void *);
-static QuicFlowReturn QuicTlsServerHelloBuild(QUIC_TLS *, void *);
+static int QuicTlsClientHelloProc(QUIC_TLS *, void *);
+static int QuicTlsServerHelloBuild(QUIC_TLS *, void *);
 
 static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
     [QUIC_TLS_ST_OK] = {
@@ -23,7 +23,8 @@ static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
     },
     [QUIC_TLS_ST_SR_CLIENT_HELLO] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = QUIC_TLS_ST_SW_SERVER_HELLO,
+        //.next_state = QUIC_TLS_ST_SW_SERVER_HELLO,
+        .next_state = QUIC_TLS_ST_HANDSHAKE_DONE,
         .handshake_type = CLIENT_HELLO,
         .handler = QuicTlsClientHelloProc,
     },
@@ -43,36 +44,34 @@ QuicFlowReturn QuicTlsAccept(QUIC_TLS *tls, const uint8_t *data, size_t len)
                             QUIC_TLS_SERVER_PROC_NUM);
 }
 
-static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
+static int QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
 {
     RPacket *pkt = packet;
     const TlsCipher *cipher = NULL;
     TlsCipherListNode *server_cipher = NULL;
     HLIST_HEAD(cipher_list);
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
     uint32_t cipher_len = 0;
     uint32_t compress_len = 0;
 
-    ret = QuicTlsHelloHeadParse(tls, pkt, tls->client_random,
-                sizeof(tls->client_random));
-    if (ret != QUIC_FLOW_RET_FINISH) {
-        return ret;
+    if (QuicTlsHelloHeadParse(tls, pkt, tls->client_random,
+                sizeof(tls->client_random)) < 0) {
+        return -1;
     }
 
     if (RPacketGet2(pkt, &cipher_len) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
     if (cipher_len & 0x01) {
-        return QUIC_FLOW_RET_ERROR;
+        return -1;
     }
 
     if (RPacketRemaining(pkt) < cipher_len) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
     if (QuicTlsParseCipherList(&cipher_list, pkt, cipher_len) < 0) {
-        return QUIC_FLOW_RET_ERROR;
+        return -1;
     }
 
     hlist_for_each_entry(server_cipher, &tls->cipher_list, node) {
@@ -87,30 +86,29 @@ static QuicFlowReturn QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
     QuicTlsDestroyCipherList(&cipher_list);
     if (cipher == NULL) {
         QUIC_LOG("No shared cipher found\n");
-        return QUIC_FLOW_RET_ERROR;
+        return -1;
     }
 
     /* Skip legacy Compression Method */
     if (RPacketGet1(pkt, &compress_len) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
     if (RPacketPull(pkt, compress_len) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
-    ret = QuicTlsExtLenParse(pkt);
-    if (ret != QUIC_FLOW_RET_FINISH) {
-        return ret;
+    if (QuicTlsExtLenParse(pkt) < 0) {
+        return -1;
     }
 
-    return ret;
+    return 0;
 }
 
-static QuicFlowReturn QuicTlsServerHelloBuild(QUIC_TLS *tls, void *packet)
+static int QuicTlsServerHelloBuild(QUIC_TLS *tls, void *packet)
 {
     printf("SSSSSSSSSSSSSSSSSSSSSServerhello Build\n");
-    return QUIC_FLOW_RET_ERROR;
+    return 0;
 }
 
 void QuicTlsServerInit(QUIC_TLS *tls)

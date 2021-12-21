@@ -58,6 +58,9 @@ typedef enum {
     QUIC_TLS_ST_CW_CLIENT_HELLO,
     QUIC_TLS_ST_CW_CLIENT_KEY_EXCHANGE,
     QUIC_TLS_ST_CR_SERVER_HELLO,
+    QUIC_TLS_ST_CR_ENCRYPTED_EXTENSIONS,
+    QUIC_TLS_ST_CR_SERVER_CERTIFICATE,
+    QUIC_TLS_ST_CR_CERTIFICATE_VERIFY,
     QUIC_TLS_ST_SR_CLIENT_HELLO,
     QUIC_TLS_ST_SW_SERVER_HELLO,
     QUIC_TLS_ST_SW_SERVER_CERTIFICATE,
@@ -96,7 +99,7 @@ typedef struct {
     QuicFlowState flow_state;
     QuicTlsState next_state;
     HandshakeType handshake_type;
-    QuicFlowReturn (*handler)(QUIC_TLS *, void *);
+    int (*handler)(QUIC_TLS *, void *);
 } QuicTlsProcess;
 
 #ifdef QUIC_TEST
@@ -114,8 +117,8 @@ QuicFlowReturn QuicTlsHandshake(QUIC_TLS *, const uint8_t *, size_t,
                         const QuicTlsProcess *, size_t);
 int QuicTlsGenRandom(uint8_t *, size_t, WPacket *);
 
-QuicFlowReturn QuicTlsHelloHeadParse(QUIC_TLS *, RPacket *, uint8_t *, size_t);
-QuicFlowReturn QuicTlsExtLenParse(RPacket *);
+int QuicTlsHelloHeadParse(QUIC_TLS *, RPacket *, uint8_t *, size_t);
+int QuicTlsExtLenParse(RPacket *);
 int QuicTlsPutCipherList(QUIC_TLS *, WPacket *);
 int QuicTlsPutCompressionMethod(WPacket *);
 

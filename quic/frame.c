@@ -82,8 +82,8 @@ static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    if (QUIC_GT(total_len, buf->data_len)) {
-        buf->data_len = total_len;
+    if (QUIC_GT(total_len, QuicBufGetDataLength(buf))) {
+        QuicBufSetDataLength(buf, total_len);
     }
 
     return 0;

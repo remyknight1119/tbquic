@@ -12,6 +12,7 @@
 #include "quic_local.h"
 #include "tls_cipher.h"
 #include "mem.h"
+#include "common.h"
 #include "log.h"
 
 QuicFlowReturn
@@ -34,7 +35,6 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
 {
     RPacket msg = {};
     QuicTlsState state = 0;
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
     size_t remain = 0;
     uint32_t type = 0;
     uint32_t len = 0;
@@ -46,6 +46,10 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
     }
 
     remain = RPacketRemaining(pkt);
+    if (remain == 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
     if (RPacketGet1(pkt, &type) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
     }
@@ -55,8 +59,14 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    QuicPrint(RPacketData(pkt), 10);
     if (RPacketGet3(pkt, &len) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    QuicPrint((void *)&len, sizeof(len));
+    if (QUIC_LT(RPacketRemaining(pkt), len)) {
+        QUIC_LOG("need more data, len = %u, type = %d\n", len, type);
     }
 
     offset = remain - RPacketRemaining(pkt);
@@ -67,20 +77,18 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
  
     RPacketHeadPush(&msg, offset);
     state = tls->handshake_state;
-    ret = p->handler(tls, &msg);
-    if (ret != QUIC_FLOW_RET_FINISH) {
-        return ret;
+    if (p->handler(tls, &msg) < 0) {
+        return QUIC_FLOW_RET_ERROR;
     }
 
     QuicTlsFlowFinish(tls, state, p->next_state);
-    return ret;
+    return QUIC_FLOW_RET_FINISH;
 }
 
 static QuicFlowReturn
 QuicTlsHandshakeWrite(QUIC_TLS *tls, const QuicTlsProcess *p, WPacket *pkt)
 {
     QuicTlsState state = 0;
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
@@ -98,9 +106,8 @@ QuicTlsHandshakeWrite(QUIC_TLS *tls, const QuicTlsProcess *p, WPacket *pkt)
     }
  
     state = tls->handshake_state;
-    ret = p->handler(tls, pkt);
-    if (ret != QUIC_FLOW_RET_FINISH) {
-        return ret;
+    if (p->handler(tls, pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (WPacketClose(pkt) < 0) {
@@ -109,7 +116,7 @@ QuicTlsHandshakeWrite(QUIC_TLS *tls, const QuicTlsProcess *p, WPacket *pkt)
     }
 
     QuicTlsFlowFinish(tls, state, p->next_state);
-    return ret;
+    return QUIC_FLOW_RET_FINISH;
 }
 
 static QuicFlowReturn
@@ -152,7 +159,7 @@ QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
         state = tls->handshake_state;
         assert(state >= 0 && state < num);
         p = &proc[state];
-        if (ret == QUIC_FLOW_RET_FINISH) {
+        if (ret == QUIC_FLOW_RET_END) {
             break;
         }
     }
@@ -178,45 +185,45 @@ QuicFlowReturn QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
     return ret;
 }
 
-QuicFlowReturn QuicTlsHelloHeadParse(QUIC_TLS *tls, RPacket *pkt,
-                            uint8_t *random, size_t random_size)
+int QuicTlsHelloHeadParse(QUIC_TLS *tls, RPacket *pkt, uint8_t *random,
+                            size_t random_size)
 {
     uint32_t session_id_len = 0;
     uint32_t legacy_version = 0;
 
     if (RPacketGet2(pkt, &legacy_version) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
     if (RPacketCopyBytes(pkt, random, random_size) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
     if (RPacketGet1(pkt, &session_id_len) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
     if (RPacketPull(pkt, session_id_len) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
-    return QUIC_FLOW_RET_FINISH;
+    return 0;
 }
 
-QuicFlowReturn QuicTlsExtLenParse(RPacket *pkt)
+int QuicTlsExtLenParse(RPacket *pkt)
 {
     uint32_t ext_len = 0;
 
     if (RPacketGet2(pkt, &ext_len) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+        return -1;
     }
 
     if (RPacketRemaining(pkt) != ext_len) {
         QUIC_LOG("Check extension len failed\n");
-        return QUIC_FLOW_RET_ERROR;
+        return -1;
     }
 
-    return QUIC_FLOW_RET_FINISH;
+    return 0;
 }
 
 int QuicTlsInit(QUIC_TLS *tls, QUIC_CTX *ctx)

@@ -533,7 +533,6 @@ static int QuicLengthParse(RPacket *msg, RPacket *pkt)
     uint64_t length = 0;
     size_t remaining = 0;
     int offset = 0;
-    uint64_t pkt_len = 0;
 
     if (QuicVariableLengthDecode(pkt, &length) < 0) {
         QUIC_LOG("Length decode failed!\n");
@@ -549,18 +548,77 @@ static int QuicLengthParse(RPacket *msg, RPacket *pkt)
     offset = RPacketTotalLen(pkt) - remaining;
     assert(offset >= 0);
 
-    pkt_len = offset + length;
     /*
      * Init message packet buffer for a single packet
      * For a buffer maybe contain multiple packets
      */
-    RPacketBufInit(msg, RPacketHead(pkt), pkt_len);
-    RPacketForward(msg, offset);
+    RPacketBufInit(msg, RPacketData(pkt), length);
+    RPacketHeadPush(msg, offset);
     RPacketForward(pkt, length);
 
     return 0;
 }
  
+static int
+QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QUIC_BUFFER *buffer)
+{
+    QUIC_CIPHERS *cipher = NULL;
+    uint64_t pkt_num = 0;
+    uint32_t h_pkt_num = 0;
+    uint8_t pkt_num_len;
+
+    cipher = &cs->ciphers;
+    if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, &h_pkt_num,
+                &pkt_num_len, pkt) < 0) {
+        QUIC_LOG("Decrypt Initial packet header failed!\n");
+        return -1;
+    }
+
+    pkt_num = QuicPktNumberDecode(cs->pkt_num, h_pkt_num, pkt_num_len*8);
+    if (QUIC_GT(cs->pkt_num, pkt_num)) {
+        QUIC_LOG("PKT number invalid!\n");
+        return -1;
+    }
+
+    if (cs->pkt_num == pkt_num && pkt_num != 0) {
+        QUIC_LOG("PKT number invalid!\n");
+        return -1;
+    }
+
+    cs->pkt_num = pkt_num;
+
+    return QuicDecryptMessage(&cipher->pp_cipher, QuicBufData(buffer),
+                &buffer->data_len, QuicBufLength(buffer),
+                h_pkt_num, pkt_num_len, pkt);
+}
+
+static int QuicFrameParse(QUIC *quic, QUIC_BUFFER *f_buf)
+{
+    QUIC_BUFFER *c_buf = QUIC_TLS_BUFFER(quic);
+    RPacket frame = {};
+    size_t data_len = 0;
+
+    RPacketBufInit(&frame, QuicBufData(f_buf), QuicBufGetDataLength(f_buf));
+    if (QuicFrameDoParser(quic, &frame) < 0) {
+        QUIC_LOG("Do parser failed!\n");
+        return -1;
+    }
+
+    data_len = QuicBufGetDataLength(c_buf);
+    if (data_len == 0) {
+        QUIC_LOG("No crypto data!\n");
+        return -1;
+    }
+
+    if (QuicTlsDoHandshake(&quic->tls, QuicBufData(c_buf),
+                data_len) == QUIC_FLOW_RET_ERROR) {
+        QUIC_LOG("TLS Hadshake failed!\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
 {
     return 0;
@@ -569,16 +627,9 @@ int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
 int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 {
     QuicCipherSpace *initial = NULL;
-    QUIC_CIPHERS *cipher = NULL;
     QUIC_BUFFER *buffer = QUIC_FRAME_BUFFER(quic);
-    QUIC_BUFFER *crypto_buf = QUIC_TLS_BUFFER(quic);
     RPacket message = {};
-    RPacket frame = {};
-    size_t data_len = 0;
     uint64_t token_len = 0;
-    uint64_t pkt_num = 0;
-    uint32_t h_pkt_num = 0;
-    uint8_t pkt_num_len;
 
     if (QuicVariableLengthDecode(pkt, &token_len) < 0) {
         QUIC_LOG("Token len decode failed!\n");
@@ -602,58 +653,29 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
     }
 
     initial = &quic->initial.decrypt;
-    cipher = &initial->ciphers;
-    if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, &h_pkt_num,
-                &pkt_num_len, &message) < 0) {
-        QUIC_LOG("Decrypt Initial packet header failed!\n");
-        return -1;
-    }
-
-    pkt_num = QuicPktNumberDecode(initial->pkt_num, h_pkt_num, pkt_num_len*8);
-    if ((int)(initial->pkt_num - pkt_num) > 0) {
-        QUIC_LOG("PKT number invalid!\n");
-        return -1;
-    }
-
-    if (initial->pkt_num == pkt_num && pkt_num != 0) {
-        QUIC_LOG("PKT number invalid!\n");
-        return -1;
-    }
-
-    initial->pkt_num = pkt_num;
-
-    if (QuicDecryptMessage(&cipher->pp_cipher, QuicBufData(buffer),
-                &buffer->data_len, QuicBufLength(buffer),
-                h_pkt_num, pkt_num_len, &message) < 0) {
+    if (QuicDecryptPacket(initial, &message, buffer) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
 
-    RPacketBufInit(&frame, QuicBufData(buffer), QuicBufGetDataLength(buffer));
-    if (QuicFrameDoParser(quic, &frame) < 0) {
-        QUIC_LOG("Do parser failed!\n");
-        return -1;
-    }
-
-    data_len = QuicBufGetDataLength(crypto_buf);
-    if (data_len == 0) {
-        QUIC_LOG("No crypto data!\n");
-        return -1;
-    }
-
-    if (QuicTlsDoHandshake(&quic->tls, QuicBufData(crypto_buf),
-                data_len) == QUIC_FLOW_RET_ERROR) {
-        QUIC_LOG("TLS Hadshake failed!\n");
-        return -1;
-    }
-
-    return 0;
+    return QuicFrameParse(quic, buffer);
 }
 
 int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
 {
-    printf("handshake parse\n");
-    return 0;
+    QUIC_BUFFER *buffer = QUIC_FRAME_BUFFER(quic);
+    RPacket message = {};
+
+    if (QuicLengthParse(&message, pkt) < 0) {
+        return -1;
+    }
+
+    if (QuicDecryptPacket(&quic->handshake.decrypt, &message, buffer) < 0) {
+        QUIC_LOG("Decrypt message failed!\n");
+        return -1;
+    }
+
+    return QuicFrameParse(quic, buffer);
 }
 
 int QuicRetryPacketParse(QUIC *quic, RPacket *pkt)

@@ -378,7 +378,8 @@ static int QuicCreateDecoders(QUIC_TLS *tls, const EVP_MD *md,
                     const uint8_t *in_secret,
                     const uint8_t *label, size_t label_len,
                     const uint8_t *hash,
-                    QuicCipherSpace *cs)
+                    QuicCipherSpace *cs,
+                    const char *log_label)
 {
     uint8_t secret[EVP_MAX_MD_SIZE];
     
@@ -388,6 +389,11 @@ static int QuicCreateDecoders(QUIC_TLS *tls, const EVP_MD *md,
         return -1;
     }
 
+#if 0
+    fprintf(stdout, "%s ", log_label);
+    QuicPrint(tls->client_random, sizeof(tls->client_random));
+    QuicPrint(secret, EVP_md_size(md));
+#endif
 #ifdef QUIC_TEST
     if (QuicSecretTest != NULL) {
         QuicSecretTest(secret);
@@ -396,8 +402,9 @@ static int QuicCreateDecoders(QUIC_TLS *tls, const EVP_MD *md,
     return QuicCiphersPrepare(&cs->ciphers, md, secret, QUIC_EVP_DECRYPT);
 }
 
-static int QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label,
-                                        size_t label_len)
+static int
+QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label, size_t label_len,
+                            const char *log_label)
 {
     QUIC_TLS *tls = &quic->tls;
     const TlsCipher *cipher = NULL;
@@ -443,7 +450,7 @@ static int QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label,
     }
 
     return QuicCreateDecoders(tls, md, tls->handshake_secret, label, label_len,
-                                hash, decrypt);
+                                hash, decrypt, log_label);
 }
 
 int QuicCreateHandshakeServerDecoders(QUIC *quic)
@@ -451,7 +458,8 @@ int QuicCreateHandshakeServerDecoders(QUIC *quic)
     static const uint8_t server_handshake_traffic[] = "s hs traffic";
     
     return QuicCreateHandshakeDecoders(quic, server_handshake_traffic,
-                    sizeof(server_handshake_traffic) - 1);
+                    sizeof(server_handshake_traffic) - 1,
+                    SERVER_HANDSHAKE_LABEL);
 }
 
 int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,

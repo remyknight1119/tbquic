@@ -5,6 +5,8 @@
 #include <tbquic/types.h>
 
 #include "base.h"
+#include "packet_local.h"
+#include "format.h"
 
 #define QUIC_FLOW_STATEM_NOTHING(s) (s == QUIC_FLOW_NOTHING)
 #define QUIC_FLOW_STATEM_READING(s) (s == QUIC_FLOW_READING)
@@ -20,7 +22,8 @@ typedef enum {
     QUIC_FLOW_RET_END,
 } QuicFlowReturn;
 
-typedef QuicFlowReturn (*QuicStatemHandler)(QUIC *, void *);
+typedef QuicFlowReturn (*QuicStatemRead)(QUIC *, RPacket *, QuicLPacketFlags);
+typedef QuicFlowReturn (*QuicStatemWrite)(QUIC *);
 
 typedef enum {
 	QUIC_STATEM_INITIAL = 0,
@@ -53,14 +56,14 @@ typedef enum {
 } QuicFlowState;
 
 typedef struct {
-    QuicStatemHandler recv;
-    QuicStatemHandler send;
-} QuicStateMachineFlow;
+    QuicStatemRead recv;
+    QuicStatemWrite send;
+} QuicStatemFlow;
 
-QuicFlowReturn QuicInitialRecv(QUIC *, void *);
-QuicFlowReturn QuicInitialSend(QUIC *, void *);
-QuicFlowReturn QuicHandshakeRecv(QUIC *, void *);
-int QuicStateMachineAct(QUIC *, const QuicStateMachineFlow *, size_t);
+QuicFlowReturn QuicInitialRecv(QUIC *, RPacket *, QuicLPacketFlags);
+QuicFlowReturn QuicInitialSend(QUIC *);
+QuicFlowReturn QuicHandshakeRecv(QUIC *, RPacket *, QuicLPacketFlags);
+int QuicStateMachineAct(QUIC *, const QuicStatemFlow *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
 int QuicStreamRead(QUIC *);

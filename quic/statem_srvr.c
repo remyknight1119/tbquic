@@ -11,12 +11,14 @@
 #include "packet_local.h"
 #include "log.h"
 
-static QuicFlowReturn QuicServerInitialRecv(QUIC *, void *);
-static QuicFlowReturn QuicServerInitialSend(QUIC *, void *);
-static QuicFlowReturn QuicServerHandshakeRecv(QUIC *, void *);
-static QuicFlowReturn QuicServerHandshakeSend(QUIC *, void *);
+static QuicFlowReturn QuicServerInitialRecv(QUIC *, RPacket *,
+                                        QuicLPacketFlags);
+static QuicFlowReturn QuicServerInitialSend(QUIC *);
+static QuicFlowReturn QuicServerHandshakeRecv(QUIC *, RPacket *,
+                                        QuicLPacketFlags);
+static QuicFlowReturn QuicServerHandshakeSend(QUIC *);
 
-static QuicStateMachineFlow server_statem[QUIC_STATEM_MAX] = {
+static QuicStatemFlow server_statem[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_INITIAL] = {
         .recv = QuicServerInitialRecv,
         .send = QuicServerInitialSend,
@@ -27,22 +29,24 @@ static QuicStateMachineFlow server_statem[QUIC_STATEM_MAX] = {
     },
 };
 
-static QuicFlowReturn QuicServerInitialRecv(QUIC *quic, void *packet)
+static QuicFlowReturn
+QuicServerInitialRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
 {
-    return QuicInitialRecv(quic, packet); 
+    return QuicInitialRecv(quic, pkt, flags); 
 }
 
-static QuicFlowReturn QuicServerInitialSend(QUIC *quic, void *packet)
-{
-    return QUIC_FLOW_RET_WANT_READ;
-}
-
-static QuicFlowReturn QuicServerHandshakeRecv(QUIC *quic, void *packet)
+static QuicFlowReturn QuicServerInitialSend(QUIC *quic)
 {
     return QUIC_FLOW_RET_FINISH;
 }
 
-static QuicFlowReturn QuicServerHandshakeSend(QUIC *quic, void *packet)
+static QuicFlowReturn
+QuicServerHandshakeRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+{
+    return QUIC_FLOW_RET_FINISH;
+}
+
+static QuicFlowReturn QuicServerHandshakeSend(QUIC *quic)
 {
     return QUIC_FLOW_RET_FINISH;
 }

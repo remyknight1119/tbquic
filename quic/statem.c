@@ -16,20 +16,19 @@
 #include "log.h"
 
 static QuicFlowReturn
-QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
+QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
+    const QuicStatemFlow *sm = NULL;
     QUIC_STATEM *st = &quic->statem;
     QUIC_BUFFER *qbuf = QUIC_READ_BUFFER(quic);
     RPacket pkt = {};
+    uint32_t flag = 0;
+    QuicLPacketFlags flags;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int rlen = 0;
 
-    if (handler == NULL) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
     st->read_state = QUIC_WANT_DATA;
-    while (ret != QUIC_FLOW_RET_FINISH) {
+    while (ret != QUIC_FLOW_RET_FINISH || RPacketRemaining(&pkt)) {
         if (st->read_state == QUIC_WANT_DATA && !RPacketRemaining(&pkt)) {
             rlen = QuicDatagramRecvBuffer(quic, qbuf);
             if (rlen < 0) {
@@ -42,7 +41,15 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
             RPacketUpdate(&pkt);
         }
 
-        ret = handler(quic, &pkt);
+        assert(st->state >= 0 && st->state < num);
+        sm = &statem[st->state];
+
+        if (RPacketGet1(&pkt, &flag) < 0) {
+            return QUIC_FLOW_RET_ERROR;
+        }
+
+        flags.value = flag;
+        ret = sm->recv(quic, &pkt, flags);
         switch (ret) {
             case QUIC_FLOW_RET_WANT_READ:
                 st->read_state = QUIC_WANT_DATA;
@@ -58,24 +65,20 @@ QuicReadStateMachine(QUIC *quic, QuicStatemHandler handler)
 }
 
 static QuicFlowReturn
-QuicWriteStateMachine(QUIC *quic, QuicStatemHandler handler)
+QuicWriteStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
+    const QuicStatemFlow *sm = NULL;
+    QUIC_STATEM *st = &quic->statem;
     QBUFF *qb = NULL;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int wlen = -1;
 
-    if (handler == NULL) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    while (ret != QUIC_FLOW_RET_FINISH && ret != QUIC_FLOW_RET_WANT_READ) {
-        ret = handler(quic, NULL);
-        switch (ret) {
-            case QUIC_FLOW_RET_WANT_READ:
-            case QUIC_FLOW_RET_FINISH:
-                break;
-            default:
-                return QUIC_FLOW_RET_ERROR;
+    while (ret != QUIC_FLOW_RET_FINISH) {
+        assert(st->state >= 0 && st->state < num);
+        sm = &statem[st->state];
+        ret = sm->send(quic);
+        if (ret == QUIC_FLOW_RET_ERROR) {
+            return QUIC_FLOW_RET_ERROR;
         }
     }
 
@@ -90,35 +93,32 @@ QuicWriteStateMachine(QUIC *quic, QuicStatemHandler handler)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    if (st->state == QUIC_STATEM_HANDSHAKE_DONE) {
+        return QUIC_FLOW_RET_END;
+    }
+
     return ret;
 }
 
 int
-QuicStateMachineAct(QUIC *quic, const QuicStateMachineFlow *statem, size_t num)
+QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
-    const QuicStateMachineFlow *sm = NULL;
-    QUIC_STATEM *st = &quic->statem;
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
     while (QUIC_GET_FLOW_STATE(quic) != QUIC_FLOW_FINISHED) {
-        assert(st->state >= 0 && st->state < num);
-        sm = &statem[st->state];
-
-        if (st->state == QUIC_STATEM_HANDSHAKE_DONE) {
-            return QUIC_FLOW_RET_FINISH;
-        }
-
         switch (QUIC_GET_FLOW_STATE(quic)) {
             case QUIC_FLOW_READING:
-                ret = QuicReadStateMachine(quic, sm->recv);
+                ret = QuicReadStateMachine(quic, statem, num);
                 if (ret == QUIC_FLOW_RET_FINISH) {
                     QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_WRITING);
                 }
                 break;
             case QUIC_FLOW_WRITING:
-                ret = QuicWriteStateMachine(quic, sm->send);
-                if (ret == QUIC_FLOW_RET_WANT_READ) {
+                ret = QuicWriteStateMachine(quic, statem, num);
+                if (ret == QUIC_FLOW_RET_FINISH) {
                     QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_READING);
+                } else if (ret == QUIC_FLOW_RET_END) {
+                    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_FINISHED);
                 }
                 break;
             default:
@@ -128,10 +128,6 @@ QuicStateMachineAct(QUIC *quic, const QuicStateMachineFlow *statem, size_t num)
         if (ret == QUIC_FLOW_RET_ERROR) {
             return -1;
         }
-    }
-
-    if (ret != QUIC_FLOW_RET_FINISH) {
-        return -1;
     }
 
     return 0;
@@ -152,26 +148,28 @@ int QuicCidGen(QUIC_DATA *cid, size_t len)
     return 0;
 }
 
-QuicFlowReturn QuicInitialRecv(QUIC *quic, void *packet)
+static int
+QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags, uint8_t type)
 {
-    RPacket *pkt = packet;
-    QuicLPacketFlags flags;
-    uint8_t type = 0;
-
-    if (RPacketGet1(pkt, (void *)&flags) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
+    if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
+        return -1;
     }
 
-    if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
-        return QUIC_FLOW_RET_ERROR;
+    if (flags.lpacket_type != type) {
+        return -1;
     }
 
     if (QuicLPacketHeaderParse(quic, pkt) < 0) {
-        return QUIC_FLOW_RET_ERROR;
+        return -1;
     }
 
-    type = flags.lpacket_type;
-    if (type != QUIC_LPACKET_TYPE_INITIAL) {
+    return 0;
+}
+
+QuicFlowReturn
+QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+{
+    if (QuicLongPktParse(quic, pkt, flags, QUIC_LPACKET_TYPE_INITIAL) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -182,7 +180,7 @@ QuicFlowReturn QuicInitialRecv(QUIC *quic, void *packet)
     return QUIC_FLOW_RET_FINISH;
 }
 
-QuicFlowReturn QuicInitialSend(QUIC *quic, void *packet)
+QuicFlowReturn QuicInitialSend(QUIC *quic)
 {
     QUIC_DATA *cid = NULL;
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
@@ -207,30 +205,13 @@ QuicFlowReturn QuicInitialSend(QUIC *quic, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    printf("client init, ret = %d\n", ret);
-    return QUIC_FLOW_RET_WANT_READ;
+    return QUIC_FLOW_RET_FINISH;
 }
 
-QuicFlowReturn QuicHandshakeRecv(QUIC *quic, void *packet)
+QuicFlowReturn
+QuicHandshakeRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
 {
-    RPacket *pkt = packet;
-    QuicLPacketFlags flags;
-    uint8_t type = 0;
-
-    if (RPacketGet1(pkt, (void *)&flags) < 0) {
-        return QUIC_FLOW_RET_WANT_READ;
-    }
-
-    if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (QuicLPacketHeaderParse(quic, pkt) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    type = flags.lpacket_type;
-    if (type != QUIC_LPACKET_TYPE_HANDSHAKE) {
+    if (QuicLongPktParse(quic, pkt, flags, QUIC_LPACKET_TYPE_HANDSHAKE) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 

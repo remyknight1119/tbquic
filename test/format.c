@@ -64,7 +64,6 @@ int QuicPktNumberEncodeTest(void)
     QuicPktNumberEncode(0xac5c02, 0xabe8b3, 32);
     QuicPktNumberEncode(0xace8fe, 0xabe8b3, 32);
     encode = QuicPktNumberEncode(full_pn, curr_num, 16);
-    printf("encode = %x\n", encode);
     if (encode != value) {
         return -1;
     }

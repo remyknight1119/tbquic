@@ -192,7 +192,6 @@ QuicFlowReturn QuicTlsHelloHeadParse(QUIC_TLS *tls, RPacket *pkt,
         return QUIC_FLOW_RET_WANT_READ;
     }
 
-    printf("version = %x\n", legacy_version);
     if (RPacketGet1(pkt, &session_id_len) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
     }

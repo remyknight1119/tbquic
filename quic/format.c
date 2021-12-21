@@ -528,6 +528,44 @@ static int QuicTokenVerify(QUIC_DATA *token, const uint8_t *data, size_t len)
     return 0;
 }
 
+static int QuicLengthParse(RPacket *msg, RPacket *pkt)
+{
+    uint64_t length = 0;
+    size_t remaining = 0;
+    int offset = 0;
+    uint64_t pkt_len = 0;
+
+    if (QuicVariableLengthDecode(pkt, &length) < 0) {
+        QUIC_LOG("Length decode failed!\n");
+        return -1;
+    }
+
+    remaining = RPacketRemaining(pkt);
+    if (QUIC_GT(length, remaining)) {
+        QUIC_LOG("Length(%lu) bigger than remaining(%lu)\n", length, remaining);
+        return -1;
+    }
+
+    offset = RPacketTotalLen(pkt) - remaining;
+    assert(offset >= 0);
+
+    pkt_len = offset + length;
+    /*
+     * Init message packet buffer for a single packet
+     * For a buffer maybe contain multiple packets
+     */
+    RPacketBufInit(msg, RPacketHead(pkt), pkt_len);
+    RPacketForward(msg, offset);
+    RPacketForward(pkt, length);
+
+    return 0;
+}
+ 
+int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
+{
+    return 0;
+}
+
 int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 {
     QuicCipherSpace *initial = NULL;
@@ -536,15 +574,11 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
     QUIC_BUFFER *crypto_buf = QUIC_TLS_BUFFER(quic);
     RPacket message = {};
     RPacket frame = {};
-    size_t remaining = 0;
     size_t data_len = 0;
     uint64_t token_len = 0;
-    uint64_t length = 0;
     uint64_t pkt_num = 0;
-    uint64_t pkt_len = 0;
     uint32_t h_pkt_num = 0;
     uint8_t pkt_num_len;
-    int offset = 0;
 
     if (QuicVariableLengthDecode(pkt, &token_len) < 0) {
         QUIC_LOG("Token len decode failed!\n");
@@ -558,28 +592,9 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 
     RPacketForward(pkt, token_len);
 
-    if (QuicVariableLengthDecode(pkt, &length) < 0) {
-        QUIC_LOG("Length decode failed!\n");
+    if (QuicLengthParse(&message, pkt) < 0) {
         return -1;
     }
-
-    remaining = RPacketRemaining(pkt);
-    if (length > remaining) {
-        QUIC_LOG("Length(%lu) bigger than remaining(%lu)\n", length, remaining);
-        return -1;
-    }
-
-    offset = RPacketTotalLen(pkt) - remaining;
-    assert(offset >= 0);
-
-    pkt_len = offset + length;
-    /*
-     * Init message packet buffer for a single packet
-     * For a buffer maybe contain multiple packets
-     */
-    RPacketBufInit(&message, RPacketHead(pkt), pkt_len);
-    RPacketForward(&message, offset);
-    RPacketForward(pkt, length);
 
     if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
         QUIC_LOG("Create Initial Decoders failed!\n");
@@ -635,13 +650,9 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
     return 0;
 }
 
-int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
-{
-    return 0;
-}
-
 int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
 {
+    printf("handshake parse\n");
     return 0;
 }
 
@@ -877,7 +888,6 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt, QBUFF *qb)
         return -1;
     }
 
-    printf("clen = %lu\n", cipher_len);
     if (QuicEncryptPayload(quic, pp_cipher, first_byte, offset, dest, cipher_len,
                             pkt_num, pkt_num_len, qb) < 0) {
         return -1;

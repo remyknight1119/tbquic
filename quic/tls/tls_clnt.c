@@ -85,7 +85,6 @@ static QuicFlowReturn QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    printf("TTTTTTTTTTTls client hello build\n");
     return QUIC_FLOW_RET_FINISH;
 }
 
@@ -145,7 +144,6 @@ static QuicFlowReturn QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    QUIC_LOG("TTTTTTTTTTTls server hello parse\n");
     //change cipher state
     if (QuicCreateHandshakeServerDecoders(quic) < 0) {
         return QUIC_FLOW_RET_ERROR;

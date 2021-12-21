@@ -86,7 +86,6 @@ static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt)
         buf->data_len = total_len;
     }
 
-    printf("Crypto offset = %lu length = %lu\n", offset, length);
     return 0;
 }
 

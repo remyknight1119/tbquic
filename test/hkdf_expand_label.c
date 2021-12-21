@@ -174,8 +174,6 @@ int QuicHkdfExpandLabel(void)
         }
     }
 
-    printf("All %lu testcases of HKDF Expand Label passed\n",
-            QUIC_HKDF_EXPAND_LABEL_TEST_NUM);
     return QUIC_HKDF_EXPAND_LABEL_TEST_NUM;
 }
 

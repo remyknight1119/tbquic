@@ -305,7 +305,6 @@ int QuicHkdfExtractExpandTest(void)
 //        QuicPrint(okm, okm_len);
     }
 
-    printf("All %lu testcases of HKDF passed\n", QUIC_HKDF_TEST_NUM);
     return QUIC_HKDF_TEST_NUM;
 }
 

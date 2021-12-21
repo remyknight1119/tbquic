@@ -183,12 +183,14 @@ int main(int argc, char **argv)
     QuicInit();
 
     for (i = 0; i < QUIC_FUNC_TEST_NUM; i++) {
+        fprintf(stdout, "Testing %s...", test_funcs[i].err_msg);
         ret = test_funcs[i].test();
         if (ret < 0) {
-            fprintf(stderr, "%s failed\n", test_funcs[i].err_msg);
+            fprintf(stdout, "failed\n");
         } else {
             passed++;
             ok_num += ret;
+            fprintf(stdout, "OK\n");
         }
     }
 

@@ -31,6 +31,10 @@ static QuicStatemFlow client_statem[QUIC_STATEM_MAX] = {
         .recv = QuicClientHandshakeRecv,
         .send = QuicClientHandshakeSend,
     },
+    [QUIC_STATEM_HANDSHAKE_PEER_DONE] = {
+        .recv = QuicAppDataRecv,
+        .send = QuicClientHandshakeSend,
+    },
 };
 
 static QuicFlowReturn QuicClientInitialSend(QUIC *quic)
@@ -69,10 +73,14 @@ QuicClientHandshakeRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
     QuicFlowReturn ret;
 
     ret = QuicHandshakeRecv(quic, pkt, flags);
+    if (ret != QUIC_FLOW_RET_ERROR) {
+        if (TLS_HANDSHAKE_DONE(&quic->tls)) {
+            quic->statem.state = QUIC_STATEM_HANDSHAKE_PEER_DONE;
+        }
+    }
     printf("handshake recv\n");
     return ret;
 }
-
 
 int QuicConnect(QUIC *quic)
 {

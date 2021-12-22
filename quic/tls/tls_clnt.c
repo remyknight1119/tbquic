@@ -20,6 +20,8 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *, void *);
 static int QuicTlsServerHelloProc(QUIC_TLS *, void *);
 static int QuicTlsEncExtProc(QUIC_TLS *, void *);
 static int QuicTlsServerCertProc(QUIC_TLS *, void *);
+static int QuicTlsCertVerifyProc(QUIC_TLS *, void *);
+static int QuicTlsFinishedProc(QUIC_TLS *, void *);
 
 static const QuicTlsProcess client_proc[HANDSHAKE_MAX] = {
     [QUIC_TLS_ST_OK] = {
@@ -50,12 +52,32 @@ static const QuicTlsProcess client_proc[HANDSHAKE_MAX] = {
         .handshake_type = CERTIFICATE,
         .handler = QuicTlsServerCertProc,
     },
+    [QUIC_TLS_ST_CR_CERTIFICATE_VERIFY] = {
+        .flow_state = QUIC_FLOW_READING,
+        .next_state = QUIC_TLS_ST_CR_FINISHED,
+        .handshake_type = CERTIFICATE_VERIFY,
+        .handler = QuicTlsCertVerifyProc,
+    },
+    [QUIC_TLS_ST_CR_FINISHED] = {
+        .flow_state = QUIC_FLOW_READING,
+        .next_state = QUIC_TLS_ST_CW_FINISHED,
+        .handshake_type = FINISHED,
+        .handler = QuicTlsFinishedProc,
+    },
+    [QUIC_TLS_ST_CW_FINISHED] = {
+        .flow_state = QUIC_FLOW_WRITING,
+        .next_state = QUIC_TLS_ST_HANDSHAKE_DONE,
+        .handshake_type = FINISHED,
+        .handler = QuicTlsFinishedBuild,
+    },
+    [QUIC_TLS_ST_HANDSHAKE_DONE] = {
+        .flow_state = QUIC_FLOW_FINISHED,
+    },
 };
 
-QuicFlowReturn QuicTlsConnect(QUIC_TLS *tls, const uint8_t *data, size_t len)
+static QuicFlowReturn QuicTlsConnect(QUIC_TLS *tls)
 {
-    return QuicTlsHandshake(tls, data, len, client_proc,
-                            QUIC_NELEM(client_proc));
+    return QuicTlsHandshake(tls, client_proc, QUIC_NELEM(client_proc));
 }
 
 static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
@@ -147,10 +169,6 @@ static int QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    if (QuicTlsExtLenParse(pkt) < 0) {
-        return -1;
-    }
-
     if (TlsClientParseExtensions(tls, pkt, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
         return -1;
     }
@@ -167,10 +185,22 @@ static int QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
 static int QuicTlsEncExtProc(QUIC_TLS *tls, void *packet)
 {
     QUIC_LOG("in\n");
-    return 0;
+    return TlsClientParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0);
 }
 
 static int QuicTlsServerCertProc(QUIC_TLS *tls, void *packet)
+{
+    QUIC_LOG("in\n");
+    return 0;
+}
+
+static int QuicTlsCertVerifyProc(QUIC_TLS *, void *)
+{
+    QUIC_LOG("in\n");
+    return 0;
+}
+
+static int QuicTlsFinishedProc(QUIC_TLS *, void *)
 {
     QUIC_LOG("in\n");
     return 0;

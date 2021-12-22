@@ -25,12 +25,6 @@ int QuicDatagramRecvBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
         return -1;
     }
 
-    if (read_bytes < QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN) {
-        QUIC_LOG("Read length(%d) smaller than (%d)\n", read_bytes,
-                QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN);
-        return -1;
-    }
-
     QuicBufSetDataLength(qbuf, read_bytes);
     quic->statem.rwstate = QUIC_FINISHED;
 

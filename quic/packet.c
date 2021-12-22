@@ -29,7 +29,7 @@ void RPacketBufInit(RPacket *pkt, const uint8_t *buf, size_t len)
     RPacketHeadSync(pkt);
 }
 
-size_t RPacketReadLen(RPacket *pkt)
+size_t RPacketReadLen(const RPacket *pkt)
 {
     return (pkt->curr - pkt->head);
 }
@@ -76,7 +76,7 @@ void RPacketUpdate(RPacket *pkt)
 
 int RPacketPull(RPacket *pkt, size_t len)
 {
-    if (RPacketRemaining(pkt) < len) {
+    if (QUIC_LT(RPacketRemaining(pkt), len)) {
         return -1;
     }
 
@@ -89,7 +89,7 @@ static int RPacketPeekData(const RPacket *pkt, uint32_t *data, size_t len)
 {
     size_t i = 0;
 
-    if (RPacketRemaining(pkt) < len) {
+    if (QUIC_LT(RPacketRemaining(pkt), len)) {
         return -1;
     }
 
@@ -182,7 +182,7 @@ int RPacketGet4(RPacket *pkt, uint32_t *data)
 int RPacketPeekBytes(const RPacket *pkt, const uint8_t **data, 
         size_t len)
 {
-    if (RPacketRemaining(pkt) < len) {
+    if (QUIC_LT(RPacketRemaining(pkt), len)) {
         return -1;
     }
 
@@ -211,7 +211,7 @@ int RPacketGetBytes(RPacket *pkt, const uint8_t **data, size_t len)
 /* Peek ahead at |len| bytes from |pkt| and copy them to |data| */
 int RPacketPeekCopyBytes(const RPacket *pkt, uint8_t *data, size_t len)
 {
-    if (RPacketRemaining(pkt) < len) {
+    if (QUIC_LT(RPacketRemaining(pkt), len)) {
         return -1;
     }
 
@@ -237,7 +237,7 @@ int RPacketCopyBytes(RPacket *pkt, uint8_t *data, size_t len)
 
 int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
 {
-    if (RPacketRemaining(parent) < len) {
+    if (QUIC_LT(RPacketRemaining(parent), len)) {
         return -1;
     }
 
@@ -247,14 +247,11 @@ int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
     return 0;
 }
 
-void WPacketBufInit(WPacket *pkt, BUF_MEM *buf, size_t offset)
+void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)
 {
-    assert(QUIC_LT(offset, WPACKET_BUF_MAX_LEN));
-
     memset(pkt, 0, sizeof(*pkt));
     pkt->buf = buf;
-    pkt->curr = offset;
-    pkt->maxsize = WPACKET_BUF_MAX_LEN - offset;
+    pkt->maxsize = WPACKET_BUF_MAX_LEN;
 }
 
 void WPacketStaticBufInit(WPacket *pkt, uint8_t *buf, size_t len)

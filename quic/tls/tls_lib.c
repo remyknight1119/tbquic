@@ -325,7 +325,7 @@ int TlsDigestCachedRecords(QUIC_TLS *tls)
     }
 
     buffer = &tls->buffer;
-    hdatalen = QuicBufGetDataLength(buffer) + QuicBufOffset(buffer);
+    hdatalen = QuicBufGetDataLength(buffer) + QuicBufGetReserved(buffer);
     if (hdatalen == 0) {
         return -1;
     }

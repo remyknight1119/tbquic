@@ -152,14 +152,17 @@ static int
 QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags, uint8_t type)
 {
     if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
+        QUIC_LOG("Not Long packet\n");
         return -1;
     }
 
     if (flags.lpacket_type != type) {
+        QUIC_LOG("Type not match\n");
         return -1;
     }
 
     if (QuicLPacketHeaderParse(quic, pkt) < 0) {
+        QUIC_LOG("Header Parse failed\n");
         return -1;
     }
 
@@ -194,7 +197,7 @@ QuicFlowReturn QuicInitialSend(QUIC *quic)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    ret = QuicTlsDoHandshake(&quic->tls, NULL, 0);
+    ret = QuicTlsDoHandshake(&quic->tls);
     if (ret == QUIC_FLOW_RET_ERROR) {
         QUIC_LOG("TLS handshake failed\n");
         return ret;
@@ -212,14 +215,21 @@ QuicFlowReturn
 QuicHandshakeRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
 {
     if (QuicLongPktParse(quic, pkt, flags, QUIC_LPACKET_TYPE_HANDSHAKE) < 0) {
+        QUIC_LOG("Long Packet parse failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
     if (QuicHandshakePacketParse(quic, pkt) < 0) {
+        QUIC_LOG("Handshake Packet parse failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
     return QUIC_FLOW_RET_FINISH;
 }
 
+QuicFlowReturn QuicAppDataRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+{
+    QUIC_LOG("in\n");
+    return QUIC_FLOW_RET_ERROR;
+}
 

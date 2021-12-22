@@ -28,6 +28,7 @@ typedef QuicFlowReturn (*QuicStatemWrite)(QUIC *);
 typedef enum {
 	QUIC_STATEM_INITIAL = 0,
 	QUIC_STATEM_HANDSHAKE,
+	QUIC_STATEM_HANDSHAKE_PEER_DONE,
 	QUIC_STATEM_HANDSHAKE_DONE,
 	QUIC_STATEM_MAX,
 } QuicStatem;
@@ -63,6 +64,7 @@ typedef struct {
 QuicFlowReturn QuicInitialRecv(QUIC *, RPacket *, QuicLPacketFlags);
 QuicFlowReturn QuicInitialSend(QUIC *);
 QuicFlowReturn QuicHandshakeRecv(QUIC *, RPacket *, QuicLPacketFlags);
+QuicFlowReturn QuicAppDataRecv(QUIC *, RPacket *, QuicLPacketFlags);
 int QuicStateMachineAct(QUIC *, const QuicStatemFlow *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);

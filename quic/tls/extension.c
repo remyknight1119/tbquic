@@ -120,9 +120,14 @@ int TlsParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
                              size_t num)
 {
     const QuicTlsExtParse *thisexd = NULL;
+    RPacket ext_data = {};
     uint32_t type = 0;
     uint32_t len = 0;
     int ret = 0;
+
+    if (QuicTlsExtLenParse(pkt) < 0) {
+        return -1;
+    }
 
     while (RPacketRemaining(pkt)) {
         if (RPacketGet2(pkt, &type) < 0) {
@@ -133,6 +138,10 @@ int TlsParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
             return -1;
         }
 
+        if (len == 0) {
+            continue;
+        }
+
         thisexd = TlsFindExtParser(type, ext, num);
         if (thisexd == NULL) {
             RPacketPull(pkt, len);
@@ -141,10 +150,13 @@ int TlsParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
 
         /* Skip if not relevant for our context */
         if (!TlsShouldParseExtension(tls, thisexd->context, context)) {
+            RPacketPull(pkt, len);
             continue;
         }
 
-        ret = thisexd->parse(tls, pkt, len, context, x, chainidx);
+        RPacketBufInit(&ext_data, RPacketData(pkt), len);
+        RPacketPull(pkt, len);
+        ret = thisexd->parse(tls, &ext_data, context, x, chainidx);
         if (ret < 0) {
             return -1;
         }

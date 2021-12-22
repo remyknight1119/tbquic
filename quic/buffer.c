@@ -23,9 +23,8 @@ int QuicBufInit(QUIC_BUFFER *qbuf, size_t len)
         goto out;
     }
 
+    QuicMemset(qbuf, 0, sizeof(*qbuf));
     qbuf->buf = buf;
-    qbuf->offset = 0;
-    qbuf->data_len = 0;
 
     return 0;
 out:
@@ -48,7 +47,12 @@ uint8_t *QuicBufData(QUIC_BUFFER *qbuf)
 {
     assert(qbuf->buf != NULL);
 
-    return (uint8_t *)(&qbuf->buf->data[qbuf->offset]);
+    return (uint8_t *)(&qbuf->buf->data[qbuf->reserved]);
+}
+
+uint8_t *QuicBufMsg(QUIC_BUFFER *qbuf)
+{
+    return QuicBufData(qbuf) + qbuf->offset;
 }
 
 uint8_t *QuicBufHead(QUIC_BUFFER *qbuf)
@@ -60,8 +64,6 @@ uint8_t *QuicBufHead(QUIC_BUFFER *qbuf)
 
 uint8_t *QuicBufTail(QUIC_BUFFER *qbuf)
 {
-    assert(qbuf->buf != NULL);
-
     return QuicBufData(qbuf) + qbuf->data_len;
 }
 
@@ -72,47 +74,61 @@ size_t QuicBufLength(QUIC_BUFFER *qbuf)
     return qbuf->buf->length;
 }
 
+size_t QuicBufGetOffset(QUIC_BUFFER *qbuf)
+{
+    return qbuf->offset;
+}
+
+int QuicBufAddOffset(QUIC_BUFFER *qbuf, size_t offset)
+{
+    size_t total = qbuf->offset + offset;
+
+    if (QUIC_LT(QuicBufLength(qbuf), total)) {
+        return -1;
+    }
+
+    qbuf->offset = total;
+    return 0;
+}
+
+void QuicBufResetOffset(QUIC_BUFFER *qbuf)
+{
+    qbuf->offset = 0;
+}
+
 size_t QuicBufRemaining(QUIC_BUFFER *qbuf)
 {
-    size_t total_len = qbuf->offset + qbuf->data_len;
+    size_t total_len = qbuf->reserved + qbuf->data_len;
 
     assert(qbuf->buf != NULL && QUIC_GE(qbuf->buf->length, total_len));
 
     return qbuf->buf->length - total_len;
 }
 
-size_t QuicBufOffset(QUIC_BUFFER *qbuf)
-{
-    assert(qbuf->buf != NULL);
-
-    return qbuf->offset;
-}
-
 size_t QuicBufGetDataLength(QUIC_BUFFER *qbuf)
 {
-    assert(qbuf->buf != NULL);
-
     return qbuf->data_len;
 }
 
 void QuicBufSetDataLength(QUIC_BUFFER *qbuf, size_t len)
 {
-    assert(qbuf->buf != NULL);
-
     qbuf->data_len = len;
 }
 
 void QuicBufAddDataLength(QUIC_BUFFER *qbuf, size_t len)
 {
-    assert(qbuf->buf != NULL);
-
     qbuf->data_len += len;
 }
 
 void QuicBufReserve(QUIC_BUFFER *qbuf)
 {
-    qbuf->offset = qbuf->data_len;
+    qbuf->reserved = qbuf->data_len;
     qbuf->data_len = 0;
+}
+
+size_t QuicBufGetReserved(QUIC_BUFFER *qbuf)
+{
+    return qbuf->reserved;
 }
 
 int QuicBufCopyData(QUIC_BUFFER *qbuf, const uint8_t *data, size_t len)
@@ -130,6 +146,6 @@ int QuicBufCopyData(QUIC_BUFFER *qbuf, const uint8_t *data, size_t len)
 
 void QuicBufClear(QUIC_BUFFER *qbuf)
 {
-    qbuf->offset = 0;
+    qbuf->reserved = 0;
     qbuf->data_len = 0;
 }

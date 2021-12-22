@@ -594,9 +594,7 @@ QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QUIC_BUFFER *buffer)
 
 static int QuicFrameParse(QUIC *quic, QUIC_BUFFER *f_buf)
 {
-    QUIC_BUFFER *c_buf = QUIC_TLS_BUFFER(quic);
     RPacket frame = {};
-    size_t data_len = 0;
 
     RPacketBufInit(&frame, QuicBufData(f_buf), QuicBufGetDataLength(f_buf));
     if (QuicFrameDoParser(quic, &frame) < 0) {
@@ -604,14 +602,7 @@ static int QuicFrameParse(QUIC *quic, QUIC_BUFFER *f_buf)
         return -1;
     }
 
-    data_len = QuicBufGetDataLength(c_buf);
-    if (data_len == 0) {
-        QUIC_LOG("No crypto data!\n");
-        return -1;
-    }
-
-    if (QuicTlsDoHandshake(&quic->tls, QuicBufData(c_buf),
-                data_len) == QUIC_FLOW_RET_ERROR) {
+    if (QuicTlsDoHandshake(&quic->tls) == QUIC_FLOW_RET_ERROR) {
         QUIC_LOG("TLS Hadshake failed!\n");
         return -1;
     }
@@ -926,7 +917,7 @@ int QuicInitialPacketBuild(QUIC *quic, QBUFF *qb)
     WPacket pkt = {};
     int ret = 0;
 
-    WPacketBufInit(&pkt, qbuf->buf, 0);
+    WPacketBufInit(&pkt, qbuf->buf);
     ret = QuicInitialPacketGen(quic, &pkt, qb);
     QuicBufSetDataLength(qbuf, WPacket_get_written(&pkt));
     WPacketCleanup(&pkt);

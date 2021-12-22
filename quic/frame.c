@@ -77,6 +77,9 @@ static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
+    if (offset == 0) {
+    }
+
     if (RPacketCopyBytes(pkt, &data[offset], length) < 0) {
         QUIC_LOG("Copy PKT data failed!\n");
         return -1;

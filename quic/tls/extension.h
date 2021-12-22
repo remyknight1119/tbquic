@@ -61,8 +61,8 @@ typedef struct {
      */
     uint32_t context;
     /* Parse extension */
-    int (*parse)(QUIC_TLS *tls, RPacket *pkt, size_t len, uint32_t context,
-                                X509 *x, size_t chainidx);
+    int (*parse)(QUIC_TLS *tls, RPacket *pkt, uint32_t context, X509 *x,
+                    size_t chainidx);
 } QuicTlsExtParse;
 
 typedef struct {

@@ -7,6 +7,7 @@
 struct QuicBuffer {
     BUF_MEM *buf;
     size_t offset;
+    size_t reserved;
     size_t data_len;
 };
 
@@ -17,9 +18,14 @@ size_t QuicBufMemGrow(QUIC_BUFFER *, size_t);
 uint8_t *QuicBufData(QUIC_BUFFER *);
 uint8_t *QuicBufHead(QUIC_BUFFER *);
 uint8_t *QuicBufTail(QUIC_BUFFER *);
+void QuicBufMsgReset(QUIC_BUFFER *);
 size_t QuicBufLength(QUIC_BUFFER *);
+size_t QuicBufGetOffset(QUIC_BUFFER *);
+int QuicBufAddOffset(QUIC_BUFFER *, size_t);
+void QuicBufResetOffset(QUIC_BUFFER *);
+uint8_t *QuicBufMsg(QUIC_BUFFER *);
 size_t QuicBufRemaining(QUIC_BUFFER *);
-size_t QuicBufOffset(QUIC_BUFFER *);
+size_t QuicBufGetReserved(QUIC_BUFFER *);
 size_t QuicBufGetDataLength(QUIC_BUFFER *);
 void QuicBufSetDataLength(QUIC_BUFFER *, size_t);
 void QuicBufAddDataLength(QUIC_BUFFER *, size_t);

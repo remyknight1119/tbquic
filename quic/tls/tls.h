@@ -26,6 +26,8 @@
 
 #define TLS_IS_READING(t) QUIC_STATEM_READING(t->rwstate)
 #define TLS_IS_WRITING(t) QUIC_STATEM_WRITING(t->rwstate)
+#define TLS_HANDSHAKE_STATE(t, state) ((t)->handshake_state == state)
+#define TLS_HANDSHAKE_DONE(t) TLS_HANDSHAKE_STATE(t, QUIC_TLS_ST_HANDSHAKE_DONE)
 
 typedef struct QuicTls QUIC_TLS;
 
@@ -56,11 +58,14 @@ typedef enum {
 typedef enum {
     QUIC_TLS_ST_OK,
     QUIC_TLS_ST_CW_CLIENT_HELLO,
-    QUIC_TLS_ST_CW_CLIENT_KEY_EXCHANGE,
+    QUIC_TLS_ST_CW_CLIENT_CERTIFICATE,
+    QUIC_TLS_ST_CW_CERTIFICATE_VERIFY,
+    QUIC_TLS_ST_CW_FINISHED,
     QUIC_TLS_ST_CR_SERVER_HELLO,
     QUIC_TLS_ST_CR_ENCRYPTED_EXTENSIONS,
     QUIC_TLS_ST_CR_SERVER_CERTIFICATE,
     QUIC_TLS_ST_CR_CERTIFICATE_VERIFY,
+    QUIC_TLS_ST_CR_FINISHED,
     QUIC_TLS_ST_SR_CLIENT_HELLO,
     QUIC_TLS_ST_SW_SERVER_HELLO,
     QUIC_TLS_ST_SW_SERVER_CERTIFICATE,
@@ -71,7 +76,7 @@ typedef enum {
 struct QuicTls {
     QuicTlsState handshake_state;
     uint8_t server:1;
-    QuicFlowReturn (*handshake)(QUIC_TLS *, const uint8_t *, size_t);
+    QuicFlowReturn (*handshake)(QUIC_TLS *);
     uint8_t client_random[TLS_RANDOM_BYTE_LEN];
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;
@@ -110,16 +115,16 @@ int QuicTlsInit(QUIC_TLS *, QUIC_CTX *);
 void QuicTlsFree(QUIC_TLS *);
 void QuicTlsClientInit(QUIC_TLS *);
 void QuicTlsServerInit(QUIC_TLS *);
-QuicFlowReturn QuicTlsDoHandshake(QUIC_TLS *, const uint8_t *, size_t);
+QuicFlowReturn QuicTlsDoHandshake(QUIC_TLS *);
 int QuicTlsDoProcess(QUIC_TLS *, RPacket *, WPacket *, const QuicTlsProcess *,
                         size_t);
-QuicFlowReturn QuicTlsHandshake(QUIC_TLS *, const uint8_t *, size_t,
-                        const QuicTlsProcess *, size_t);
+QuicFlowReturn QuicTlsHandshake(QUIC_TLS *, const QuicTlsProcess *, size_t);
 int QuicTlsGenRandom(uint8_t *, size_t, WPacket *);
 
 int QuicTlsHelloHeadParse(QUIC_TLS *, RPacket *, uint8_t *, size_t);
 int QuicTlsExtLenParse(RPacket *);
 int QuicTlsPutCipherList(QUIC_TLS *, WPacket *);
 int QuicTlsPutCompressionMethod(WPacket *);
+int QuicTlsFinishedBuild(QUIC_TLS *, void *);
 
 #endif

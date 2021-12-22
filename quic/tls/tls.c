@@ -16,9 +16,9 @@
 #include "log.h"
 
 QuicFlowReturn
-QuicTlsDoHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len)
+QuicTlsDoHandshake(QUIC_TLS *tls)
 {
-    return tls->handshake(tls, data, len);
+    return tls->handshake(tls);
 }
 
 static void QuicTlsFlowFinish(QUIC_TLS *tls, QuicTlsState prev_state,
@@ -33,6 +33,7 @@ static void QuicTlsFlowFinish(QUIC_TLS *tls, QuicTlsState prev_state,
 static QuicFlowReturn
 QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
 {
+    RPacket packet = {};
     RPacket msg = {};
     QuicTlsState state = 0;
     size_t remain = 0;
@@ -50,6 +51,7 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
         return QUIC_FLOW_RET_WANT_READ;
     }
 
+    packet = *pkt;
     if (RPacketGet1(pkt, &type) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
     }
@@ -60,16 +62,15 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
     }
 
     if (RPacketGet3(pkt, &len) < 0) {
+        *pkt = packet;
         return QUIC_FLOW_RET_WANT_READ;
-    }
-
-    if (QUIC_LT(RPacketRemaining(pkt), len)) {
-        QUIC_LOG("need more data, len = %u, type = %d\n", len, type);
     }
 
     offset = remain - RPacketRemaining(pkt);
     assert(offset > 0);
+
     if (RPacketTransfer(&msg, pkt, len) < 0) {
+        *pkt = packet;
         return QUIC_FLOW_RET_WANT_READ;
     }
  
@@ -114,6 +115,7 @@ QuicTlsHandshakeWrite(QUIC_TLS *tls, const QuicTlsProcess *p, WPacket *pkt)
     }
 
     QuicTlsFlowFinish(tls, state, p->next_state);
+
     return QUIC_FLOW_RET_FINISH;
 }
 
@@ -157,26 +159,34 @@ QuicTlsHandshakeStatem(QUIC_TLS *tls, RPacket *rpkt, WPacket *wpkt,
         state = tls->handshake_state;
         assert(state >= 0 && state < num);
         p = &proc[state];
-        if (ret == QUIC_FLOW_RET_END) {
-            break;
-        }
     }
 
     return QUIC_FLOW_RET_FINISH;
 }
 
-QuicFlowReturn QuicTlsHandshake(QUIC_TLS *tls, const uint8_t *data, size_t len,
-                        const QuicTlsProcess *proc, size_t num)
+QuicFlowReturn
+QuicTlsHandshake(QUIC_TLS *tls, const QuicTlsProcess *proc, size_t num)
 {
     QUIC_BUFFER *buffer = &tls->buffer;
     RPacket rpkt = {};
     WPacket wpkt = {};
-    QuicFlowReturn ret;
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+    size_t data_len = 0;
 
-    RPacketBufInit(&rpkt, data, len);
-    WPacketBufInit(&wpkt, buffer->buf, QuicBufOffset(buffer));
+    data_len = QuicBufGetDataLength(buffer) - QuicBufGetOffset(buffer);
+    assert(QUIC_GE(data_len, 0));
+    RPacketBufInit(&rpkt, QuicBufMsg(buffer), data_len);
+    WPacketBufInit(&wpkt, buffer->buf);
 
     ret = QuicTlsHandshakeStatem(tls, &rpkt, &wpkt, proc, num);
+    if (ret == QUIC_FLOW_RET_WANT_READ && RPacketRemaining(&rpkt)) {
+        if (QuicBufAddOffset(buffer, RPacketReadLen(&rpkt)) < 0) {
+            return QUIC_FLOW_RET_ERROR;
+        }
+    } else {
+        QuicBufResetOffset(buffer);
+    }
+
     QuicBufSetDataLength(buffer, WPacket_get_written(&wpkt));
     WPacketCleanup(&wpkt);
 
@@ -221,6 +231,11 @@ int QuicTlsExtLenParse(RPacket *pkt)
         return -1;
     }
 
+    return 0;
+}
+
+int QuicTlsFinishedBuild(QUIC_TLS *tls, void *packet)
+{
     return 0;
 }
 

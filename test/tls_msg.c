@@ -300,7 +300,7 @@ int QuicTlsClientHelloTest(void)
     }
 
     buffer = QUIC_TLS_BUFFER(quic);
-    data_len = QuicBufOffset(buffer);
+    data_len = QuicBufGetReserved(buffer);
     if (data_len != sizeof(client_hello) - 1 ||
             memcmp(QuicBufHead(buffer), client_hello,
                 data_len) != 0) {

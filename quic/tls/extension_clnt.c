@@ -21,9 +21,15 @@ static int TlsExtClntConstructServerName(QUIC_TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
 static int TlsExtClntConstructSupportedGroups(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseSupportedVersion(QUIC_TLS *, RPacket *, size_t, uint32_t,
+static int TlsExtClntParseServerName(QUIC_TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseKeyShare(QUIC_TLS *, RPacket *, size_t, uint32_t,
+static int TlsExtClntParseAlpn(QUIC_TLS *, RPacket *, uint32_t,
+                                        X509 *, size_t);
+static int TlsExtClntParseSupportedVersion(QUIC_TLS *, RPacket *, uint32_t,
+                                        X509 *, size_t);
+static int TlsExtClntParseKeyShare(QUIC_TLS *, RPacket *, uint32_t,
+                                        X509 *, size_t);
+static int TlsExtClntParseQuicTransParam(QUIC_TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntConstructSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
@@ -95,6 +101,16 @@ static const QuicTlsExtConstruct client_ext_construct[] = {
 
 static const QuicTlsExtParse client_ext_parse[] = {
     {
+        .type = EXT_TYPE_SERVER_NAME,
+        .context = TLSEXT_SERVER_HELLO,
+        .parse = TlsExtClntParseServerName,
+    },
+    {
+        .type = EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
+        .context = TLSEXT_SERVER_HELLO,
+        .parse = TlsExtClntParseAlpn,
+    },
+    {
         .type = EXT_TYPE_SUPPORTED_VERSIONS,
         .context = TLSEXT_SERVER_HELLO,
         .parse = TlsExtClntParseSupportedVersion,
@@ -103,6 +119,11 @@ static const QuicTlsExtParse client_ext_parse[] = {
         .type = EXT_TYPE_KEY_SHARE,
         .context = TLSEXT_SERVER_HELLO,
         .parse = TlsExtClntParseKeyShare,
+    },
+    {
+        .type = EXT_TYPE_QUIC_TRANS_PARAMS,
+        .context = TLSEXT_SERVER_HELLO,
+        .parse = TlsExtClntParseQuicTransParam,
     },
 };
  
@@ -456,13 +477,42 @@ int TlsClientConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
                                     QUIC_NELEM(client_ext_construct));
 }
 
-static int TlsExtClntParseSupportedVersion(QUIC_TLS *tls, RPacket *pkt,
-                                size_t len, uint32_t context, X509 *x,
+static int TlsExtClntParseServerName(QUIC_TLS *tls, RPacket *pkt,
+                                uint32_t context, X509 *x,
                                 size_t chainidx)
+{
+    QUIC_LOG("in\n");
+    return 0;
+}
+
+static int TlsExtClntParseAlpn(QUIC_TLS *tls, RPacket *pkt,
+                                uint32_t context, X509 *x,
+                                size_t chainidx)
+{
+    uint32_t len = 0;
+
+    QUIC_LOG("in\n");
+    if (RPacketGet2(pkt, &len) < 0) {
+        return -1;
+    }
+
+    if (RPacketRemaining(pkt) != len) {
+        return -1;
+    }
+
+    if (RPacketPull(pkt, len) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int TlsExtClntParseSupportedVersion(QUIC_TLS *tls, RPacket *pkt, 
+                            uint32_t context, X509 *x, size_t chainidx)
 {
     uint32_t version = 0;
 
-    if (len != 2) {
+    if (RPacketRemaining(pkt) != 2) {
         return -1;
     }
 
@@ -474,12 +524,19 @@ static int TlsExtClntParseSupportedVersion(QUIC_TLS *tls, RPacket *pkt,
         return -1;
     }
 
-    QUIC_LOG("OK, (%x)\n", version);
     return 0;
 }
 
-static int TlsExtClntParseKeyShare(QUIC_TLS *tls, RPacket *pkt, size_t len,
-                                uint32_t context, X509 *x, size_t chainidx)
+static int TlsExtClntParseQuicTransParam(QUIC_TLS *tls, RPacket *pkt, 
+                            uint32_t context, X509 *x, size_t chainidx)
+{
+    QUIC_LOG("in\n");
+    return 0;
+}
+
+static int TlsExtClntParseKeyShare(QUIC_TLS *tls, RPacket *pkt,
+                                uint32_t context, X509 *x,
+                                size_t chainidx)
 {
     EVP_PKEY *ckey = tls->kexch_key;
     EVP_PKEY *skey = NULL;

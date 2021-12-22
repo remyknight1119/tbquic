@@ -87,7 +87,7 @@ int RPacketPull(RPacket *pkt, size_t len)
 
 static int RPacketPeekData(const RPacket *pkt, uint32_t *data, size_t len)
 {
-    int i = 0;
+    size_t i = 0;
 
     if (RPacketRemaining(pkt) < len) {
         return -1;
@@ -96,7 +96,7 @@ static int RPacketPeekData(const RPacket *pkt, uint32_t *data, size_t len)
     *data = *pkt->curr;
 
     for (i = 1; i < len; i++) {
-        *data = (*data << 8*i) | ((uint32_t)(*(pkt->curr + i)));
+        *data = (*data << 8) | ((uint32_t)(*(pkt->curr + i)));
     }
 
     return 0;

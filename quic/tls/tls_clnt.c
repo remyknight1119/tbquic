@@ -99,7 +99,6 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    QUIC_LOG("return 0\n");
     return 0;
 }
 

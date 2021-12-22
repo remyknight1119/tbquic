@@ -422,3 +422,11 @@ int QUIC_get_error(QUIC *quic, int ret)
     return QUIC_ERROR_QUIC;
 }
 
+int QuicInit(void)
+{
+    if (QuicLoadCiphers() < 0) {
+        return -1;
+    }
+
+	return 0;
+}

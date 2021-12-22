@@ -59,12 +59,10 @@ QuicTlsHandshakeRead(QUIC_TLS *tls, const QuicTlsProcess *p, RPacket *pkt)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    QuicPrint(RPacketData(pkt), 10);
     if (RPacketGet3(pkt, &len) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
     }
 
-    QuicPrint((void *)&len, sizeof(len));
     if (QUIC_LT(RPacketRemaining(pkt), len)) {
         QUIC_LOG("need more data, len = %u, type = %d\n", len, type);
     }

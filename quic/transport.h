@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN_LEN   16
+
 typedef struct {
     uint64_t max_idle_timeout;
     uint16_t max_udp_payload_size;
@@ -14,6 +16,7 @@ typedef struct {
     uint64_t initial_max_stream_bidi; 
     uint64_t initial_max_stream_uni; 
     uint64_t max_datagrame_frame_size; 
+    uint8_t stateless_reset_token[QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN_LEN];
 } QuicTransParams;
 
 typedef struct {

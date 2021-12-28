@@ -152,8 +152,8 @@ static const QuicTlsExtConstruct *QuicTlsTestGetExtension(const
 }
 
 static size_t TlsTransParamIndex;
-static QuicTransParamDefinition *
-QuicTlsTestGetTransParams(QuicTransParamDefinition *param, size_t num)
+static const TlsExtQtpDefinition *
+QuicTlsTestGetTransParams(const TlsExtQtpDefinition *param, size_t num)
 {
     QuicTlsTestParam *p = NULL;
     size_t j = 0;

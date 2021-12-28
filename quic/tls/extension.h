@@ -8,6 +8,7 @@
 
 #define TLSEXT_CLIENT_HELLO    0x0001
 #define TLSEXT_SERVER_HELLO    0x0002
+#define TLSEXT_CERTIFICATE     0x0004
 
 #define TLSEXT_KEX_MODE_KE_DHE     0x01
 
@@ -67,18 +68,19 @@ typedef struct {
 
 typedef struct {
     uint64_t type;
-    int (*parse)(QUIC_TLS *tls, QuicTransParams *param, RPacket *pkt);
+    int (*parse)(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
+                        RPacket *pkt, uint64_t len);
     /* Check if need construct */
     int (*check)(QUIC_TLS *tls, QuicTransParams *param, size_t offset);
     int (*construct)(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
                         WPacket *pkt);
-} QuicTransParamDefinition;
+} TlsExtQtpDefinition;
 
 #ifdef QUIC_TEST
 extern const QuicTlsExtConstruct *(*QuicTestExtensionHook)(const
         QuicTlsExtConstruct *, size_t);
-extern QuicTransParamDefinition *
-(*QuicTestTransParamHook)(QuicTransParamDefinition *, size_t);
+extern const TlsExtQtpDefinition *
+(*QuicTestTransParamHook)(const TlsExtQtpDefinition *, size_t);
 extern size_t (*QuicTestEncodedpointHook)(unsigned char **point);
 #endif
 
@@ -91,13 +93,17 @@ int TlsConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *, size_t,
                              const QuicTlsExtConstruct *, size_t);
 int TlsParseExtensions(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t,
                              const QuicTlsExtParse *, size_t);
-int TlsConstructQuicTransParamExtension(QUIC_TLS *, WPacket *,
-                            QuicTransParamDefinition *, size_t);
+int TlsConstructQtpExtension(QUIC_TLS *, WPacket *, const TlsExtQtpDefinition *,
+                            size_t);
+int TlsParseQtpExtension(QUIC_TLS *, QuicTransParams *, RPacket *,
+                                const TlsExtQtpDefinition *, size_t);
 int TlsClientConstructExtensions(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                             size_t);
 int TlsClientParseExtensions(QUIC_TLS *, RPacket *, uint32_t, X509 *, size_t);
-int QuicTransParamCheckInteger(QUIC_TLS *, QuicTransParams *, size_t);
-int QuicTransParamConstructInteger(QUIC_TLS *, QuicTransParams *, size_t,
+int TlsExtQtpCheckInteger(QUIC_TLS *, QuicTransParams *, size_t);
+int TlsExtQtpConstructInteger(QUIC_TLS *, QuicTransParams *, size_t,
                                     WPacket *);
+int TlsExtQtpParseInteger(QUIC_TLS *, QuicTransParams *, size_t,
+                                    RPacket *, uint64_t);
 
 #endif

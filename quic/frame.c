@@ -30,6 +30,7 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
 
     while (QuicVariableLengthDecode(pkt, &type) >= 0) {
         if (type >= QUIC_FRAME_TYPE_MAX) {
+            QUIC_LOG("Unknown type(%lx)", type);
             return -1;
         }
         parser = frame_parser[type];

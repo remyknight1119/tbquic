@@ -28,6 +28,7 @@ QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 
     ctx->method = meth;
     ctx->mtu = QUIC_DATAGRAM_SIZE_MAX_DEF;
+    ctx->verify_mode = QUIC_TLS_VERIFY_NONE;
     ctx->cert = QuicCertNew();
     if (ctx->cert == NULL) {
         goto out;
@@ -179,6 +180,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->statem.read_state = QUIC_WANT_DATA; 
     quic->method = ctx->method;
     quic->mtu = ctx->mtu;
+    quic->verify_mode = ctx->verify_mode;
     quic->cid_len = QUIC_MIN_CID_LENGTH;
     quic->version = ctx->method->version;
     quic->tls.ext.trans_param = ctx->ext.trans_param;

@@ -10,6 +10,8 @@
 
 #define QUIC_GET_U64_VALUE_BY_OFFSET(p, offset) \
     *((uint64_t *)((uint8_t *)p + offset))
+#define QUIC_SET_U64_VALUE_BY_OFFSET(p, offset, v) \
+    *((uint64_t *)((uint8_t *)p + offset)) = v
 
 static int TlsShouldAddExtension(QUIC_TLS *tls, uint32_t extctx,
                                     uint32_t thisctx)
@@ -166,14 +168,14 @@ int TlsParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
 }
 
 #ifdef QUIC_TEST
-QuicTransParamDefinition *(*QuicTestTransParamHook)(QuicTransParamDefinition
+const TlsExtQtpDefinition *(*QuicTestTransParamHook)(const TlsExtQtpDefinition
                                 *param, size_t num);
 #endif
-int TlsConstructQuicTransParamExtension(QUIC_TLS *tls, WPacket *pkt,
-                                QuicTransParamDefinition *param,
+int TlsConstructQtpExtension(QUIC_TLS *tls, WPacket *pkt,
+                                const TlsExtQtpDefinition *param,
                                 size_t num)
 {
-    QuicTransParamDefinition *p = NULL;
+    const TlsExtQtpDefinition *p = NULL;
     size_t offset = 0;
     size_t i = 0;
 
@@ -208,7 +210,53 @@ int TlsConstructQuicTransParamExtension(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-int QuicTransParamCheckInteger(QUIC_TLS *tls, QuicTransParams *param,
+int TlsParseQtpExtension(QUIC_TLS *tls, QuicTransParams *param, RPacket *pkt,
+                                const TlsExtQtpDefinition *tp, size_t num)
+{
+    const TlsExtQtpDefinition *p = NULL;
+    uint64_t type = 0;
+    uint64_t len = 0;
+    size_t offset = 0;
+    size_t i = 0;
+
+    while (RPacketRemaining(pkt)) {
+        if (QuicVariableLengthDecode(pkt, &type) < 0) {
+            return -1;
+        }
+        if (QuicVariableLengthDecode(pkt, &len) < 0) {
+            return -1;
+        }
+
+        for (i = 0; i < num; i++) {
+            p = tp + i;
+            if (p->type == type) {
+                break;
+            }
+        }
+
+        if (i == num || QuicTransParamGetOffset(type, &offset) < 0) {
+            if (RPacketPull(pkt, len) < 0) {
+                return -1;
+            }
+            continue;
+        }
+
+        if (p->parse == NULL) {
+            if (RPacketPull(pkt, len) < 0) {
+                return -1;
+            }
+            continue;
+        }
+
+        if (p->parse(tls, param, offset, pkt, len) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int TlsExtQtpCheckInteger(QUIC_TLS *tls, QuicTransParams *param,
                                 size_t offset)
 {
     uint64_t value;
@@ -221,7 +269,7 @@ int QuicTransParamCheckInteger(QUIC_TLS *tls, QuicTransParams *param,
     return 0;
 }
 
-int QuicTransParamConstructInteger(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
+int TlsExtQtpConstructInteger(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
                                             WPacket *pkt)
 {
     uint64_t value;
@@ -229,5 +277,19 @@ int QuicTransParamConstructInteger(QUIC_TLS *tls, QuicTransParams *param, size_t
     value = QUIC_GET_U64_VALUE_BY_OFFSET(param, offset);
 
     return QuicVariableLengthValueWrite(pkt, value);
+}
+
+int TlsExtQtpParseInteger(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
+                                RPacket *pkt, uint64_t len)
+{
+    uint64_t length = 0;
+
+    if (QuicVariableLengthDecode(pkt, &length) < 0) {
+        return -1;
+    }
+
+    QUIC_SET_U64_VALUE_BY_OFFSET(param, offset, length);
+
+    return 0;
 }
 

@@ -52,6 +52,7 @@ struct QuicMethod {
 struct QuicCtx {
     const QUIC_METHOD *method;
     uint32_t mtu;
+    uint32_t verify_mode;
     QuicCert *cert;
     struct {
         QUIC_DATA alpn;
@@ -87,6 +88,7 @@ struct Quic {
     QUIC_STATEM statem;
     uint32_t version;
     uint32_t mtu;
+    uint32_t verify_mode;
     uint64_t pkt_num_len:2;
     uint64_t cid_len:8;
     const QUIC_CTX *ctx;

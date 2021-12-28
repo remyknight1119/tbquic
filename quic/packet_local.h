@@ -53,6 +53,7 @@ int RPacketGet3(RPacket *, uint32_t *);
 int RPacketPeek4(const RPacket *, uint32_t *);
 int RPacketGet4(RPacket *, uint32_t *);
 int RPacketTransfer(RPacket *, RPacket *, size_t);
+int RPacketGetLengthPrefixed2(RPacket *, RPacket *);
 void WPacketBufInit(WPacket *, BUF_MEM *);
 void WPacketStaticBufInit(WPacket *, uint8_t *, size_t);
 uint8_t *WPacket_get_curr(WPacket *);

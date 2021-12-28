@@ -247,6 +247,26 @@ int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
     return 0;
 }
 
+int RPacketGetLengthPrefixed2(RPacket *pkt, RPacket *subpkt)
+{
+    const uint8_t *data = NULL;
+    RPacket tmp = *pkt;
+    uint32_t len = 0;
+
+    if (RPacketGet2(&tmp, &len) < 0) {
+        return -1;
+    }
+    
+    if (RPacketGetBytes(&tmp, &data, len) < 0) {
+        return -1;
+    }
+
+    *pkt = tmp;
+    RPacketBufInit(pkt, data, len);
+
+    return 0;
+}
+
 void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)
 {
     memset(pkt, 0, sizeof(*pkt));

@@ -47,3 +47,7 @@ void QuicCertFree(QuicCert *cert)
     QuicMemFree(cert);
 }
 
+int QuicVerifyCertChain(QUIC *quic, STACK_OF(X509) *sk)
+{
+    return 0;
+}

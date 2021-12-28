@@ -190,8 +190,88 @@ static int QuicTlsEncExtProc(QUIC_TLS *tls, void *packet)
 
 static int QuicTlsServerCertProc(QUIC_TLS *tls, void *packet)
 {
+    QUIC *quic = QuicTlsTrans(tls);
+    RPacket *pkt = packet;
+    const uint8_t *certbytes = NULL;
+    const uint8_t *certstart = NULL;
+    STACK_OF(X509) *sk = NULL;
+    X509 *x = NULL;
+    RPacket extensions = {};
+    size_t chainidx = 0;
+    uint32_t context = 0;
+    uint32_t cert_list_len = 0;
+    uint32_t cert_len = 0;
+    int v = 0;
+    int ret = -1;
+
+    if (RPacketGet1(pkt, &context) < 0) {
+        return -1;
+    }
+
+    if (RPacketGet3(pkt, &cert_list_len) < 0) {
+        return -1;
+    }
+
+    if (RPacketRemaining(pkt) != cert_list_len) {
+        return -1;
+    }
+
+    if ((sk = sk_X509_new_null()) == NULL) {
+        return -1;
+    }
+
+    for (chainidx = 0; RPacketRemaining(pkt); chainidx++) {
+        if (RPacketGet3(pkt, &cert_len) < 0) {
+            QUIC_LOG("Get cert len failed\n");
+            goto out;
+        }
+
+        if (RPacketGetBytes(pkt, &certbytes, cert_len) < 0) {
+            QUIC_LOG("Get bytes(%u) failed\n", cert_len);
+            goto out;
+        }
+
+        certstart = certbytes;
+        x = d2i_X509(NULL, (const unsigned char **)&certbytes, cert_len);
+        if (x == NULL) {
+            QUIC_LOG("Parse cert failed\n");
+            goto out;
+        }
+        
+        if (certbytes != (certstart + cert_len)) {
+            QUIC_LOG("Cert bytes not match(b = %p, s = %p))\n",
+                    certbytes, certstart + cert_len);
+            goto out;
+        }
+        
+        if (RPacketGetLengthPrefixed2(pkt, &extensions) < 0) {
+            QUIC_LOG("Get cert extension failed\n");
+            goto out;
+        }
+        
+        if (RPacketRemaining(&extensions) && TlsClientParseExtensions(tls,
+                    &extensions, TLSEXT_CERTIFICATE, x, chainidx) < 0) {
+            QUIC_LOG("Parse cert extension failed\n");
+            goto out;
+        }
+
+        if (!sk_X509_push(sk, x)) {
+            goto out;
+        }
+        x = NULL;
+    }
+
+    v = QuicVerifyCertChain(quic, sk);
+    if (quic->verify_mode != QUIC_TLS_VERIFY_NONE && v < 0) {
+        goto out;
+    }
+
+    ret = 0;
+out:
     QUIC_LOG("in\n");
-    return 0;
+    X509_free(x);
+    sk_X509_pop_free(sk, X509_free);
+    return ret;
 }
 
 static int QuicTlsCertVerifyProc(QUIC_TLS *, void *)

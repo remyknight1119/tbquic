@@ -29,11 +29,11 @@ static int TlsExtClntParseSupportedVersion(QUIC_TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntParseKeyShare(QUIC_TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseQuicTransParam(QUIC_TLS *, RPacket *, uint32_t,
+static int TlsExtClntParseTlsExtQtp(QUIC_TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntConstructSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtClntConstructQuicTransParam(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntConstructTlsExtQtp(QUIC_TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntCheckAlpn(QUIC_TLS *);
 static int TlsExtClntConstructAlpn(QUIC_TLS *, WPacket *, uint32_t, X509 *,
@@ -89,7 +89,7 @@ static const QuicTlsExtConstruct client_ext_construct[] = {
     {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_CLIENT_HELLO,
-        .construct = TlsExtClntConstructQuicTransParam,
+        .construct = TlsExtClntConstructTlsExtQtp,
     },
     {
         .type = 0x4469,
@@ -123,95 +123,112 @@ static const QuicTlsExtParse client_ext_parse[] = {
     {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_SERVER_HELLO,
-        .parse = TlsExtClntParseQuicTransParam,
+        .parse = TlsExtClntParseTlsExtQtp,
     },
 };
  
-static int QuicTransParamCheckGrease(QUIC_TLS *, QuicTransParams *, size_t);
-static int QuicTransParamConstructGrease(QUIC_TLS *, QuicTransParams *,
+static int TlsExtQtpCheckGrease(QUIC_TLS *, QuicTransParams *, size_t);
+static int TlsExtQtpCheckGrease(QUIC_TLS *, QuicTransParams *, size_t);
+static int TlsExtClntQtpCheckStatelessResetToken(QUIC_TLS *,
+                                QuicTransParams *, size_t);
+static int TlsExtQtpConstructGrease(QUIC_TLS *, QuicTransParams *,
                                             size_t, WPacket *);
-static int QuicTransParamConstructSourceConnId(QUIC_TLS *, QuicTransParams *,
+static int TlsExtQtpConstructSourceConnId(QUIC_TLS *, QuicTransParams *,
                                             size_t, WPacket *);
-static int QuicTransParamCheckGoogleVersion(QUIC_TLS *, QuicTransParams *,
+static int TlsExtQtpCheckGoogleVersion(QUIC_TLS *, QuicTransParams *,
                                             size_t);
-static int QuicTransParamConstructGoogleVersion(QUIC_TLS *, QuicTransParams *,
+static int TlsExtQtpConstructGoogleVersion(QUIC_TLS *, QuicTransParams *,
                                             size_t, WPacket *);
+static int TlsExtQtpParseStatelessResetToken(QUIC_TLS *tls,
+                                QuicTransParams *param, size_t offset,
+                                RPacket *pkt, uint64_t len);
 
-static QuicTransParamDefinition client_transport_param[] = {
+static TlsExtQtpDefinition client_transport_param[] = {
+    {
+        .type = QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN,
+        .parse = TlsExtQtpParseStatelessResetToken,
+        .check = TlsExtClntQtpCheckStatelessResetToken,
+    },
     {
         .type = QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         .type = QUIC_TRANS_PARAM_MAX_UDP_PAYLOAD_SIZE,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_DATA,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_UNI,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_BIDI,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_UNI,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         .type = QUIC_TRANS_PARAM_INITIAL_SOURCE_CONNECTION_ID,
 //        .parse = ,
-        .construct = QuicTransParamConstructSourceConnId,
+        .construct = TlsExtQtpConstructSourceConnId,
     },
     {
         .type = QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE,
-//        .parse = ,
-        .check = QuicTransParamCheckInteger,
-        .construct = QuicTransParamConstructInteger,
+        .parse = TlsExtQtpParseInteger,
+        .check = TlsExtQtpCheckInteger,
+        .construct = TlsExtQtpConstructInteger,
     },
     {
         //GREASE
         .type = 0x1CD4C8D5641422F0,
-        .check = QuicTransParamCheckGrease,
-        .construct = QuicTransParamConstructGrease,
+        .check = TlsExtQtpCheckGrease,
+        .construct = TlsExtQtpConstructGrease,
     },
     {
         //Google QUIC Version
         .type = 0x4752,
-        .check = QuicTransParamCheckGoogleVersion,
-        .construct = QuicTransParamConstructGoogleVersion,
+        .check = TlsExtQtpCheckGoogleVersion,
+        .construct = TlsExtQtpConstructGoogleVersion,
     },
 };
 
 #define QUIC_TRANS_PARAM_NUM QUIC_NELEM(client_transport_param)
+
+static int TlsExtClntQtpCheckStatelessResetToken(QUIC_TLS *,
+                                QuicTransParams *, size_t)
+{
+    return -1;
+}
 
 static int TlsExtClntCheckServerName(QUIC_TLS *tls)
 {
@@ -462,10 +479,10 @@ static int TlsExtClntConstructUnknown(QUIC_TLS *tls, WPacket *pkt,
     return WPacketMemcpy(pkt, data, sizeof(data) - 1);
 }
 
-static int TlsExtClntConstructQuicTransParam(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructTlsExtQtp(QUIC_TLS *tls, WPacket *pkt,
                             uint32_t context, X509 *x, size_t chainidx)
 {
-    return TlsConstructQuicTransParamExtension(tls, pkt, client_transport_param,
+    return TlsConstructQtpExtension(tls, pkt, client_transport_param,
                                     QUIC_TRANS_PARAM_NUM);
 }
 
@@ -527,11 +544,13 @@ static int TlsExtClntParseSupportedVersion(QUIC_TLS *tls, RPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntParseQuicTransParam(QUIC_TLS *tls, RPacket *pkt, 
+static int TlsExtClntParseTlsExtQtp(QUIC_TLS *tls, RPacket *pkt, 
                             uint32_t context, X509 *x, size_t chainidx)
 {
-    QUIC_LOG("in\n");
-    return 0;
+    QuicTransParams param = {};
+
+    return TlsParseQtpExtension(tls, &param, pkt, client_transport_param,
+                                    QUIC_TRANS_PARAM_NUM);
 }
 
 static int TlsExtClntParseKeyShare(QUIC_TLS *tls, RPacket *pkt,
@@ -614,7 +633,7 @@ int TlsClientParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
 }
 
 static int
-QuicTransParamCheckGrease(QUIC_TLS *tls, QuicTransParams *param, size_t offset)
+TlsExtQtpCheckGrease(QUIC_TLS *tls, QuicTransParams *param, size_t offset)
 {
 #ifdef QUIC_TEST
     if (QuicTestTransParamHook) {
@@ -625,7 +644,7 @@ QuicTransParamCheckGrease(QUIC_TLS *tls, QuicTransParams *param, size_t offset)
 }
 
 static int
-QuicTransParamConstructGrease(QUIC_TLS *tls, QuicTransParams *param,
+TlsExtQtpConstructGrease(QUIC_TLS *tls, QuicTransParams *param,
                                 size_t offset, WPacket *pkt)
 {
     uint8_t value[] = "\xB9\xF8\xCB\xDE\x38\x55\x6D\x9D\x34\x30\x0F\x89";
@@ -638,7 +657,7 @@ QuicTransParamConstructGrease(QUIC_TLS *tls, QuicTransParams *param,
     return WPacketMemcpy(pkt, value, len);
 }
 
-int QuicTransParamConstructCid(QUIC_DATA *cid, WPacket *pkt)
+int TlsExtQtpConstructCid(QUIC_DATA *cid, WPacket *pkt)
 {
     if (QuicVariableLengthWrite(pkt, cid->len) < 0) {
         return -1;
@@ -652,18 +671,18 @@ int QuicTransParamConstructCid(QUIC_DATA *cid, WPacket *pkt)
 }
 
 static int
-QuicTransParamConstructSourceConnId(QUIC_TLS *tls, QuicTransParams *param,
+TlsExtQtpConstructSourceConnId(QUIC_TLS *tls, QuicTransParams *param,
                                             size_t offset, WPacket *pkt)
 {
     QUIC *quic = NULL;
 
     quic = QuicTlsTrans(tls);
 
-    return QuicTransParamConstructCid(&quic->scid, pkt);
+    return TlsExtQtpConstructCid(&quic->scid, pkt);
 }
 
 static int
-QuicTransParamCheckGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
+TlsExtQtpCheckGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
                                     size_t offset)
 {
 #ifdef QUIC_TEST
@@ -673,7 +692,7 @@ QuicTransParamCheckGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
 }
 
 static int
-QuicTransParamConstructGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
+TlsExtQtpConstructGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
                                             size_t offset, WPacket *pkt)
 {
     if (QuicVariableLengthWrite(pkt, 4) < 0) {
@@ -686,5 +705,17 @@ QuicTransParamConstructGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
     }
 
     return 0;
+}
+
+
+static int TlsExtQtpParseStatelessResetToken(QUIC_TLS *tls,
+                                QuicTransParams *param, size_t offset,
+                                RPacket *pkt, uint64_t len)
+{
+    if (len != QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN_LEN) {
+        return -1;
+    }
+
+    return RPacketCopyBytes(pkt, param->stateless_reset_token, len);
 }
 

@@ -1,8 +1,11 @@
 #ifndef TBQUIC_QUIC_TLS_SIG_ALG_H_
 #define TBQUIC_QUIC_TLS_SIG_ALG_H_
 
+#include <openssl/evp.h>
+
 #include "packet_local.h"
-#include "tls.h"
+#include "cert.h"
+#include "types.h"
 
 /*
  * Structure containing table entry of values associated with the signature
@@ -28,5 +31,7 @@ typedef struct {
 int TlsCopySigAlgs(WPacket *, const uint16_t *, size_t);
 size_t TlsGetPSigAlgs(TLS *, const uint16_t **);
 int TlsSetSigalgs(QuicCert *c, const uint16_t *, size_t);
+const SigAlgLookup *TlsLookupSigAlg(uint16_t);
+const SigAlgLookup *TlsLookupSigAlgByPkey(const EVP_PKEY *);
 
 #endif

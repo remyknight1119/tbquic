@@ -23,11 +23,14 @@ const EVP_MD *TlsHandshakeMd(TLS *);
 EVP_PKEY *TlsGeneratePkeyGroup(TLS *, uint16_t);
 int TlsDigestCachedRecords(TLS *);
 int TlsFinishMac(TLS *, const uint8_t *, size_t);
-int TlsHandshakeHash(TLS *, uint8_t *);
+int TlsHandshakeHash(TLS *, uint8_t *, size_t *);
 int TlsDeriveSecrets(TLS *, const EVP_MD *, const uint8_t *, const uint8_t *,
                         size_t, const uint8_t *, uint8_t *);
 int TlsGenerateSecret(const EVP_MD *, const uint8_t *, const uint8_t *, size_t,
                         uint8_t *);
 int TlsKeyDerive(TLS *, EVP_PKEY *, EVP_PKEY *);
+int TlsCheckPeerSigalg(TLS *, uint16_t, EVP_PKEY *);
+const EVP_MD *TlsLookupMd(const SigAlgLookup *);
+int TlsDoCertVerify(TLS *, const uint8_t *, size_t, EVP_PKEY *, const EVP_MD *);
 
 #endif

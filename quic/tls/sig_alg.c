@@ -108,7 +108,7 @@ static const SigAlgLookup sig_alg_lookup[] = {
 
 #define SIG_ALG_LOOKUP_NUM QUIC_NELEM(sig_alg_lookup)
 
-static const SigAlgLookup *TlsLookupSigAlg(uint16_t sigalg)
+const SigAlgLookup *TlsLookupSigAlg(uint16_t sigalg)
 {
     const SigAlgLookup *lu = NULL;
     size_t i = 0;
@@ -121,6 +121,32 @@ static const SigAlgLookup *TlsLookupSigAlg(uint16_t sigalg)
     }
 
     return NULL;
+}
+
+const SigAlgLookup *TlsLookupSigAlgBySig(int sig)
+{
+    const SigAlgLookup *lu = NULL;
+    size_t i = 0;
+
+    for (i = 0; i < SIG_ALG_LOOKUP_NUM; i++) {
+        lu = &sig_alg_lookup[i];
+        if (lu->sig == sig) {
+            return lu;
+        }
+    }
+
+    return NULL;
+}
+
+const SigAlgLookup *TlsLookupSigAlgByPkey(const EVP_PKEY *pk)
+{
+    int nid = EVP_PKEY_id(pk);
+
+    if (nid == NID_undef) {
+        return NULL;
+    }
+
+    return TlsLookupSigAlgBySig(nid);
 }
 
 int TlsCopySigAlgs(WPacket *pkt, const uint16_t *psig, size_t psiglen)

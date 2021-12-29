@@ -429,7 +429,7 @@ QuicCreateDataDecoders(TLS *tls, QuicCrypto *c, uint8_t *secret, uint8_t *hash,
     }
 
     if (server_traffic == true) {
-        if (TlsHandshakeHash(tls, hash) < 0) {
+        if (TlsHandshakeHash(tls, hash, NULL) < 0) {
             QUIC_LOG("Handshake Hash failed\n");
             return -1;
         }

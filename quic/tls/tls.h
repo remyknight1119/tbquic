@@ -15,6 +15,8 @@
 #include "base.h"
 #include "cert.h"
 #include "tls_cipher.h"
+#include "types.h"
+#include "sig_alg.h"
 
 #define TLS_RANDOM_BYTE_LEN     32
 #define TLS_HANDSHAKE_LEN_SIZE  3
@@ -28,8 +30,8 @@
 #define TLS_IS_WRITING(t) QUIC_STATEM_WRITING(t->rwstate)
 #define TLS_HANDSHAKE_STATE(t, state) ((t)->handshake_state == state)
 #define TLS_HANDSHAKE_DONE(t) TLS_HANDSHAKE_STATE(t, TLS_ST_HANDSHAKE_DONE)
-
-typedef struct Tls TLS;
+#define TLS_USE_PSS(s) \
+    (s->peer_sigalg != NULL && s->peer_sigalg->sig == EVP_PKEY_RSA_PSS)
 
 typedef enum {
     HELLO_REQUEST = 0,
@@ -59,16 +61,18 @@ typedef enum {
     TLS_ST_OK,
     TLS_ST_CW_CLIENT_HELLO,
     TLS_ST_CW_CLIENT_CERTIFICATE,
-    TLS_ST_CW_CERTIFICATE_VERIFY,
+    TLS_ST_CW_CERT_VERIFY,
     TLS_ST_CW_FINISHED,
     TLS_ST_CR_SERVER_HELLO,
     TLS_ST_CR_ENCRYPTED_EXTENSIONS,
     TLS_ST_CR_SERVER_CERTIFICATE,
-    TLS_ST_CR_CERTIFICATE_VERIFY,
+    TLS_ST_CR_CERT_VERIFY,
     TLS_ST_CR_FINISHED,
     TLS_ST_SR_CLIENT_HELLO,
+    TLS_ST_SR_CERT_VERIFY,
     TLS_ST_SW_SERVER_HELLO,
     TLS_ST_SW_SERVER_CERTIFICATE,
+    TLS_ST_SW_CERT_VERIFY,
     TLS_ST_HANDSHAKE_DONE,
     TLS_ST_MAX,
 } TlsState;
@@ -86,12 +90,16 @@ struct Tls {
     EVP_PKEY *kexch_key;
     EVP_PKEY *peer_kexch_key;
     EVP_MD_CTX *handshake_dgst;
+    X509 *peer_cert;
+    const SigAlgLookup *peer_sigalg;
     uint16_t group_id;
     uint8_t early_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_secret[EVP_MAX_MD_SIZE];
     uint8_t master_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_traffic_hash[EVP_MAX_MD_SIZE];
     uint8_t server_finished_hash[EVP_MAX_MD_SIZE];
+    uint8_t cert_verify_hash[EVP_MAX_MD_SIZE];
+    size_t cert_verify_hash_len;
     /* TLS extensions. */
     struct {
         char *hostname;

@@ -13,7 +13,9 @@
 #include "common.h"
 #include "quic_local.h"
 #include "tls_cipher.h"
+#include "sig_alg.h"
 #include "extension.h"
+#include "tls_lib.h"
 #include "log.h"
 
 static int TlsClientHelloBuild(TLS *, void *);
@@ -48,11 +50,11 @@ static const TlsProcess client_proc[HANDSHAKE_MAX] = {
     },
     [TLS_ST_CR_SERVER_CERTIFICATE] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CR_CERTIFICATE_VERIFY,
+        .next_state = TLS_ST_CR_CERT_VERIFY,
         .handshake_type = CERTIFICATE,
         .handler = TlsServerCertProc,
     },
-    [TLS_ST_CR_CERTIFICATE_VERIFY] = {
+    [TLS_ST_CR_CERT_VERIFY] = {
         .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_CR_FINISHED,
         .handshake_type = CERTIFICATE_VERIFY,
@@ -188,9 +190,9 @@ static int TlsEncExtProc(TLS *tls, void *packet)
     return TlsClientParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0);
 }
 
-static int TlsServerCertProc(TLS *tls, void *packet)
+static int TlsServerCertProc(TLS *s, void *packet)
 {
-    QUIC *quic = QuicTlsTrans(tls);
+    QUIC *quic = QuicTlsTrans(s);
     RPacket *pkt = packet;
     const uint8_t *certbytes = NULL;
     const uint8_t *certstart = NULL;
@@ -249,7 +251,7 @@ static int TlsServerCertProc(TLS *tls, void *packet)
             goto out;
         }
         
-        if (RPacketRemaining(&extensions) && TlsClientParseExtensions(tls,
+        if (RPacketRemaining(&extensions) && TlsClientParseExtensions(s,
                     &extensions, TLSEXT_CERTIFICATE, x, chainidx) < 0) {
             QUIC_LOG("Parse cert extension failed\n");
             goto out;
@@ -266,6 +268,20 @@ static int TlsServerCertProc(TLS *tls, void *packet)
         goto out;
     }
 
+    x = sk_X509_value(sk, 0);
+    if (x == NULL) {
+        goto out;
+    }
+    X509_up_ref(x);
+    X509_free(s->peer_cert);
+    s->peer_cert = x;
+    x = NULL;
+
+    if (TlsHandshakeHash(s, s->cert_verify_hash,
+                &s->cert_verify_hash_len) < 0) {
+        goto out;
+    }
+
     ret = 0;
 out:
     QUIC_LOG("in\n");
@@ -274,13 +290,60 @@ out:
     return ret;
 }
 
-static int TlsCertVerifyProc(TLS *, void *)
+static int TlsCertVerifyProc(TLS *s, void *packet)
 {
-    QUIC_LOG("in\n");
+    RPacket *pkt = packet;
+    EVP_PKEY *pkey = NULL;
+    const EVP_MD *md = NULL;
+    const uint8_t *data = NULL;
+    uint32_t sigalg = 0;
+    uint32_t len = 0;
+    int pkey_size = 0;
+
+    pkey = X509_get0_pubkey(s->peer_cert);
+    if (pkey == NULL) {
+        return -1;
+    }
+
+    if (TlsLookupSigAlgByPkey(pkey) == NULL) {
+        return -1;
+    }
+
+    if (RPacketGet2(pkt, &sigalg) < 0) {
+        return -1;
+    }
+
+    if (TlsCheckPeerSigalg(s, sigalg, pkey) < 0) {
+        return -1;
+    }
+
+    md = TlsLookupMd(s->peer_sigalg);
+    if (md == NULL) {
+        return -1;
+    }
+
+    if (RPacketGet2(pkt, &len) < 0) {
+        return -1;
+    }
+
+    pkey_size = EVP_PKEY_size(pkey);
+    if (pkey_size != len) {
+        return -1;
+    }
+
+    if (RPacketGetBytes(pkt, &data, len) < 0) {
+        return -1;
+    }
+
+    if (TlsDoCertVerify(s, data, len, pkey, md) < 0) {
+        return -1;
+    }
+
+    QUIC_LOG("sigalg = %x, len = %u, pkey size  = %d\n", sigalg, len, pkey_size);
     return 0;
 }
 
-static int TlsFinishedProc(TLS *, void *)
+static int TlsFinishedProc(TLS *tls, void *packet)
 {
     QUIC_LOG("in\n");
     return 0;

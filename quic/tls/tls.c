@@ -284,6 +284,7 @@ void TlsFree(TLS *tls)
         QuicMemFree(tls->ext.hostname);
     }
 
+    X509_free(tls->peer_cert);
     EVP_MD_CTX_free(tls->handshake_dgst);
     EVP_PKEY_free(tls->peer_kexch_key);
     EVP_PKEY_free(tls->kexch_key);

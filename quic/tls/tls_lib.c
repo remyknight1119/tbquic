@@ -4,6 +4,7 @@
 
 #include "tls_lib.h"
 
+#include <string.h>
 #include <openssl/obj_mac.h>
 #include <openssl/ec.h>
 #include <openssl/kdf.h>
@@ -19,6 +20,8 @@
 #include "log.h"
 
 static const uint8_t default_zeros[EVP_MAX_MD_SIZE];
+static const char servercontext[] = "TLS 1.3, server CertificateVerify";
+static const char clientcontext[] = "TLS 1.3, client CertificateVerify";
 
 /* The default curves */
 static const uint16_t eccurves_default[] = {
@@ -366,7 +369,7 @@ int TlsFinishMac(TLS *tls, const uint8_t *buf, size_t len)
     return 0;
 }
 
-int TlsHandshakeHash(TLS *tls, uint8_t *hash)
+int TlsHandshakeHash(TLS *tls, uint8_t *hash, size_t *hash_size)
 {
     EVP_MD_CTX *ctx = NULL;
     EVP_MD_CTX *hdgst = tls->handshake_dgst;
@@ -389,7 +392,11 @@ int TlsHandshakeHash(TLS *tls, uint8_t *hash)
         goto err;
     }
 
+    if (hash_size != NULL) {
+        *hash_size = EVP_MD_CTX_size(hdgst);
+    }
     ret = 0;
+
  err:
     EVP_MD_CTX_free(ctx);
     return ret;
@@ -554,6 +561,108 @@ int TlsKeyDerive(TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
 out:
     QuicMemFree(pms);
     EVP_PKEY_CTX_free(pctx);
+    return ret;
+}
+
+int TlsCheckPeerSigalg(TLS *tls, uint16_t sig, EVP_PKEY *pkey)
+{
+    const SigAlgLookup *lu = NULL;
+
+    lu = TlsLookupSigAlg(sig);
+    if (lu == NULL) {
+        return -1;
+    }
+
+    tls->peer_sigalg = lu;
+
+    return 0;
+}
+
+const EVP_MD *TlsLookupMd(const SigAlgLookup *lu)
+{
+    if (lu == NULL) {
+        return NULL;
+    }
+
+    return QuicMd(lu->hash_idx);
+}
+
+/*
+ * Size of the to-be-signed TLS13 data, without the hash size itself:
+ * 64 bytes of value 32, 33 context bytes, 1 byte separator
+ */
+#define TLS_TBS_START_SIZE          64
+#define TLS_TBS_PREAMBLE_SIZE       (TLS_TBS_START_SIZE + sizeof(servercontext))
+
+int TlsGetCertVerifyData(TLS *s, uint8_t *tbs, void **hdata, size_t *hdatalen)
+{
+    size_t hashlen;
+
+    /* Set the first 64 bytes of to-be-signed data to octet 32 */
+    memset(tbs, 32, TLS_TBS_START_SIZE);
+    /* This copies the 33 bytes of context plus the 0 separator byte */
+    if (s->handshake_state == TLS_ST_CR_CERT_VERIFY
+            || s->handshake_state == TLS_ST_SW_CERT_VERIFY) {
+        strcpy((char *)tbs + TLS_TBS_START_SIZE, servercontext);
+    } else {
+        strcpy((char *)tbs + TLS_TBS_START_SIZE, clientcontext);
+    }
+
+    /*
+     * If we're currently reading then we need to use the saved handshake
+     * hash value. We can't use the current handshake hash state because
+     * that includes the CertVerify itself.
+     */
+    if (s->handshake_state == TLS_ST_CR_CERT_VERIFY
+            || s->handshake_state  == TLS_ST_SR_CERT_VERIFY) {
+        memcpy(tbs + TLS_TBS_PREAMBLE_SIZE, s->cert_verify_hash,
+                s->cert_verify_hash_len);
+        hashlen = s->cert_verify_hash_len;
+    } else if (TlsHandshakeHash(s, tbs + TLS_TBS_PREAMBLE_SIZE, &hashlen) < 0) {
+        return -1;
+    }
+
+    *hdata = tbs;
+    *hdatalen = TLS_TBS_PREAMBLE_SIZE + hashlen;
+
+    return 0;
+}
+
+int TlsDoCertVerify(TLS *s, const uint8_t *data, size_t len, EVP_PKEY *pkey,
+                        const EVP_MD *md)
+{
+    EVP_MD_CTX *mctx = NULL;
+    EVP_PKEY_CTX *pctx = NULL;
+    void *hdata = NULL;
+    uint8_t tbs[TLS_TBS_PREAMBLE_SIZE + EVP_MAX_MD_SIZE] = {};
+    size_t hdatalen = 0;
+    int ret = -1;
+
+    mctx = EVP_MD_CTX_new();
+    if (mctx == NULL) {
+        return -1;
+    }
+
+    if (TlsGetCertVerifyData(s, tbs, &hdata, &hdatalen) < 0) {
+        goto err;
+    }
+
+    if (EVP_DigestVerifyInit(mctx, &pctx, md, NULL, pkey) <= 0) {
+
+        goto err;
+    }
+
+    if (TLS_USE_PSS(s)) {
+        if (EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING) <= 0
+            || EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx,
+                                                RSA_PSS_SALTLEN_DIGEST) <= 0) {
+            goto err;
+        }
+    }
+
+    ret = 0;
+err:
+    EVP_MD_CTX_free(mctx);
     return ret;
 }
 

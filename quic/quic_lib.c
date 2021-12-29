@@ -195,10 +195,6 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         goto out;
     }
 
-    if (QuicBufInit(&quic->plain_buffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
-        goto out;
-    }
-
     if (QuicBufInit(&quic->wbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
         goto out;
     }
@@ -322,7 +318,6 @@ void QuicFree(QUIC *quic)
     QuicCryptoFree(&quic->initial);
 
     QuicBufFree(&quic->wbuffer);
-    QuicBufFree(&quic->plain_buffer);
     QuicBufFree(&quic->rbuffer);
 
     TlsFree(&quic->tls);
@@ -431,5 +426,15 @@ int QuicInit(void)
         return -1;
     }
 
+    if (QuicInitPlainTextBuffer() < 0) {
+        return -1;
+    }
+
 	return 0;
 }
+
+void QuicExit(void)
+{
+    QuicFreePlainTextBuffer();
+}
+

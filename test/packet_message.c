@@ -223,6 +223,7 @@ int QuicPktFormatTestServer(void)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
+    QUIC_BUFFER *buffer = QuicGetPlainTextBuffer();
     BIO *rbio = NULL;
     BIO *wbio = NULL;
     int case_num = -1;
@@ -293,12 +294,12 @@ int QuicPktFormatTestServer(void)
         goto out;
     }
 
-    if (quic->plain_buffer.data_len != sizeof(payload_plaintext)) {
+    if (buffer->data_len != sizeof(payload_plaintext)) {
         printf("Plaintext len incorrect\n");
         goto out;
     }
 
-    if (memcmp(quic->plain_buffer.buf->data, payload_plaintext,
+    if (memcmp(buffer->buf->data, payload_plaintext,
                 sizeof(payload_plaintext)) != 0) {
         printf("Plaintext incorrect\n");
         goto out;

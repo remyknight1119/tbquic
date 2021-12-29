@@ -50,6 +50,7 @@ enum {
 };
 
 extern int QuicInit(void);
+extern void QuicExit(void);
 extern QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth);
 extern void QuicCtxFree(QUIC_CTX *ctx);
 extern int QuicCtxCtrl(QUIC_CTX *ctx, uint32_t cmd, void *parg, long larg);

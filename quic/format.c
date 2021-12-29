@@ -618,7 +618,7 @@ int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
 int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 {
     QuicCipherSpace *initial = NULL;
-    QUIC_BUFFER *buffer = QUIC_FRAME_BUFFER(quic);
+    QUIC_BUFFER *buffer = QuicGetPlainTextBuffer();
     RPacket message = {};
     uint64_t token_len = 0;
 
@@ -654,7 +654,7 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 
 int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
 {
-    QUIC_BUFFER *buffer = QUIC_FRAME_BUFFER(quic);
+    QUIC_BUFFER *buffer = QuicGetPlainTextBuffer();
     RPacket message = {};
 
     if (QuicLengthParse(&message, pkt) < 0) {

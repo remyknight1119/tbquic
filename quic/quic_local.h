@@ -82,7 +82,7 @@ typedef struct {
 
 struct Quic {
     /* This member must be first */
-    QUIC_TLS tls;
+    TLS tls;
 #define quic_server tls.server
     QuicStreamState stream_state;
     QUIC_STATEM statem;
@@ -111,7 +111,7 @@ struct Quic {
     QBuffQueueHead tx_queue;
 };
 
-static inline QUIC *QuicTlsTrans(QUIC_TLS *tls)
+static inline QUIC *QuicTlsTrans(TLS *tls)
 {
     return (QUIC *)tls;
 }

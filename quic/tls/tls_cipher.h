@@ -57,9 +57,9 @@ typedef struct {
 
 const TlsCipher *QuicGetTlsCipherByName(const char *, size_t);
 const TlsCipher *QuicGetTlsCipherById(uint16_t);
-const TlsCipher *QuicTlsCipherMatchListById(struct hlist_head *, uint16_t);
-int QuicTlsParseCipherList(struct hlist_head *, RPacket *, size_t);
-int QuicTlsCreateCipherList(struct hlist_head *, const char *, size_t);
-void QuicTlsDestroyCipherList(struct hlist_head *);
+const TlsCipher *TlsCipherMatchListById(struct hlist_head *, uint16_t);
+int TlsParseCipherList(struct hlist_head *, RPacket *, size_t);
+int TlsCreateCipherList(struct hlist_head *, const char *, size_t);
+void TlsDestroyCipherList(struct hlist_head *);
 
 #endif

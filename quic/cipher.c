@@ -374,7 +374,7 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 #ifdef QUIC_TEST
 void (*QuicSecretTest)(uint8_t *secret);
 #endif
-static int QuicCreateDecoders(QUIC_TLS *tls, const EVP_MD *md,
+static int QuicCreateDecoders(TLS *tls, const EVP_MD *md,
                     const uint8_t *in_secret,
                     const uint8_t *label, size_t label_len,
                     const uint8_t *hash,
@@ -406,7 +406,7 @@ static int
 QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label, size_t label_len,
                             const char *log_label)
 {
-    QUIC_TLS *tls = &quic->tls;
+    TLS *tls = &quic->tls;
     const TlsCipher *cipher = NULL;
     QuicCipherSpace *decrypt = NULL;
     const EVP_MD *md = NULL;

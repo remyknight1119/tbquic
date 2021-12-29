@@ -93,7 +93,7 @@ const TlsCipher *QuicGetTlsCipherById(uint16_t id)
     return NULL;
 }
 
-int QuicTlsParseCipherList(struct hlist_head *h, RPacket *pkt, size_t len)
+int TlsParseCipherList(struct hlist_head *h, RPacket *pkt, size_t len)
 {
     const TlsCipher *cipher = NULL;
     TlsCipherListNode *node = NULL;
@@ -126,11 +126,11 @@ int QuicTlsParseCipherList(struct hlist_head *h, RPacket *pkt, size_t len)
 
     return 0;
 err:
-    QuicTlsDestroyCipherList(h);
+    TlsDestroyCipherList(h);
     return -1;
 }
 
-const TlsCipher *QuicTlsCipherMatchListById(struct hlist_head *h, uint16_t id)
+const TlsCipher *TlsCipherMatchListById(struct hlist_head *h, uint16_t id)
 {
     TlsCipherListNode *node = NULL;
 
@@ -144,7 +144,7 @@ const TlsCipher *QuicTlsCipherMatchListById(struct hlist_head *h, uint16_t id)
     return NULL;
 }
 
-int QuicTlsCreateCipherList(struct hlist_head *h, const char *cipher_str,
+int TlsCreateCipherList(struct hlist_head *h, const char *cipher_str,
                             size_t cipher_str_len)
 {
     const TlsCipher *cipher = NULL;
@@ -179,7 +179,7 @@ int QuicTlsCreateCipherList(struct hlist_head *h, const char *cipher_str,
 
         node = QuicMemCalloc(sizeof(*node));
         if (node == NULL) {
-            QuicTlsDestroyCipherList(h);
+            TlsDestroyCipherList(h);
             return -1;
         }
         node->cipher = cipher;
@@ -194,7 +194,7 @@ int QuicTlsCreateCipherList(struct hlist_head *h, const char *cipher_str,
     return 0;
 }
 
-void QuicTlsDestroyCipherList(struct hlist_head *h)
+void TlsDestroyCipherList(struct hlist_head *h)
 {
     TlsCipherListNode *pos = NULL;
     struct hlist_node *n = NULL;

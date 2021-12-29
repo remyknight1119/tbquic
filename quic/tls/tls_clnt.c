@@ -16,71 +16,71 @@
 #include "extension.h"
 #include "log.h"
 
-static int QuicTlsClientHelloBuild(QUIC_TLS *, void *);
-static int QuicTlsServerHelloProc(QUIC_TLS *, void *);
-static int QuicTlsEncExtProc(QUIC_TLS *, void *);
-static int QuicTlsServerCertProc(QUIC_TLS *, void *);
-static int QuicTlsCertVerifyProc(QUIC_TLS *, void *);
-static int QuicTlsFinishedProc(QUIC_TLS *, void *);
+static int TlsClientHelloBuild(TLS *, void *);
+static int TlsServerHelloProc(TLS *, void *);
+static int TlsEncExtProc(TLS *, void *);
+static int TlsServerCertProc(TLS *, void *);
+static int TlsCertVerifyProc(TLS *, void *);
+static int TlsFinishedProc(TLS *, void *);
 
-static const QuicTlsProcess client_proc[HANDSHAKE_MAX] = {
-    [QUIC_TLS_ST_OK] = {
+static const TlsProcess client_proc[HANDSHAKE_MAX] = {
+    [TLS_ST_OK] = {
         .flow_state = QUIC_FLOW_NOTHING,
-        .next_state = QUIC_TLS_ST_CW_CLIENT_HELLO,
+        .next_state = TLS_ST_CW_CLIENT_HELLO,
     },
-    [QUIC_TLS_ST_CW_CLIENT_HELLO] = {
+    [TLS_ST_CW_CLIENT_HELLO] = {
         .flow_state = QUIC_FLOW_WRITING,
-        .next_state = QUIC_TLS_ST_CR_SERVER_HELLO,
+        .next_state = TLS_ST_CR_SERVER_HELLO,
         .handshake_type = CLIENT_HELLO,
-        .handler = QuicTlsClientHelloBuild,
+        .handler = TlsClientHelloBuild,
     },
-    [QUIC_TLS_ST_CR_SERVER_HELLO] = {
+    [TLS_ST_CR_SERVER_HELLO] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = QUIC_TLS_ST_CR_ENCRYPTED_EXTENSIONS,
+        .next_state = TLS_ST_CR_ENCRYPTED_EXTENSIONS,
         .handshake_type = SERVER_HELLO,
-        .handler = QuicTlsServerHelloProc,
+        .handler = TlsServerHelloProc,
     },
-    [QUIC_TLS_ST_CR_ENCRYPTED_EXTENSIONS] = {
+    [TLS_ST_CR_ENCRYPTED_EXTENSIONS] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = QUIC_TLS_ST_CR_SERVER_CERTIFICATE,
+        .next_state = TLS_ST_CR_SERVER_CERTIFICATE,
         .handshake_type = ENCRYPTED_EXTENSIONS,
-        .handler = QuicTlsEncExtProc,
+        .handler = TlsEncExtProc,
     },
-    [QUIC_TLS_ST_CR_SERVER_CERTIFICATE] = {
+    [TLS_ST_CR_SERVER_CERTIFICATE] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = QUIC_TLS_ST_CR_CERTIFICATE_VERIFY,
+        .next_state = TLS_ST_CR_CERTIFICATE_VERIFY,
         .handshake_type = CERTIFICATE,
-        .handler = QuicTlsServerCertProc,
+        .handler = TlsServerCertProc,
     },
-    [QUIC_TLS_ST_CR_CERTIFICATE_VERIFY] = {
+    [TLS_ST_CR_CERTIFICATE_VERIFY] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = QUIC_TLS_ST_CR_FINISHED,
+        .next_state = TLS_ST_CR_FINISHED,
         .handshake_type = CERTIFICATE_VERIFY,
-        .handler = QuicTlsCertVerifyProc,
+        .handler = TlsCertVerifyProc,
     },
-    [QUIC_TLS_ST_CR_FINISHED] = {
+    [TLS_ST_CR_FINISHED] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = QUIC_TLS_ST_CW_FINISHED,
+        .next_state = TLS_ST_CW_FINISHED,
         .handshake_type = FINISHED,
-        .handler = QuicTlsFinishedProc,
+        .handler = TlsFinishedProc,
     },
-    [QUIC_TLS_ST_CW_FINISHED] = {
+    [TLS_ST_CW_FINISHED] = {
         .flow_state = QUIC_FLOW_WRITING,
-        .next_state = QUIC_TLS_ST_HANDSHAKE_DONE,
+        .next_state = TLS_ST_HANDSHAKE_DONE,
         .handshake_type = FINISHED,
-        .handler = QuicTlsFinishedBuild,
+        .handler = TlsFinishedBuild,
     },
-    [QUIC_TLS_ST_HANDSHAKE_DONE] = {
+    [TLS_ST_HANDSHAKE_DONE] = {
         .flow_state = QUIC_FLOW_FINISHED,
     },
 };
 
-static QuicFlowReturn QuicTlsConnect(QUIC_TLS *tls)
+static QuicFlowReturn TlsConnect(TLS *tls)
 {
-    return QuicTlsHandshake(tls, client_proc, QUIC_NELEM(client_proc));
+    return TlsHandshake(tls, client_proc, QUIC_NELEM(client_proc));
 }
 
-static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
+static int TlsClientHelloBuild(TLS *tls, void *packet)
 {
     WPacket *pkt = packet;
 
@@ -89,7 +89,7 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    if (QuicTlsGenRandom(tls->client_random, sizeof(tls->client_random),
+    if (TlsGenRandom(tls->client_random, sizeof(tls->client_random),
                             pkt) < 0) {
         QUIC_LOG("Generate Client Random failed\n");
         return -1;
@@ -100,7 +100,7 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    if (QuicTlsPutCipherList(tls, pkt) < 0) {
+    if (TlsPutCipherList(tls, pkt) < 0) {
         QUIC_LOG("Put cipher list failed\n");
         return -1;
     }
@@ -110,7 +110,7 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    if (QuicTlsPutCompressionMethod(pkt) < 0) {
+    if (TlsPutCompressionMethod(pkt) < 0) {
         QUIC_LOG("Put compression method failed\n");
         return -1;
     }
@@ -124,7 +124,7 @@ static int QuicTlsClientHelloBuild(QUIC_TLS *tls, void *packet)
     return 0;
 }
 
-static int QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
+static int TlsServerHelloProc(TLS *tls, void *packet)
 {
     QUIC *quic = QuicTlsTrans(tls);
     RPacket *pkt = packet;
@@ -133,12 +133,12 @@ static int QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
     HLIST_HEAD(cipher_list);
     uint16_t id = 0;
 
-    if (QuicTlsHelloHeadParse(tls, pkt, tls->server_random,
+    if (TlsHelloHeadParse(tls, pkt, tls->server_random,
                 sizeof(tls->server_random)) < 0) {
         return -1;
     }
 
-    if (QuicTlsParseCipherList(&cipher_list, pkt, 2) < 0) {
+    if (TlsParseCipherList(&cipher_list, pkt, 2) < 0) {
         QUIC_LOG("Parse cipher list failed\n");
         return -1;
     }
@@ -150,14 +150,14 @@ static int QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
         break;
     }
 
-    QuicTlsDestroyCipherList(&cipher_list);
+    TlsDestroyCipherList(&cipher_list);
 
     if (id == 0) {
         QUIC_LOG("Get server cipher failed\n");
         return -1;
     }
 
-    cipher = QuicTlsCipherMatchListById(&tls->cipher_list, id);
+    cipher = TlsCipherMatchListById(&tls->cipher_list, id);
     if (cipher == NULL) {
         QUIC_LOG("Get shared cipher failed\n");
         return -1;
@@ -182,13 +182,13 @@ static int QuicTlsServerHelloProc(QUIC_TLS *tls, void *packet)
     return 0;
 }
 
-static int QuicTlsEncExtProc(QUIC_TLS *tls, void *packet)
+static int TlsEncExtProc(TLS *tls, void *packet)
 {
     QUIC_LOG("in\n");
     return TlsClientParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0);
 }
 
-static int QuicTlsServerCertProc(QUIC_TLS *tls, void *packet)
+static int TlsServerCertProc(TLS *tls, void *packet)
 {
     QUIC *quic = QuicTlsTrans(tls);
     RPacket *pkt = packet;
@@ -274,19 +274,19 @@ out:
     return ret;
 }
 
-static int QuicTlsCertVerifyProc(QUIC_TLS *, void *)
+static int TlsCertVerifyProc(TLS *, void *)
 {
     QUIC_LOG("in\n");
     return 0;
 }
 
-static int QuicTlsFinishedProc(QUIC_TLS *, void *)
+static int TlsFinishedProc(TLS *, void *)
 {
     QUIC_LOG("in\n");
     return 0;
 }
 
-void QuicTlsClientInit(QUIC_TLS *tls)
+void TlsClientInit(TLS *tls)
 {
-    tls->handshake = QuicTlsConnect;
+    tls->handshake = TlsConnect;
 }

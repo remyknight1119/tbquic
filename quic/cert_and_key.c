@@ -4,7 +4,6 @@
 #include "quic_local.h"
 
 #include <openssl/x509.h>
-#include <openssl/ssl.h>
 #include <tbquic/quic.h>
 #include <tbquic/cipher.h>
 

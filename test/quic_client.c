@@ -54,7 +54,7 @@ static const uint16_t tls_sigalgs[] = {
     TLSEXT_SIGALG_RSA_PKCS1_SHA1,
 };
 
-static QuicTlsTestParam test_param[] = {
+static TlsTestParam test_param[] = {
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_UNI,
         .value = 0x600000,
@@ -147,7 +147,7 @@ out:
  
 static int QuicTlsClientExtensionSet(QUIC *quic)
 {
-    QuicTlsTestParam *p = NULL;
+    TlsTestParam *p = NULL;
     size_t i = 0;
     int ret = -1;
 

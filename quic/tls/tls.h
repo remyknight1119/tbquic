@@ -27,9 +27,9 @@
 #define TLS_IS_READING(t) QUIC_STATEM_READING(t->rwstate)
 #define TLS_IS_WRITING(t) QUIC_STATEM_WRITING(t->rwstate)
 #define TLS_HANDSHAKE_STATE(t, state) ((t)->handshake_state == state)
-#define TLS_HANDSHAKE_DONE(t) TLS_HANDSHAKE_STATE(t, QUIC_TLS_ST_HANDSHAKE_DONE)
+#define TLS_HANDSHAKE_DONE(t) TLS_HANDSHAKE_STATE(t, TLS_ST_HANDSHAKE_DONE)
 
-typedef struct QuicTls QUIC_TLS;
+typedef struct Tls TLS;
 
 typedef enum {
     HELLO_REQUEST = 0,
@@ -56,27 +56,27 @@ typedef enum {
 } HandshakeType;
 
 typedef enum {
-    QUIC_TLS_ST_OK,
-    QUIC_TLS_ST_CW_CLIENT_HELLO,
-    QUIC_TLS_ST_CW_CLIENT_CERTIFICATE,
-    QUIC_TLS_ST_CW_CERTIFICATE_VERIFY,
-    QUIC_TLS_ST_CW_FINISHED,
-    QUIC_TLS_ST_CR_SERVER_HELLO,
-    QUIC_TLS_ST_CR_ENCRYPTED_EXTENSIONS,
-    QUIC_TLS_ST_CR_SERVER_CERTIFICATE,
-    QUIC_TLS_ST_CR_CERTIFICATE_VERIFY,
-    QUIC_TLS_ST_CR_FINISHED,
-    QUIC_TLS_ST_SR_CLIENT_HELLO,
-    QUIC_TLS_ST_SW_SERVER_HELLO,
-    QUIC_TLS_ST_SW_SERVER_CERTIFICATE,
-    QUIC_TLS_ST_HANDSHAKE_DONE,
-    QUIC_TLS_ST_MAX,
-} QuicTlsState;
+    TLS_ST_OK,
+    TLS_ST_CW_CLIENT_HELLO,
+    TLS_ST_CW_CLIENT_CERTIFICATE,
+    TLS_ST_CW_CERTIFICATE_VERIFY,
+    TLS_ST_CW_FINISHED,
+    TLS_ST_CR_SERVER_HELLO,
+    TLS_ST_CR_ENCRYPTED_EXTENSIONS,
+    TLS_ST_CR_SERVER_CERTIFICATE,
+    TLS_ST_CR_CERTIFICATE_VERIFY,
+    TLS_ST_CR_FINISHED,
+    TLS_ST_SR_CLIENT_HELLO,
+    TLS_ST_SW_SERVER_HELLO,
+    TLS_ST_SW_SERVER_CERTIFICATE,
+    TLS_ST_HANDSHAKE_DONE,
+    TLS_ST_MAX,
+} TlsState;
 
-struct QuicTls {
-    QuicTlsState handshake_state;
+struct Tls {
+    TlsState handshake_state;
     uint8_t server:1;
-    QuicFlowReturn (*handshake)(QUIC_TLS *);
+    QuicFlowReturn (*handshake)(TLS *);
     uint8_t client_random[TLS_RANDOM_BYTE_LEN];
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;
@@ -102,29 +102,29 @@ struct QuicTls {
 
 typedef struct {
     QuicFlowState flow_state;
-    QuicTlsState next_state;
+    TlsState next_state;
     HandshakeType handshake_type;
-    int (*handler)(QUIC_TLS *, void *);
-} QuicTlsProcess;
+    int (*handler)(TLS *, void *);
+} TlsProcess;
 
 #ifdef QUIC_TEST
 extern uint8_t *quic_random_test;
 #endif
 
-int QuicTlsInit(QUIC_TLS *, QUIC_CTX *);
-void QuicTlsFree(QUIC_TLS *);
-void QuicTlsClientInit(QUIC_TLS *);
-void QuicTlsServerInit(QUIC_TLS *);
-QuicFlowReturn QuicTlsDoHandshake(QUIC_TLS *);
-int QuicTlsDoProcess(QUIC_TLS *, RPacket *, WPacket *, const QuicTlsProcess *,
+int TlsInit(TLS *, QUIC_CTX *);
+void TlsFree(TLS *);
+void TlsClientInit(TLS *);
+void TlsServerInit(TLS *);
+QuicFlowReturn TlsDoHandshake(TLS *);
+int TlsDoProcess(TLS *, RPacket *, WPacket *, const TlsProcess *,
                         size_t);
-QuicFlowReturn QuicTlsHandshake(QUIC_TLS *, const QuicTlsProcess *, size_t);
-int QuicTlsGenRandom(uint8_t *, size_t, WPacket *);
+QuicFlowReturn TlsHandshake(TLS *, const TlsProcess *, size_t);
+int TlsGenRandom(uint8_t *, size_t, WPacket *);
 
-int QuicTlsHelloHeadParse(QUIC_TLS *, RPacket *, uint8_t *, size_t);
-int QuicTlsExtLenParse(RPacket *);
-int QuicTlsPutCipherList(QUIC_TLS *, WPacket *);
-int QuicTlsPutCompressionMethod(WPacket *);
-int QuicTlsFinishedBuild(QUIC_TLS *, void *);
+int TlsHelloHeadParse(TLS *, RPacket *, uint8_t *, size_t);
+int TlsExtLenParse(RPacket *);
+int TlsPutCipherList(TLS *, WPacket *);
+int TlsPutCompressionMethod(WPacket *);
+int TlsFinishedBuild(TLS *, void *);
 
 #endif

@@ -26,7 +26,7 @@ typedef struct {
 } SigAlgLookup;
 
 int TlsCopySigAlgs(WPacket *, const uint16_t *, size_t);
-size_t TlsGetPSigAlgs(QUIC_TLS *, const uint16_t **);
+size_t TlsGetPSigAlgs(TLS *, const uint16_t **);
 int TlsSetSigalgs(QuicCert *c, const uint16_t *, size_t);
 
 #endif

@@ -197,7 +197,7 @@ QuicFlowReturn QuicInitialSend(QUIC *quic)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    ret = QuicTlsDoHandshake(&quic->tls);
+    ret = TlsDoHandshake(&quic->tls);
     if (ret == QUIC_FLOW_RET_ERROR) {
         QUIC_LOG("TLS handshake failed\n");
         return ret;

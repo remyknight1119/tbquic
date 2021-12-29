@@ -12,14 +12,14 @@
 #include "tls_cipher.h"
 #include "list.h"
 
-int QuicVTlsCipherListTest(void)
+int TlsCipherListTest(void)
 {
     TlsCipherListNode *pos = NULL;
     HLIST_HEAD(h);
     char ciphers[sizeof(TLS_CIPHERS_DEF)] = {};
     int offset = 0;
 
-    if (QuicTlsCreateCipherList(&h, TLS_CIPHERS_DEF,
+    if (TlsCreateCipherList(&h, TLS_CIPHERS_DEF,
                     sizeof(TLS_CIPHERS_DEF) - 1) < 0) {
         return -1;
     }
@@ -32,17 +32,17 @@ int QuicVTlsCipherListTest(void)
         offset += snprintf(&ciphers[offset], sizeof(ciphers) - offset,
                     "%s", pos->cipher->name);
         if (offset >= sizeof(ciphers)) {
-            QuicTlsDestroyCipherList(&h);
+            TlsDestroyCipherList(&h);
             return -1;
         }
     }
 
     if (strcmp(ciphers, TLS_CIPHERS_DEF) != 0) {
-        QuicTlsDestroyCipherList(&h);
+        TlsDestroyCipherList(&h);
         return -1;
     }
 
-    QuicTlsDestroyCipherList(&h);
+    TlsDestroyCipherList(&h);
     return 1;
 }
 

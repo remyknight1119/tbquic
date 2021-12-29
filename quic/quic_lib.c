@@ -186,7 +186,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->tls.ext.trans_param = ctx->ext.trans_param;
     quic->ctx = ctx;
 
-    if (QuicTlsInit(&quic->tls, ctx) < 0) {
+    if (TlsInit(&quic->tls, ctx) < 0) {
         goto out;
     }
 
@@ -229,7 +229,7 @@ void QUIC_set_accept_state(QUIC *quic)
     quic->quic_server = 1;
     quic->do_handshake = quic->method->quic_accept;
     QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_READING);
-    QuicTlsServerInit(&quic->tls);
+    TlsServerInit(&quic->tls);
 }
 
 void QUIC_set_connect_state(QUIC *quic)
@@ -237,12 +237,12 @@ void QUIC_set_connect_state(QUIC *quic)
     quic->quic_server = 0;
     quic->do_handshake = quic->method->quic_connect;
     QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_WRITING);
-    QuicTlsClientInit(&quic->tls);
+    TlsClientInit(&quic->tls);
 }
 
 int QuicCtrl(QUIC *quic, uint32_t cmd, void *parg, long larg)
 {
-    QUIC_TLS *tls = &quic->tls;
+    TLS *tls = &quic->tls;
     size_t len = 0;
 
     switch (cmd) {
@@ -324,7 +324,7 @@ void QuicFree(QUIC *quic)
     QuicBufFree(&quic->plain_buffer);
     QuicBufFree(&quic->rbuffer);
 
-    QuicTlsFree(&quic->tls);
+    TlsFree(&quic->tls);
 
     QuicMemFree(quic);
 }

@@ -20,7 +20,7 @@ typedef union UdpConnKey {
 typedef struct {
     uint64_t type;
     uint64_t value;
-} QuicTlsTestParam;
+} TlsTestParam;
 
 
 static inline uint8_t char2hex(char c)
@@ -69,10 +69,10 @@ int QuicPktFormatTestClient(void);
 int QuicPktFormatTestServer(void);
 int QuicPktNumberEncodeTest(void);
 int QuicPktNumberDecodeTest(void);
-int QuicVTlsCipherListTest(void);
-int QuicTlsClientHelloTest(void);
-int QuicTlsClientExtensionTest(void);
-int QuicTlsGenerateSecretTest(void);
-int QuicTlsGenerateServerSecretTest(void);
+int TlsCipherListTest(void);
+int TlsClientHelloTest(void);
+int TlsClientExtensionTest(void);
+int TlsGenerateSecretTest(void);
+int TlsGenerateServerSecretTest(void);
 
 #endif

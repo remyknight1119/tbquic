@@ -52,23 +52,23 @@ static QuicFuncTest test_funcs[] = {
         .err_msg = "PKT Number Encode",
     },
     {
-        .test = QuicVTlsCipherListTest,
+        .test = TlsCipherListTest,
         .err_msg = "TLS Cipher List",
     },
     {
-        .test = QuicTlsClientHelloTest,
+        .test = TlsClientHelloTest,
         .err_msg = "TLS ClientHello",
     },
     {
-        .test = QuicTlsClientExtensionTest,
+        .test = TlsClientExtensionTest,
         .err_msg = "TLS Client Extension",
     },
     {
-        .test = QuicTlsGenerateSecretTest,
+        .test = TlsGenerateSecretTest,
         .err_msg = "TLS GenerateSecret",
     },
     {
-        .test = QuicTlsGenerateServerSecretTest,
+        .test = TlsGenerateServerSecretTest,
         .err_msg = "TLS Generate Server Secret",
     },
 };

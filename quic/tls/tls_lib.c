@@ -216,7 +216,7 @@ const TlsGroupInfo *TlsGroupIdLookup(uint16_t id)
  * Set *pgroups to the supported groups list and *pgroupslen to
  * the number of groups supported.
  */
-void TlsGetSupportedGroups(QUIC_TLS *tls, const uint16_t **pgroups,
+void TlsGetSupportedGroups(TLS *tls, const uint16_t **pgroups,
                                size_t *pgroupslen)
 {
     if (QuicDataIsEmpty(&tls->ext.supported_groups)) {
@@ -262,7 +262,7 @@ int TlsSetSupportedGroups(uint16_t **pext, size_t *pextlen, uint16_t *groups,
     return 0;
 }
 
-EVP_PKEY *TlsGeneratePkeyGroup(QUIC_TLS *tls, uint16_t id)
+EVP_PKEY *TlsGeneratePkeyGroup(TLS *tls, uint16_t id)
 {
     EVP_PKEY *pkey = NULL;
     EVP_PKEY_CTX *pctx = NULL;
@@ -304,7 +304,7 @@ out:
     return pkey;
 }
 
-const EVP_MD *TlsHandshakeMd(QUIC_TLS *tls)
+const EVP_MD *TlsHandshakeMd(TLS *tls)
 {
     if (tls->handshake_cipher == NULL) {
         return NULL;
@@ -313,7 +313,7 @@ const EVP_MD *TlsHandshakeMd(QUIC_TLS *tls)
     return QuicMd(tls->handshake_cipher->digest);
 }
 
-int TlsDigestCachedRecords(QUIC_TLS *tls)
+int TlsDigestCachedRecords(TLS *tls)
 {
     const EVP_MD *md = NULL;
     QUIC_BUFFER *buffer = NULL;
@@ -353,7 +353,12 @@ int TlsDigestCachedRecords(QUIC_TLS *tls)
     return 0;
 }
 
-int TlsHandshakeHash(QUIC_TLS *tls, const EVP_MD *md, uint8_t *hash)
+int TlsFinishMac(TLS *s, const uint8_t *buf, size_t len)
+{
+    return 0;
+}
+
+int TlsHandshakeHash(TLS *tls, const EVP_MD *md, uint8_t *hash)
 {
     EVP_MD_CTX *ctx = NULL;
     EVP_MD_CTX *hdgst = tls->handshake_dgst;
@@ -382,7 +387,7 @@ int TlsHandshakeHash(QUIC_TLS *tls, const EVP_MD *md, uint8_t *hash)
     return ret;
 }
 
-int TlsDeriveSecrets(QUIC_TLS *tls, const EVP_MD *md, const uint8_t *in_secret,
+int TlsDeriveSecrets(TLS *tls, const EVP_MD *md, const uint8_t *in_secret,
                         const uint8_t *label, size_t label_len,
                         const uint8_t *hash, uint8_t *out)
 {
@@ -496,7 +501,7 @@ out:
     return ret;
 }
 
-int TlsKeyDerive(QUIC_TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
+int TlsKeyDerive(TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
 {
     EVP_PKEY_CTX *pctx = NULL;
     const EVP_MD *md = NULL;

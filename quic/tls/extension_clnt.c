@@ -16,39 +16,39 @@
 #include "format.h"
 #include "log.h"
 
-static int TlsExtClntCheckServerName(QUIC_TLS *);
-static int TlsExtClntConstructServerName(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntCheckServerName(TLS *);
+static int TlsExtClntConstructServerName(TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
-static int TlsExtClntConstructSupportedGroups(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntConstructSupportedGroups(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseServerName(QUIC_TLS *, RPacket *, uint32_t,
+static int TlsExtClntParseServerName(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseAlpn(QUIC_TLS *, RPacket *, uint32_t,
+static int TlsExtClntParseAlpn(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseSupportedVersion(QUIC_TLS *, RPacket *, uint32_t,
+static int TlsExtClntParseSupportedVersion(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseKeyShare(QUIC_TLS *, RPacket *, uint32_t,
+static int TlsExtClntParseKeyShare(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseTlsExtQtp(QUIC_TLS *, RPacket *, uint32_t,
+static int TlsExtClntParseTlsExtQtp(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructSigAlgs(QUIC_TLS *, WPacket *, uint32_t, X509 *,
+static int TlsExtClntConstructSigAlgs(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtClntConstructTlsExtQtp(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntConstructTlsExtQtp(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntCheckAlpn(QUIC_TLS *);
-static int TlsExtClntConstructAlpn(QUIC_TLS *, WPacket *, uint32_t, X509 *,
+static int TlsExtClntCheckAlpn(TLS *);
+static int TlsExtClntConstructAlpn(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtClntConstructSupportedVersion(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntConstructSupportedVersion(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructKeyExchModes(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntConstructKeyExchModes(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructKeyShare(QUIC_TLS *, WPacket *, uint32_t,
+static int TlsExtClntConstructKeyShare(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntCheckUnknown(QUIC_TLS *);
-static int TlsExtClntConstructUnknown(QUIC_TLS *, WPacket *, uint32_t, X509 *,
+static int TlsExtClntCheckUnknown(TLS *);
+static int TlsExtClntConstructUnknown(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 
-static const QuicTlsExtConstruct client_ext_construct[] = {
+static const TlsExtConstruct client_ext_construct[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_CLIENT_HELLO,
@@ -99,7 +99,7 @@ static const QuicTlsExtConstruct client_ext_construct[] = {
     },
 };
 
-static const QuicTlsExtParse client_ext_parse[] = {
+static const TlsExtParse client_ext_parse[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_SERVER_HELLO,
@@ -127,19 +127,19 @@ static const QuicTlsExtParse client_ext_parse[] = {
     },
 };
  
-static int TlsExtQtpCheckGrease(QUIC_TLS *, QuicTransParams *, size_t);
-static int TlsExtQtpCheckGrease(QUIC_TLS *, QuicTransParams *, size_t);
-static int TlsExtClntQtpCheckStatelessResetToken(QUIC_TLS *,
+static int TlsExtQtpCheckGrease(TLS *, QuicTransParams *, size_t);
+static int TlsExtQtpCheckGrease(TLS *, QuicTransParams *, size_t);
+static int TlsExtClntQtpCheckStatelessResetToken(TLS *,
                                 QuicTransParams *, size_t);
-static int TlsExtQtpConstructGrease(QUIC_TLS *, QuicTransParams *,
+static int TlsExtQtpConstructGrease(TLS *, QuicTransParams *,
                                             size_t, WPacket *);
-static int TlsExtQtpConstructSourceConnId(QUIC_TLS *, QuicTransParams *,
+static int TlsExtQtpConstructSourceConnId(TLS *, QuicTransParams *,
                                             size_t, WPacket *);
-static int TlsExtQtpCheckGoogleVersion(QUIC_TLS *, QuicTransParams *,
+static int TlsExtQtpCheckGoogleVersion(TLS *, QuicTransParams *,
                                             size_t);
-static int TlsExtQtpConstructGoogleVersion(QUIC_TLS *, QuicTransParams *,
+static int TlsExtQtpConstructGoogleVersion(TLS *, QuicTransParams *,
                                             size_t, WPacket *);
-static int TlsExtQtpParseStatelessResetToken(QUIC_TLS *tls,
+static int TlsExtQtpParseStatelessResetToken(TLS *tls,
                                 QuicTransParams *param, size_t offset,
                                 RPacket *pkt, uint64_t len);
 
@@ -224,13 +224,13 @@ static TlsExtQtpDefinition client_transport_param[] = {
 
 #define QUIC_TRANS_PARAM_NUM QUIC_NELEM(client_transport_param)
 
-static int TlsExtClntQtpCheckStatelessResetToken(QUIC_TLS *,
+static int TlsExtClntQtpCheckStatelessResetToken(TLS *,
                                 QuicTransParams *, size_t)
 {
     return -1;
 }
 
-static int TlsExtClntCheckServerName(QUIC_TLS *tls)
+static int TlsExtClntCheckServerName(TLS *tls)
 {
     if (tls->ext.hostname == NULL) {
         return -1;
@@ -239,7 +239,7 @@ static int TlsExtClntCheckServerName(QUIC_TLS *tls)
     return 0;
 }
 
-static int TlsExtClntConstructServerName(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructServerName(TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
@@ -265,7 +265,7 @@ static int TlsExtClntConstructServerName(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntConstructSupportedGroups(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructSupportedGroups(TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
@@ -295,7 +295,7 @@ static int TlsExtClntConstructSupportedGroups(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntConstructSigAlgs(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructSigAlgs(TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
@@ -319,7 +319,7 @@ static int TlsExtClntConstructSigAlgs(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntCheckAlpn(QUIC_TLS *tls)
+static int TlsExtClntCheckAlpn(TLS *tls)
 {
     if (QuicDataIsEmpty(&tls->ext.alpn)) {
         return -1;
@@ -328,7 +328,7 @@ static int TlsExtClntCheckAlpn(QUIC_TLS *tls)
     return 0;
 }
 
-static int TlsExtClntConstructAlpn(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructAlpn(TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
@@ -337,7 +337,7 @@ static int TlsExtClntConstructAlpn(QUIC_TLS *tls, WPacket *pkt,
     return WPacketSubMemcpyU16(pkt, alpn->data, alpn->len);
 }
 
-static int TlsExtClntConstructSupportedVersion(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructSupportedVersion(TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
@@ -357,7 +357,7 @@ static int TlsExtClntConstructSupportedVersion(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntConstructKeyExchModes(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructKeyExchModes(TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
@@ -380,7 +380,7 @@ static int TlsExtClntConstructKeyExchModes(QUIC_TLS *tls, WPacket *pkt,
 #ifdef QUIC_TEST
 size_t (*QuicTestEncodedpointHook)(unsigned char **point);
 #endif
-static int TlsExtClntAddKeyShare(QUIC_TLS *tls, WPacket *pkt, uint16_t id)
+static int TlsExtClntAddKeyShare(TLS *tls, WPacket *pkt, uint16_t id)
 {
     EVP_PKEY *key_share_key = NULL;
     unsigned char *encoded_point = NULL;
@@ -427,7 +427,7 @@ out:
     return -1;
 }
 
-static int TlsExtClntConstructKeyShare(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructKeyShare(TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
@@ -461,7 +461,7 @@ static int TlsExtClntConstructKeyShare(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntCheckUnknown(QUIC_TLS *tls)
+static int TlsExtClntCheckUnknown(TLS *tls)
 {
 #ifdef QUIC_TEST
     if (QuicTestExtensionHook) {
@@ -471,7 +471,7 @@ static int TlsExtClntCheckUnknown(QUIC_TLS *tls)
     return -1;
 }
 
-static int TlsExtClntConstructUnknown(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructUnknown(TLS *tls, WPacket *pkt,
                             uint32_t context, X509 *x, size_t chainidx)
 {
     uint8_t data[] = "\x00\x03\x02\x68\x33";
@@ -479,14 +479,14 @@ static int TlsExtClntConstructUnknown(QUIC_TLS *tls, WPacket *pkt,
     return WPacketMemcpy(pkt, data, sizeof(data) - 1);
 }
 
-static int TlsExtClntConstructTlsExtQtp(QUIC_TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructTlsExtQtp(TLS *tls, WPacket *pkt,
                             uint32_t context, X509 *x, size_t chainidx)
 {
     return TlsConstructQtpExtension(tls, pkt, client_transport_param,
                                     QUIC_TRANS_PARAM_NUM);
 }
 
-int TlsClientConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
+int TlsClientConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
                              X509 *x, size_t chainidx)
 {
     return TlsConstructExtensions(tls, pkt, context, x, chainidx,
@@ -494,7 +494,7 @@ int TlsClientConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
                                     QUIC_NELEM(client_ext_construct));
 }
 
-static int TlsExtClntParseServerName(QUIC_TLS *tls, RPacket *pkt,
+static int TlsExtClntParseServerName(TLS *tls, RPacket *pkt,
                                 uint32_t context, X509 *x,
                                 size_t chainidx)
 {
@@ -502,7 +502,7 @@ static int TlsExtClntParseServerName(QUIC_TLS *tls, RPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntParseAlpn(QUIC_TLS *tls, RPacket *pkt,
+static int TlsExtClntParseAlpn(TLS *tls, RPacket *pkt,
                                 uint32_t context, X509 *x,
                                 size_t chainidx)
 {
@@ -524,7 +524,7 @@ static int TlsExtClntParseAlpn(QUIC_TLS *tls, RPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntParseSupportedVersion(QUIC_TLS *tls, RPacket *pkt, 
+static int TlsExtClntParseSupportedVersion(TLS *tls, RPacket *pkt, 
                             uint32_t context, X509 *x, size_t chainidx)
 {
     uint32_t version = 0;
@@ -544,7 +544,7 @@ static int TlsExtClntParseSupportedVersion(QUIC_TLS *tls, RPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntParseTlsExtQtp(QUIC_TLS *tls, RPacket *pkt, 
+static int TlsExtClntParseTlsExtQtp(TLS *tls, RPacket *pkt, 
                             uint32_t context, X509 *x, size_t chainidx)
 {
     QuicTransParams param = {};
@@ -553,7 +553,7 @@ static int TlsExtClntParseTlsExtQtp(QUIC_TLS *tls, RPacket *pkt,
                                     QUIC_TRANS_PARAM_NUM);
 }
 
-static int TlsExtClntParseKeyShare(QUIC_TLS *tls, RPacket *pkt,
+static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,
                                 uint32_t context, X509 *x,
                                 size_t chainidx)
 {
@@ -625,7 +625,7 @@ static int TlsExtClntParseKeyShare(QUIC_TLS *tls, RPacket *pkt,
     return 0;
 }
 
-int TlsClientParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
+int TlsClientParseExtensions(TLS *tls, RPacket *pkt, uint32_t context,
                             X509 *x, size_t chainidx)
 {
     return TlsParseExtensions(tls, pkt, context, x, chainidx, client_ext_parse,
@@ -633,7 +633,7 @@ int TlsClientParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
 }
 
 static int
-TlsExtQtpCheckGrease(QUIC_TLS *tls, QuicTransParams *param, size_t offset)
+TlsExtQtpCheckGrease(TLS *tls, QuicTransParams *param, size_t offset)
 {
 #ifdef QUIC_TEST
     if (QuicTestTransParamHook) {
@@ -644,7 +644,7 @@ TlsExtQtpCheckGrease(QUIC_TLS *tls, QuicTransParams *param, size_t offset)
 }
 
 static int
-TlsExtQtpConstructGrease(QUIC_TLS *tls, QuicTransParams *param,
+TlsExtQtpConstructGrease(TLS *tls, QuicTransParams *param,
                                 size_t offset, WPacket *pkt)
 {
     uint8_t value[] = "\xB9\xF8\xCB\xDE\x38\x55\x6D\x9D\x34\x30\x0F\x89";
@@ -671,7 +671,7 @@ int TlsExtQtpConstructCid(QUIC_DATA *cid, WPacket *pkt)
 }
 
 static int
-TlsExtQtpConstructSourceConnId(QUIC_TLS *tls, QuicTransParams *param,
+TlsExtQtpConstructSourceConnId(TLS *tls, QuicTransParams *param,
                                             size_t offset, WPacket *pkt)
 {
     QUIC *quic = NULL;
@@ -682,7 +682,7 @@ TlsExtQtpConstructSourceConnId(QUIC_TLS *tls, QuicTransParams *param,
 }
 
 static int
-TlsExtQtpCheckGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
+TlsExtQtpCheckGoogleVersion(TLS *tls, QuicTransParams *param,
                                     size_t offset)
 {
 #ifdef QUIC_TEST
@@ -692,7 +692,7 @@ TlsExtQtpCheckGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
 }
 
 static int
-TlsExtQtpConstructGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
+TlsExtQtpConstructGoogleVersion(TLS *tls, QuicTransParams *param,
                                             size_t offset, WPacket *pkt)
 {
     if (QuicVariableLengthWrite(pkt, 4) < 0) {
@@ -708,7 +708,7 @@ TlsExtQtpConstructGoogleVersion(QUIC_TLS *tls, QuicTransParams *param,
 }
 
 
-static int TlsExtQtpParseStatelessResetToken(QUIC_TLS *tls,
+static int TlsExtQtpParseStatelessResetToken(TLS *tls,
                                 QuicTransParams *param, size_t offset,
                                 RPacket *pkt, uint64_t len)
 {

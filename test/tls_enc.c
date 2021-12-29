@@ -47,7 +47,7 @@ static char handshake_secret[] =
     "2A7703211520816EAE739D0F9493274BF0B1C7DD7E21DF60F094AA98032D3698"
     "CFA5B5651E7E18648633418E915F668F";
 
-int QuicTlsGenerateSecretTest(void)
+int TlsGenerateSecretTest(void)
 {
     uint8_t pre_secret[EVP_MAX_MD_SIZE] = {};
     uint8_t out[EVP_MAX_MD_SIZE] = {};
@@ -90,12 +90,12 @@ static void QuicHandshakeSecretComp(uint8_t *secret)
     }
 }
 
-int QuicTlsGenerateServerSecretTest(void)
+int TlsGenerateServerSecretTest(void)
 {
     uint8_t *msg = NULL;
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
-    QUIC_TLS *tls = NULL;
+    TLS *tls = NULL;
     QUIC_BUFFER *buf = NULL;
     size_t msg_len = 0;
     int ret = -1;

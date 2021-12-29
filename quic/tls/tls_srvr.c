@@ -13,35 +13,35 @@
 #include "common.h"
 #include "log.h"
 
-static int QuicTlsClientHelloProc(QUIC_TLS *, void *);
-static int QuicTlsServerHelloBuild(QUIC_TLS *, void *);
+static int TlsClientHelloProc(TLS *, void *);
+static int TlsServerHelloBuild(TLS *, void *);
 
-static const QuicTlsProcess server_proc[HANDSHAKE_MAX] = {
-    [QUIC_TLS_ST_OK] = {
+static const TlsProcess server_proc[HANDSHAKE_MAX] = {
+    [TLS_ST_OK] = {
         .flow_state = QUIC_FLOW_NOTHING,
-        .next_state = QUIC_TLS_ST_SR_CLIENT_HELLO,
+        .next_state = TLS_ST_SR_CLIENT_HELLO,
     },
-    [QUIC_TLS_ST_SR_CLIENT_HELLO] = {
+    [TLS_ST_SR_CLIENT_HELLO] = {
         .flow_state = QUIC_FLOW_READING,
-        //.next_state = QUIC_TLS_ST_SW_SERVER_HELLO,
-        .next_state = QUIC_TLS_ST_HANDSHAKE_DONE,
+        //.next_state = TLS_ST_SW_SERVER_HELLO,
+        .next_state = TLS_ST_HANDSHAKE_DONE,
         .handshake_type = CLIENT_HELLO,
-        .handler = QuicTlsClientHelloProc,
+        .handler = TlsClientHelloProc,
     },
-    [QUIC_TLS_ST_SW_SERVER_HELLO] = {
+    [TLS_ST_SW_SERVER_HELLO] = {
         .flow_state = QUIC_FLOW_WRITING,
-        .next_state = QUIC_TLS_ST_SW_SERVER_CERTIFICATE,
+        .next_state = TLS_ST_SW_SERVER_CERTIFICATE,
         .handshake_type = SERVER_HELLO,
-        .handler = QuicTlsServerHelloBuild,
+        .handler = TlsServerHelloBuild,
     },
 };
 
-static QuicFlowReturn QuicTlsAccept(QUIC_TLS *tls)
+static QuicFlowReturn TlsAccept(TLS *tls)
 {
-    return QuicTlsHandshake(tls, server_proc, QUIC_NELEM(server_proc));
+    return TlsHandshake(tls, server_proc, QUIC_NELEM(server_proc));
 }
 
-static int QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
+static int TlsClientHelloProc(TLS *tls, void *packet)
 {
     RPacket *pkt = packet;
     const TlsCipher *cipher = NULL;
@@ -50,7 +50,7 @@ static int QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
     uint32_t cipher_len = 0;
     uint32_t compress_len = 0;
 
-    if (QuicTlsHelloHeadParse(tls, pkt, tls->client_random,
+    if (TlsHelloHeadParse(tls, pkt, tls->client_random,
                 sizeof(tls->client_random)) < 0) {
         return -1;
     }
@@ -67,20 +67,20 @@ static int QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    if (QuicTlsParseCipherList(&cipher_list, pkt, cipher_len) < 0) {
+    if (TlsParseCipherList(&cipher_list, pkt, cipher_len) < 0) {
         return -1;
     }
 
     hlist_for_each_entry(server_cipher, &tls->cipher_list, node) {
         assert(server_cipher->cipher != NULL);
-        cipher = QuicTlsCipherMatchListById(&cipher_list,
+        cipher = TlsCipherMatchListById(&cipher_list,
                 server_cipher->cipher->id);
         if (cipher != NULL) {
             break;
         }
     }
 
-    QuicTlsDestroyCipherList(&cipher_list);
+    TlsDestroyCipherList(&cipher_list);
     if (cipher == NULL) {
         QUIC_LOG("No shared cipher found\n");
         return -1;
@@ -95,20 +95,20 @@ static int QuicTlsClientHelloProc(QUIC_TLS *tls, void *packet)
         return -1;
     }
 
-    if (QuicTlsExtLenParse(pkt) < 0) {
+    if (TlsExtLenParse(pkt) < 0) {
         return -1;
     }
 
     return 0;
 }
 
-static int QuicTlsServerHelloBuild(QUIC_TLS *tls, void *packet)
+static int TlsServerHelloBuild(TLS *tls, void *packet)
 {
     printf("SSSSSSSSSSSSSSSSSSSSSServerhello Build\n");
     return 0;
 }
 
-void QuicTlsServerInit(QUIC_TLS *tls)
+void TlsServerInit(TLS *tls)
 {
-    tls->handshake = QuicTlsAccept;
+    tls->handshake = TlsAccept;
 }

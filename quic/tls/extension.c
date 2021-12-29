@@ -13,7 +13,7 @@
 #define QUIC_SET_U64_VALUE_BY_OFFSET(p, offset, v) \
     *((uint64_t *)((uint8_t *)p + offset)) = v
 
-static int TlsShouldAddExtension(QUIC_TLS *tls, uint32_t extctx,
+static int TlsShouldAddExtension(TLS *tls, uint32_t extctx,
                                     uint32_t thisctx)
 {
     /* Skip if not relevant for our context */
@@ -24,7 +24,7 @@ static int TlsShouldAddExtension(QUIC_TLS *tls, uint32_t extctx,
     return 1;
 }
 
-static int TlsShouldParseExtension(QUIC_TLS *tls, uint32_t extctx,
+static int TlsShouldParseExtension(TLS *tls, uint32_t extctx,
                                     uint32_t thisctx)
 {
     /* Skip if not relevant for our context */
@@ -36,15 +36,15 @@ static int TlsShouldParseExtension(QUIC_TLS *tls, uint32_t extctx,
 }
 
 #ifdef QUIC_TEST
-const QuicTlsExtConstruct *(*QuicTestExtensionHook)(const
-        QuicTlsExtConstruct *, size_t);
+const TlsExtConstruct *(*QuicTestExtensionHook)(const
+        TlsExtConstruct *, size_t);
 #endif
-int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
+int TlsConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
                              X509 *x, size_t chainidx,
-                             const QuicTlsExtConstruct *ext,
+                             const TlsExtConstruct *ext,
                              size_t num)
 {
-    const QuicTlsExtConstruct *thisexd = NULL;
+    const TlsExtConstruct *thisexd = NULL;
     size_t i = 0;
     int ret = 0;
 
@@ -102,8 +102,8 @@ int TlsConstructExtensions(QUIC_TLS *tls, WPacket *pkt, uint32_t context,
     return 0;
 }
 
-static const QuicTlsExtParse *
-TlsFindExtParser(uint32_t type, const QuicTlsExtParse *ext, size_t num)
+static const TlsExtParse *
+TlsFindExtParser(uint32_t type, const TlsExtParse *ext, size_t num)
 {
     size_t i = 0;
 
@@ -116,18 +116,18 @@ TlsFindExtParser(uint32_t type, const QuicTlsExtParse *ext, size_t num)
     return NULL;
 }
  
-int TlsParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
+int TlsParseExtensions(TLS *tls, RPacket *pkt, uint32_t context,
                              X509 *x, size_t chainidx,
-                             const QuicTlsExtParse *ext,
+                             const TlsExtParse *ext,
                              size_t num)
 {
-    const QuicTlsExtParse *thisexd = NULL;
+    const TlsExtParse *thisexd = NULL;
     RPacket ext_data = {};
     uint32_t type = 0;
     uint32_t len = 0;
     int ret = 0;
 
-    if (QuicTlsExtLenParse(pkt) < 0) {
+    if (TlsExtLenParse(pkt) < 0) {
         return -1;
     }
 
@@ -171,7 +171,7 @@ int TlsParseExtensions(QUIC_TLS *tls, RPacket *pkt, uint32_t context,
 const TlsExtQtpDefinition *(*QuicTestTransParamHook)(const TlsExtQtpDefinition
                                 *param, size_t num);
 #endif
-int TlsConstructQtpExtension(QUIC_TLS *tls, WPacket *pkt,
+int TlsConstructQtpExtension(TLS *tls, WPacket *pkt,
                                 const TlsExtQtpDefinition *param,
                                 size_t num)
 {
@@ -210,7 +210,7 @@ int TlsConstructQtpExtension(QUIC_TLS *tls, WPacket *pkt,
     return 0;
 }
 
-int TlsParseQtpExtension(QUIC_TLS *tls, QuicTransParams *param, RPacket *pkt,
+int TlsParseQtpExtension(TLS *tls, QuicTransParams *param, RPacket *pkt,
                                 const TlsExtQtpDefinition *tp, size_t num)
 {
     const TlsExtQtpDefinition *p = NULL;
@@ -256,7 +256,7 @@ int TlsParseQtpExtension(QUIC_TLS *tls, QuicTransParams *param, RPacket *pkt,
     return 0;
 }
 
-int TlsExtQtpCheckInteger(QUIC_TLS *tls, QuicTransParams *param,
+int TlsExtQtpCheckInteger(TLS *tls, QuicTransParams *param,
                                 size_t offset)
 {
     uint64_t value;
@@ -269,7 +269,7 @@ int TlsExtQtpCheckInteger(QUIC_TLS *tls, QuicTransParams *param,
     return 0;
 }
 
-int TlsExtQtpConstructInteger(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
+int TlsExtQtpConstructInteger(TLS *tls, QuicTransParams *param, size_t offset,
                                             WPacket *pkt)
 {
     uint64_t value;
@@ -279,7 +279,7 @@ int TlsExtQtpConstructInteger(QUIC_TLS *tls, QuicTransParams *param, size_t offs
     return QuicVariableLengthValueWrite(pkt, value);
 }
 
-int TlsExtQtpParseInteger(QUIC_TLS *tls, QuicTransParams *param, size_t offset,
+int TlsExtQtpParseInteger(TLS *tls, QuicTransParams *param, size_t offset,
                                 RPacket *pkt, uint64_t len)
 {
     uint64_t length = 0;

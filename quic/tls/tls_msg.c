@@ -19,7 +19,7 @@
 uint8_t *quic_random_test;
 #endif
 
-int QuicTlsGenRandom(uint8_t *random, size_t len, WPacket *pkt)
+int TlsGenRandom(uint8_t *random, size_t len, WPacket *pkt)
 {
     if (QuicRandBytes(random, len) < 0) {
         QUIC_LOG("Generate Random failed\n");
@@ -35,7 +35,7 @@ int QuicTlsGenRandom(uint8_t *random, size_t len, WPacket *pkt)
     return WPacketMemcpy(pkt, random, len);
 }
 
-int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
+int TlsPutCipherList(TLS *tls, WPacket *pkt)
 {
     TlsCipherListNode *node = NULL;
     int ret = 0;
@@ -60,7 +60,7 @@ int QuicTlsPutCipherList(QUIC_TLS *tls, WPacket *pkt)
     return ret;
 }
 
-int QuicTlsPutCompressionMethod(WPacket *pkt)
+int TlsPutCompressionMethod(WPacket *pkt)
 {
     return WPacketPut1(pkt, 0);
 }

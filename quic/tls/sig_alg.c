@@ -144,7 +144,7 @@ int TlsCopySigAlgs(WPacket *pkt, const uint16_t *psig, size_t psiglen)
     return 0;
 }
 
-size_t TlsGetPSigAlgs(QUIC_TLS *tls, const uint16_t **psigs)
+size_t TlsGetPSigAlgs(TLS *tls, const uint16_t **psigs)
 {
     if (!QuicDataIsEmpty(&tls->cert->conf_sigalgs)) {
         *psigs = tls->cert->conf_sigalgs.ptr_u16;

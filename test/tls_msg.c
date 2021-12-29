@@ -82,7 +82,7 @@ static uint16_t extension_defs[] = {
     EXT_TYPE_SERVER_NAME,
 };
 
-static QuicTlsTestParam test_param[] = {
+static TlsTestParam test_param[] = {
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_UNI,
         .value = 0x600000,
@@ -131,8 +131,8 @@ static QuicTlsTestParam test_param[] = {
 };
 
 static size_t TlsExtIndex;
-static const QuicTlsExtConstruct *QuicTlsTestGetExtension(const
-        QuicTlsExtConstruct *ext, size_t num)
+static const TlsExtConstruct *TlsTestGetExtension(const
+        TlsExtConstruct *ext, size_t num)
 {
     size_t j = 0;
     uint16_t type = 0;
@@ -153,9 +153,9 @@ static const QuicTlsExtConstruct *QuicTlsTestGetExtension(const
 
 static size_t TlsTransParamIndex;
 static const TlsExtQtpDefinition *
-QuicTlsTestGetTransParams(const TlsExtQtpDefinition *param, size_t num)
+TlsTestGetTransParams(const TlsExtQtpDefinition *param, size_t num)
 {
-    QuicTlsTestParam *p = NULL;
+    TlsTestParam *p = NULL;
     size_t j = 0;
 
     if (TlsTransParamIndex < QUIC_NELEM(test_param)) {
@@ -171,7 +171,7 @@ QuicTlsTestGetTransParams(const TlsExtQtpDefinition *param, size_t num)
     return NULL;
 }
 
-static size_t QuicTlsTestSetEncodedpoint(unsigned char **point)
+static size_t TlsTestSetEncodedpoint(unsigned char **point)
 {
     unsigned char encoded_point[] =
         "\xED\xC3\x0A\x02\x80\x93\x20\xAA\xF1\x1F\x0F\x7D\x9E\x6F\xC4\x78"
@@ -187,7 +187,7 @@ static size_t QuicTlsTestSetEncodedpoint(unsigned char **point)
     return len;
 }
 
-static int QuicTlsCtxClientExtensionSet(QUIC_CTX *ctx)
+static int TlsCtxClientExtensionSet(QUIC_CTX *ctx)
 {
     const uint8_t alpn[] = "\x02\x68\x33";
     uint16_t groups[] = {
@@ -216,9 +216,9 @@ out:
     return ret;
 }
  
-static int QuicTlsClientExtensionSet(QUIC *quic)
+static int TlsClientExtensionSet(QUIC *quic)
 {
-    QuicTlsTestParam *p = NULL;
+    TlsTestParam *p = NULL;
     size_t i = 0;
     int ret = -1;
 
@@ -235,16 +235,16 @@ static int QuicTlsClientExtensionSet(QUIC *quic)
         QUIC_set_transport_parameter(quic, p->type, &p->value, 0);
     }
 
-    QuicTestExtensionHook = QuicTlsTestGetExtension;
-    QuicTestTransParamHook = QuicTlsTestGetTransParams;
-    QuicTestEncodedpointHook = QuicTlsTestSetEncodedpoint;
+    QuicTestExtensionHook = TlsTestGetExtension;
+    QuicTestTransParamHook = TlsTestGetTransParams;
+    QuicTestEncodedpointHook = TlsTestSetEncodedpoint;
 
     ret = 0;
 out:
     return ret;
 }
  
-int QuicTlsClientHelloTest(void)
+int TlsClientHelloTest(void)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
@@ -261,7 +261,7 @@ int QuicTlsClientHelloTest(void)
         goto out;
     }
 
-    if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
+    if (TlsCtxClientExtensionSet(ctx) < 0) {
         return -1;
     }
 
@@ -271,7 +271,7 @@ int QuicTlsClientHelloTest(void)
     }
 
     QUIC_set_connect_state(quic);
-    if (QuicTlsClientExtensionSet(quic) < 0) {
+    if (TlsClientExtensionSet(quic) < 0) {
         return -1;
     }
 
@@ -320,7 +320,7 @@ out:
     return case_num;
 }
 
-int QuicTlsClientExtensionTest(void)
+int TlsClientExtensionTest(void)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
@@ -335,7 +335,7 @@ int QuicTlsClientExtensionTest(void)
         goto out;
     }
 
-    if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
+    if (TlsCtxClientExtensionSet(ctx) < 0) {
         goto out;
     }
 
@@ -345,7 +345,7 @@ int QuicTlsClientExtensionTest(void)
     }
 
     QUIC_set_connect_state(quic);
-    if (QuicTlsClientExtensionSet(quic) < 0) {
+    if (TlsClientExtensionSet(quic) < 0) {
         goto out;
     }
 

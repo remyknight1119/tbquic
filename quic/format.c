@@ -602,7 +602,7 @@ static int QuicFrameParse(QUIC *quic, QUIC_BUFFER *f_buf)
         return -1;
     }
 
-    if (QuicTlsDoHandshake(&quic->tls) == QUIC_FLOW_RET_ERROR) {
+    if (TlsDoHandshake(&quic->tls) == QUIC_FLOW_RET_ERROR) {
         QUIC_LOG("TLS Hadshake failed!\n");
         return -1;
     }

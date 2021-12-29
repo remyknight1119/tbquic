@@ -117,22 +117,23 @@ static int QUIC_set_hp_cipher_space_alg(QuicCipherSpace *space, uint32_t alg)
     return QUIC_set_hp_ciphers_alg(&space->ciphers, alg);
 }
 
-int QUIC_set_initial_hp_cipher(QUIC *quic, uint32_t alg)
+int QUIC_set_hp_cipher(QuicCrypto *c, uint32_t alg)
 {
-    if (QUIC_set_hp_cipher_space_alg(&quic->initial.decrypt, alg) < 0) {
+    if (QUIC_set_hp_cipher_space_alg(&c->decrypt, alg) < 0) {
         return -1;
     }
 
-    return QUIC_set_hp_cipher_space_alg(&quic->initial.encrypt, alg);
+    return QUIC_set_hp_cipher_space_alg(&c->encrypt, alg);
+}
+
+int QUIC_set_initial_hp_cipher(QUIC *quic, uint32_t alg)
+{
+    return QUIC_set_hp_cipher(&quic->initial, alg);
 }
 
 int QUIC_set_handshake_hp_cipher(QUIC *quic, uint32_t alg)
 {
-    if (QUIC_set_hp_cipher_space_alg(&quic->handshake.decrypt, alg) < 0) {
-        return -1;
-    }
-
-    return QUIC_set_hp_cipher_space_alg(&quic->handshake.encrypt, alg);
+    return QUIC_set_hp_cipher(&quic->handshake, alg);
 }
 
 static int QUIC_set_pp_ciphers_alg(QUIC_CIPHERS *ciphers, uint32_t alg)

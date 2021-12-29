@@ -353,12 +353,20 @@ int TlsDigestCachedRecords(TLS *tls)
     return 0;
 }
 
-int TlsFinishMac(TLS *s, const uint8_t *buf, size_t len)
+int TlsFinishMac(TLS *tls, const uint8_t *buf, size_t len)
 {
+    if (tls->handshake_dgst == NULL) {
+        return 0;
+    }
+
+    if (EVP_DigestUpdate(tls->handshake_dgst, buf, len) == 0) {
+        return -1;
+    }
+
     return 0;
 }
 
-int TlsHandshakeHash(TLS *tls, const EVP_MD *md, uint8_t *hash)
+int TlsHandshakeHash(TLS *tls, uint8_t *hash)
 {
     EVP_MD_CTX *ctx = NULL;
     EVP_MD_CTX *hdgst = tls->handshake_dgst;

@@ -11,6 +11,7 @@
 #include "packet_local.h"
 #include "quic_local.h"
 #include "tls_cipher.h"
+#include "tls_lib.h"
 #include "mem.h"
 #include "common.h"
 #include "log.h"
@@ -75,6 +76,10 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
     }
  
     RPacketHeadPush(&msg, offset);
+    if (TlsFinishMac(tls, RPacketData(&msg), RPacketRemaining(&msg)) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     state = tls->handshake_state;
     if (p->handler(tls, &msg) < 0) {
         return QUIC_FLOW_RET_ERROR;

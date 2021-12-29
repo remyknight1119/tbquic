@@ -13,6 +13,7 @@
 #include "quic_local.h"
 #include "crypto.h"
 #include "common.h"
+#include "mem.h"
 #include "tls_lib.h"
 #include "evp.h"
 #include "log.h"
@@ -403,16 +404,15 @@ static int QuicCreateDecoders(TLS *tls, const EVP_MD *md,
 }
 
 static int
-QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label, size_t label_len,
-                            const char *log_label)
+QuicCreateDataDecoders(TLS *tls, QuicCrypto *c, uint8_t *secret, uint8_t *hash,
+                            const uint8_t *label, size_t label_len,
+                            const char *log_label, bool server_traffic)
 {
-    TLS *tls = &quic->tls;
     const TlsCipher *cipher = NULL;
     QuicCipherSpace *decrypt = NULL;
     const EVP_MD *md = NULL;
-    uint8_t hash[EVP_MAX_MD_SIZE] = {};
     
-    decrypt = &quic->handshake.decrypt;
+    decrypt = &c->decrypt;
     if (decrypt->cipher_inited == true) {
         return 0;
     }
@@ -423,23 +423,19 @@ QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label, size_t label_len,
         return -1;
     }
 
-    md = TlsHandshakeMd(tls);
-    if (md == NULL) {
-        QUIC_LOG("Handshake MD failed\n");
-        return -1;
-    }
-
     if (TlsDigestCachedRecords(tls) < 0) {
         QUIC_LOG("Gigest Cached Record failed\n");
         return -1;
     }
 
-    if (TlsHandshakeHash(tls, md, hash) < 0) {
-        QUIC_LOG("Handshake Hash failed\n");
-        return -1;
+    if (server_traffic == true) {
+        if (TlsHandshakeHash(tls, hash) < 0) {
+            QUIC_LOG("Handshake Hash failed\n");
+            return -1;
+        }
     }
 
-    if (QUIC_set_handshake_hp_cipher(quic, QUIC_ALG_AES_128_ECB) < 0) {
+    if (QUIC_set_hp_cipher(c, QUIC_ALG_AES_128_ECB) < 0) {
         QUIC_LOG("Set handshake HP cipher failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
@@ -449,17 +445,41 @@ QuicCreateHandshakeDecoders(QUIC *quic, const uint8_t *label, size_t label_len,
         return QUIC_FLOW_RET_ERROR;
     }
 
-    return QuicCreateDecoders(tls, md, tls->handshake_secret, label, label_len,
-                                hash, decrypt, log_label);
+    md = TlsHandshakeMd(tls);
+    if (md == NULL) {
+        QUIC_LOG("Handshake MD failed\n");
+        return -1;
+    }
+
+    return QuicCreateDecoders(tls, md, secret, label, label_len, hash, decrypt,
+                                log_label);
+}
+
+int
+QuicCreateAppDataDecoders(QUIC *quic, const uint8_t *label, size_t label_len,
+                            const char *log_label, bool server_traffic)
+{
+    TLS *tls = &quic->tls;
+    static const uint8_t server_application_traffic[] = "s ap traffic";
+    
+    return QuicCreateDataDecoders(tls, &quic->one_rtt, tls->master_secret,
+                            tls->server_finished_hash,
+                            server_application_traffic,
+                            sizeof(server_application_traffic) - 1,
+                            SERVER_APPLICATION_LABEL, true);
+
 }
 
 int QuicCreateHandshakeServerDecoders(QUIC *quic)
 {
+    TLS *tls = &quic->tls;
     static const uint8_t server_handshake_traffic[] = "s hs traffic";
     
-    return QuicCreateHandshakeDecoders(quic, server_handshake_traffic,
-                    sizeof(server_handshake_traffic) - 1,
-                    SERVER_HANDSHAKE_LABEL);
+    return QuicCreateDataDecoders(tls, &quic->handshake, tls->handshake_secret,
+                            tls->handshake_traffic_hash,
+                            server_handshake_traffic,
+                            sizeof(server_handshake_traffic) - 1,
+                            SERVER_HANDSHAKE_LABEL, true);
 }
 
 int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,

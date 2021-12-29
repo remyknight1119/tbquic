@@ -90,6 +90,8 @@ struct Tls {
     uint8_t early_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_secret[EVP_MAX_MD_SIZE];
     uint8_t master_secret[EVP_MAX_MD_SIZE];
+    uint8_t handshake_traffic_hash[EVP_MAX_MD_SIZE];
+    uint8_t server_finished_hash[EVP_MAX_MD_SIZE];
     /* TLS extensions. */
     struct {
         char *hostname;

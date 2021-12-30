@@ -22,7 +22,13 @@
 #define QUIC_LE(a, b) ((int)((a) - (b)) <= 0)
 #define QUIC_GE(a, b) ((int)((a) - (b)) >= 0)
 
-static inline void QuicPrint(const uint8_t *data, size_t len)
+#define QuicPrint(data, len) \
+    do { \
+        QuicPrintData(data, len, __FILE__, __LINE__, __FUNCTION__); \
+    } while (0)
+
+static inline void QuicPrintData(const uint8_t *data, size_t len,
+                    const char *file, int line, const char *func)
 {
     int i = 0;
 
@@ -30,7 +36,7 @@ static inline void QuicPrint(const uint8_t *data, size_t len)
         fprintf(stdout, "%02X", data[i]);
     }
 
-    fprintf(stdout, "\nlen = %lu\n", len);
+    fprintf(stdout, "\n[%s %d: %s] len = %lu\n", file, line, func, len);
 }
 
 

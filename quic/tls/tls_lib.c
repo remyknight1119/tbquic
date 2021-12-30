@@ -328,13 +328,13 @@ int TlsDigestCachedRecords(TLS *tls)
     }
 
     buffer = &tls->buffer;
-    hdatalen = QuicBufGetDataLength(buffer) + QuicBufGetReserved(buffer);
+    hdatalen = tls->handshake_msg_len + QuicBufGetReserved(buffer);
     if (hdatalen == 0) {
         return -1;
     }
 
     hdata = QuicBufHead(buffer);
-//    QuicPrint(hdata, hdatalen);
+    //QuicPrint(hdata, hdatalen);
     tls->handshake_dgst = EVP_MD_CTX_new();
     if (tls->handshake_dgst == NULL) {
         return -1;
@@ -661,6 +661,7 @@ int TlsDoCertVerify(TLS *s, const uint8_t *data, size_t len, EVP_PKEY *pkey,
 
     if (EVP_DigestVerify(mctx, data, len, hdata, hdatalen) <= 0) {
         QUIC_LOG("Verify Failed\n");
+        goto err;
     }
 
     ret = 0;

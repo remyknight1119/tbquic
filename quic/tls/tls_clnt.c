@@ -177,12 +177,14 @@ static int TlsServerHelloProc(TLS *tls, void *packet)
         return -1;
     }
 
+    tls->handshake_msg_len = RPacketTotalLen(pkt);
     //change cipher state
     if (QuicCreateHandshakeServerDecoders(quic) < 0) {
         QUIC_LOG("Create Handshake Decoders failed\n");
         return -1;
     }
 
+    tls->handshake_msg_len = 0;
     QuicBufClear(QUIC_TLS_BUFFER(quic));
     return 0;
 }

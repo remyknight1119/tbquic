@@ -76,7 +76,7 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
     }
  
     RPacketHeadPush(&msg, offset);
-    if (TlsFinishMac(tls, RPacketData(&msg), RPacketRemaining(&msg)) < 0) {
+    if (TlsFinishMac(tls, RPacketHead(&msg), RPacketTotalLen(&msg)) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 

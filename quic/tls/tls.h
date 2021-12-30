@@ -84,6 +84,7 @@ struct Tls {
     uint8_t client_random[TLS_RANDOM_BYTE_LEN];
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;
+    size_t handshake_msg_len;
     QUIC_BUFFER buffer;
     QuicCert *cert;
     const TlsCipher *handshake_cipher;

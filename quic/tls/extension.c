@@ -160,6 +160,7 @@ int TlsParseExtensions(TLS *tls, RPacket *pkt, uint32_t context,
         RPacketPull(pkt, len);
         ret = thisexd->parse(tls, &ext_data, context, x, chainidx);
         if (ret < 0) {
+            QUIC_LOG("Parse %u failed\n", type);
             return -1;
         }
     }

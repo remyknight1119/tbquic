@@ -312,8 +312,8 @@ int TlsClientHelloTest(void)
 
     case_num = 1;
 out:
-    BIO_free(rbio);
     BIO_free(wbio);
+    BIO_free(rbio);
     QuicFree(quic);
     QuicCtxFree(ctx);
 

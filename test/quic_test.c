@@ -71,6 +71,10 @@ static QuicFuncTest test_funcs[] = {
         .test = TlsGenerateServerSecretTest,
         .err_msg = "TLS Generate Server Secret",
     },
+    {
+        .test = TlsClientHandshakeReadTest,
+        .err_msg = "TLS Client Handshake Read",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)
@@ -202,6 +206,7 @@ int main(int argc, char **argv)
         fprintf(stdout, "Failed!\n");
     }
 
+    QuicExit();
     return 0;
 }
 

@@ -568,6 +568,7 @@ static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,
     uint32_t key_ex_len = 0;
 
     if (ckey == NULL) {
+        QUIC_LOG("Ckey is NULL\n");
         return -1;
     }
 
@@ -599,6 +600,7 @@ static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,
 
     key_ex_data = RPacketData(pkt);
     if (RPacketPull(pkt, key_ex_len) < 0) {
+        QUIC_LOG("Pull failed\n");
         return -1;
     }
 

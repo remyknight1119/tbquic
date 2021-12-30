@@ -137,6 +137,7 @@ static int TlsServerHelloProc(TLS *tls, void *packet)
 
     if (TlsHelloHeadParse(tls, pkt, tls->server_random,
                 sizeof(tls->server_random)) < 0) {
+        QUIC_LOG("Parse Hello Head failed\n");
         return -1;
     }
 
@@ -172,11 +173,13 @@ static int TlsServerHelloProc(TLS *tls, void *packet)
     }
 
     if (TlsClientParseExtensions(tls, pkt, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
+        QUIC_LOG("Parse Extension failed\n");
         return -1;
     }
 
     //change cipher state
     if (QuicCreateHandshakeServerDecoders(quic) < 0) {
+        QUIC_LOG("Create Handshake Decoders failed\n");
         return -1;
     }
 

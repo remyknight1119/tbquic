@@ -648,7 +648,6 @@ int TlsDoCertVerify(TLS *s, const uint8_t *data, size_t len, EVP_PKEY *pkey,
     }
 
     if (EVP_DigestVerifyInit(mctx, &pctx, md, NULL, pkey) <= 0) {
-
         goto err;
     }
 
@@ -658,6 +657,10 @@ int TlsDoCertVerify(TLS *s, const uint8_t *data, size_t len, EVP_PKEY *pkey,
                                                 RSA_PSS_SALTLEN_DIGEST) <= 0) {
             goto err;
         }
+    }
+
+    if (EVP_DigestVerify(mctx, data, len, hdata, hdatalen) <= 0) {
+        QUIC_LOG("Verify Failed\n");
     }
 
     ret = 0;

@@ -75,5 +75,6 @@ int TlsClientExtensionTest(void);
 int TlsGenerateSecretTest(void);
 int TlsGenerateServerSecretTest(void);
 int TlsClientHandshakeReadTest(void);
+int TlsGenerateMasterSecretTest(void);
 
 #endif

@@ -16,6 +16,9 @@ typedef struct {
     uint32_t flags;
 } TlsGroupInfo;
 
+#ifdef QUIC_TEST
+extern void (*QuicHandshakeSecretHook)(uint8_t *);
+#endif
 void TlsGetSupportedGroups(TLS *, const uint16_t **, size_t *);
 int TlsSetSupportedGroups(uint16_t **, size_t *, uint16_t *, size_t);
 int TlsCheckFfdhGroup(uint16_t);
@@ -29,6 +32,7 @@ int TlsDeriveSecrets(TLS *, const EVP_MD *, const uint8_t *, const uint8_t *,
 int TlsGenerateSecret(const EVP_MD *, const uint8_t *, const uint8_t *, size_t,
                         uint8_t *);
 int TlsKeyDerive(TLS *, EVP_PKEY *, EVP_PKEY *);
+int TlsGenerateMasterSecret(TLS *, uint8_t *, uint8_t *, size_t *);
 int TlsCheckPeerSigalg(TLS *, uint16_t, EVP_PKEY *);
 const EVP_MD *TlsLookupMd(const SigAlgLookup *);
 int TlsDoCertVerify(TLS *, const uint8_t *, size_t, EVP_PKEY *, const EVP_MD *);

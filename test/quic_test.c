@@ -75,6 +75,10 @@ static QuicFuncTest test_funcs[] = {
         .test = TlsClientHandshakeReadTest,
         .err_msg = "TLS Client Handshake Read",
     },
+    {
+        .test = TlsGenerateMasterSecretTest,
+        .err_msg = "TLS Generate Master Secret",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)

@@ -392,8 +392,18 @@ static int QuicCreateDecoders(TLS *tls, const EVP_MD *md,
 
 #if 0
     fprintf(stdout, "%s ", log_label);
-    QuicPrint(tls->client_random, sizeof(tls->client_random));
-    QuicPrint(secret, EVP_md_size(md));
+    int i = 0;
+
+    for (i = 0; i < sizeof(tls->client_random); i++) {
+        fprintf(stdout, "%02X", tls->client_random[i]);
+    }
+
+    fprintf(stdout, " ");
+    for (i = 0; i < EVP_MD_size(md); i++) {
+        fprintf(stdout, "%02X", secret[i]);
+    }
+    fprintf(stdout, "\n");
+
 #endif
 #ifdef QUIC_TEST
     if (QuicSecretTest != NULL) {
@@ -404,7 +414,7 @@ static int QuicCreateDecoders(TLS *tls, const EVP_MD *md,
 }
 
 static int
-QuicCreateDataDecoders(TLS *tls, QuicCrypto *c, uint8_t *secret, uint8_t *hash,
+QuicCreateDataDecoders(TLS *s, QuicCrypto *c, uint8_t *in_secret, uint8_t *hash,
                             const uint8_t *label, size_t label_len,
                             const char *log_label, bool server_traffic)
 {
@@ -417,19 +427,20 @@ QuicCreateDataDecoders(TLS *tls, QuicCrypto *c, uint8_t *secret, uint8_t *hash,
         return 0;
     }
 
-    cipher = tls->handshake_cipher;
+    cipher = s->handshake_cipher;
     if (cipher == NULL) {
         QUIC_LOG("No cipher\n");
         return -1;
     }
 
-    if (TlsDigestCachedRecords(tls) < 0) {
+    if (TlsDigestCachedRecords(s) < 0) {
         QUIC_LOG("Gigest Cached Record failed\n");
         return -1;
     }
 
     if (server_traffic == true) {
-        if (TlsHandshakeHash(tls, hash, NULL) < 0) {
+        size_t hlen = 0;
+        if (TlsHandshakeHash(s, hash, &hlen) < 0) {
             QUIC_LOG("Handshake Hash failed\n");
             return -1;
         }
@@ -445,19 +456,17 @@ QuicCreateDataDecoders(TLS *tls, QuicCrypto *c, uint8_t *secret, uint8_t *hash,
         return QUIC_FLOW_RET_ERROR;
     }
 
-    md = TlsHandshakeMd(tls);
+    md = TlsHandshakeMd(s);
     if (md == NULL) {
         QUIC_LOG("Handshake MD failed\n");
         return -1;
     }
 
-    return QuicCreateDecoders(tls, md, secret, label, label_len, hash, decrypt,
+    return QuicCreateDecoders(s, md, in_secret, label, label_len, hash, decrypt,
                                 log_label);
 }
 
-int
-QuicCreateAppDataDecoders(QUIC *quic, const uint8_t *label, size_t label_len,
-                            const char *log_label, bool server_traffic)
+int QuicCreateAppDataServerDecoders(QUIC *quic)
 {
     TLS *tls = &quic->tls;
     static const uint8_t server_application_traffic[] = "s ap traffic";

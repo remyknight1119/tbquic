@@ -23,7 +23,7 @@ static int TlsServerHelloProc(TLS *, void *);
 static int TlsEncExtProc(TLS *, void *);
 static int TlsServerCertProc(TLS *, void *);
 static int TlsCertVerifyProc(TLS *, void *);
-static int TlsFinishedProc(TLS *, void *);
+static int TlsClientFinishedProc(TLS *, void *);
 
 static const TlsProcess client_proc[HANDSHAKE_MAX] = {
     [TLS_ST_OK] = {
@@ -64,7 +64,7 @@ static const TlsProcess client_proc[HANDSHAKE_MAX] = {
         .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_CW_FINISHED,
         .handshake_type = FINISHED,
-        .handler = TlsFinishedProc,
+        .handler = TlsClientFinishedProc,
     },
     [TLS_ST_CW_FINISHED] = {
         .flow_state = QUIC_FLOW_WRITING,
@@ -191,7 +191,6 @@ static int TlsServerHelloProc(TLS *tls, void *packet)
 
 static int TlsEncExtProc(TLS *tls, void *packet)
 {
-    QUIC_LOG("in\n");
     return TlsClientParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0);
 }
 
@@ -289,7 +288,6 @@ static int TlsServerCertProc(TLS *s, void *packet)
 
     ret = 0;
 out:
-    QUIC_LOG("in\n");
     X509_free(x);
     sk_X509_pop_free(sk, X509_free);
     return ret;
@@ -344,14 +342,19 @@ static int TlsCertVerifyProc(TLS *s, void *packet)
         return -1;
     }
 
-    QUIC_LOG("sigalg = %x, len = %u, pkey size  = %d\n", sigalg, len, pkey_size);
     return 0;
 }
 
-static int TlsFinishedProc(TLS *tls, void *packet)
+static int TlsClientFinishedProc(TLS *s, void *packet)
 {
-    QUIC_LOG("in\n");
-    return 0;
+    size_t secret_size = 0;
+
+    if (TlsGenerateMasterSecret(s, s->master_secret, s->handshake_secret,
+                                    &secret_size) < 0) {
+        return -1;
+    }
+
+    return QuicCreateAppDataServerDecoders(QuicTlsTrans(s));
 }
 
 void TlsClientInit(TLS *tls)

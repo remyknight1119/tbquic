@@ -516,6 +516,9 @@ out:
     return ret;
 }
 
+#ifdef QUIC_TEST
+void (*QuicHandshakeSecretHook)(uint8_t *secret);
+#endif
 int TlsKeyDerive(TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
 {
     EVP_PKEY_CTX *pctx = NULL;
@@ -558,10 +561,24 @@ int TlsKeyDerive(TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
 
     ret = TlsGenerateSecret(md, tls->early_secret, pms, pmslen,
                             tls->handshake_secret);
+#ifdef QUIC_TEST
+    if (QuicHandshakeSecretHook) {
+        QuicHandshakeSecretHook(tls->handshake_secret);
+    }
+#endif
 out:
     QuicMemFree(pms);
     EVP_PKEY_CTX_free(pctx);
     return ret;
+}
+
+int TlsGenerateMasterSecret(TLS *s, uint8_t *out, uint8_t *prev,
+                                 size_t *secret_size)
+{
+    const EVP_MD *md = TlsHandshakeMd(s);
+
+    *secret_size = EVP_MD_size(md);
+    return TlsGenerateSecret(md, prev, NULL, 0, out);
 }
 
 int TlsCheckPeerSigalg(TLS *tls, uint16_t sig, EVP_PKEY *pkey)

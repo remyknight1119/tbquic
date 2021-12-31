@@ -347,6 +347,7 @@ static int TlsCertVerifyProc(TLS *s, void *packet)
 
 static int TlsClientFinishedProc(TLS *s, void *packet)
 {
+    QUIC *quic = QuicTlsTrans(s);
     size_t secret_size = 0;
 
     if (TlsGenerateMasterSecret(s, s->master_secret, s->handshake_secret,
@@ -354,7 +355,11 @@ static int TlsClientFinishedProc(TLS *s, void *packet)
         return -1;
     }
 
-    return QuicCreateAppDataServerDecoders(QuicTlsTrans(s));
+    if (QuicCreateAppDataServerDecoders(quic) < 0) {
+        return -1;
+    }
+
+    return QuicCreateHandshakeClientEncoders(quic);
 }
 
 void TlsClientInit(TLS *tls)

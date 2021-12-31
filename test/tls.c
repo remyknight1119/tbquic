@@ -96,15 +96,19 @@ static const char update_msg[] =
 static char handshake_insecret[] =
     "5A8B2ADBD93465AF3F053309A35EA97BE632E2669F7F0091C888C32EC70FABFA"
     "FBFE580AE3CE9F747E8341443C85BD0A00000000000000000000000000000000";
-static char handshake_secret[] =
+static char server_handshake_secret[] =
     "C1F2861D3E1A023397775D6125959B5F541882C832A98DFB34E144BD5FD61B9E"
     "37ECFCE52DF310598EDC85D997121DE4";
-static char traffic_secret[] =
+static char server_traffic_secret[] =
     "DBAB85E74FC53EEDC25995AF4C3A20A79BE43BB7138862599B987E2E0A79AA15"
     "D6C065A8B69AF7FCBD75CBC3D68A62AB";
+static char client_handshake_secret[] =
+    "6847E634D0CEA4BFE50480CA433D5853F3A6D6DE1804778A6101DE5F56795529"
+    "DB905EF6BCD1C2D234C98C7ACBE986AA";
 
-static int handshake_secret_cmp_ok;
-static int traffic_secret_cmp_ok;
+static int server_handshake_secret_cmp_ok;
+static int server_traffic_secret_cmp_ok;
+static int client_handshake_secret_cmp_ok;
 
 static int QuicSecretCmp(uint8_t *dest, char *src, size_t len)
 {
@@ -115,17 +119,26 @@ static int QuicSecretCmp(uint8_t *dest, char *src, size_t len)
     return (memcmp(dest, hsecret, len) == 0);
 }
 
+#define SecretCmp(r, s, ret) \
+    do { \
+        size_t len = 0; \
+        len = (sizeof(r) - 1)/2; \
+        ret = QuicSecretCmp(s, r, len); \
+    } while (0)
+
 static void QuicHandshakeSecretComp(uint8_t *secret)
 {
-    size_t len = 0;
     static int seq = 0;
 
     if (seq == 0) {
-        len = (sizeof(handshake_secret) - 1)/2;
-        handshake_secret_cmp_ok = QuicSecretCmp(secret, handshake_secret, len);
-    } else {
-        len = (sizeof(traffic_secret) - 1)/2;
-        traffic_secret_cmp_ok = QuicSecretCmp(secret, traffic_secret, len);
+        SecretCmp(server_handshake_secret, secret, \
+                server_handshake_secret_cmp_ok);
+    } else if (seq == 1) {
+        SecretCmp(server_traffic_secret, secret, \
+                server_traffic_secret_cmp_ok);
+    } else if (seq == 2) {
+        SecretCmp(client_handshake_secret, secret, \
+                client_handshake_secret_cmp_ok);
     }
 
     seq++;
@@ -281,13 +294,18 @@ int TlsClientHandshakeReadTest(void)
         goto out;
     }
 
-    if (handshake_secret_cmp_ok == 0) {
-        printf("Handshake secret compare failed\n");
+    if (server_handshake_secret_cmp_ok == 0) {
+        printf("Server Handshake secret compare failed\n");
         goto out;
     }
 
-    if (traffic_secret_cmp_ok == 0) {
-        printf("Traffic secret compare failed\n");
+    if (server_traffic_secret_cmp_ok == 0) {
+        printf("Server Traffic secret compare failed\n");
+        goto out;
+    }
+
+    if (client_handshake_secret_cmp_ok == 0) {
+        printf("Client Handshake secret compare failed\n");
         goto out;
     }
 

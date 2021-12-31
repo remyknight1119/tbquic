@@ -22,6 +22,8 @@
 static const uint8_t default_zeros[EVP_MAX_MD_SIZE];
 static const char servercontext[] = "TLS 1.3, server CertificateVerify";
 static const char clientcontext[] = "TLS 1.3, client CertificateVerify";
+const char tls_md_client_finish_label[] = "client finished";
+const char tls_md_server_finish_label[] = "server finished";
 
 /* The default curves */
 static const uint16_t eccurves_default[] = {
@@ -369,13 +371,21 @@ int TlsFinishMac(TLS *tls, const uint8_t *buf, size_t len)
     return 0;
 }
 
-int TlsHandshakeHash(TLS *tls, uint8_t *hash, size_t *hash_size)
+int TlsHandshakeHash(TLS *tls, uint8_t *hash, size_t outlen, size_t *hash_size)
 {
     EVP_MD_CTX *ctx = NULL;
     EVP_MD_CTX *hdgst = tls->handshake_dgst;
+    int hashlen = 0;
     int ret = -1;
 
     if (hdgst == NULL) {
+        QUIC_LOG("Hdgst is NULL\n");
+        return -1;
+    }
+
+    hashlen = EVP_MD_CTX_size(hdgst);
+    if (hashlen < 0 || (size_t)hashlen > outlen) {
+        QUIC_LOG("Hash len invalid(%d, %lu)\n", hashlen, outlen);
         return -1;
     }
 
@@ -393,7 +403,7 @@ int TlsHandshakeHash(TLS *tls, uint8_t *hash, size_t *hash_size)
     }
 
     if (hash_size != NULL) {
-        *hash_size = EVP_MD_CTX_size(hdgst);
+        *hash_size = hashlen;
     }
     ret = 0;
 
@@ -572,6 +582,16 @@ out:
     return ret;
 }
 
+int TlsDeriveFinishedKey(TLS *s, const EVP_MD *md, const uint8_t *secret,
+                        uint8_t *finsecret, size_t finsecret_len)
+{
+    static const uint8_t finishedlabel[] = "finished";
+
+    return TLS13HkdfExpandLabel(md, secret, EVP_MD_size(md), finishedlabel,
+                        sizeof(finishedlabel) - 1, NULL, 0, finsecret,
+                        finsecret_len);
+}
+
 int TlsGenerateMasterSecret(TLS *s, uint8_t *out, uint8_t *prev,
                                  size_t *secret_size)
 {
@@ -635,7 +655,8 @@ int TlsGetCertVerifyData(TLS *s, uint8_t *tbs, void **hdata, size_t *hdatalen)
         memcpy(tbs + TLS_TBS_PREAMBLE_SIZE, s->cert_verify_hash,
                 s->cert_verify_hash_len);
         hashlen = s->cert_verify_hash_len;
-    } else if (TlsHandshakeHash(s, tbs + TLS_TBS_PREAMBLE_SIZE, &hashlen) < 0) {
+    } else if (TlsHandshakeHash(s, tbs + TLS_TBS_PREAMBLE_SIZE, EVP_MAX_MD_SIZE,
+                &hashlen) < 0) {
         return -1;
     }
 
@@ -686,4 +707,76 @@ err:
     EVP_MD_CTX_free(mctx);
     return ret;
 }
+
+#ifdef QUIC_TEST
+void (*QuicTlsFinalFinishMacHashHook)(uint8_t *hash, size_t len);
+#endif
+size_t TlsFinalFinishMac(TLS *s, const char *str, size_t slen, uint8_t *out)
+{
+    const EVP_MD *md = TlsHandshakeMd(s);
+    EVP_PKEY *key = NULL;
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    uint8_t hash[EVP_MAX_MD_SIZE];
+    size_t hashlen = 0;
+    size_t ret = 0;
+
+    if (TlsHandshakeHash(s, hash, sizeof(hash), &hashlen) < 0) {
+        QUIC_LOG("Handshake Hash failed\n");
+        goto err;
+    }
+
+#ifdef QUIC_TEST
+    if (QuicTlsFinalFinishMacHashHook) {
+        QuicTlsFinalFinishMacHashHook(hash, hashlen);
+    }
+#endif
+    if (str == tls_md_server_finish_label) {
+        key = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL,
+                                           s->server_finished_secret, hashlen);
+    } else if (str == tls_md_client_finish_label) {
+        key = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL,
+                                           s->client_finished_secret, hashlen);
+    } else {
+        QUIC_LOG("Unknown label!\n");
+        goto err;
+    }
+
+    if (key == NULL
+            || ctx == NULL
+            || EVP_DigestSignInit(ctx, NULL, md, NULL, key) <= 0
+            || EVP_DigestSignUpdate(ctx, hash, hashlen) <= 0
+            || EVP_DigestSignFinal(ctx, out, &hashlen) <= 0) {
+        QUIC_LOG("Get Digest failed!\n");
+        goto err;
+    }
+
+    ret = hashlen;
+ err:
+    EVP_PKEY_free(key);
+    EVP_MD_CTX_free(ctx);
+    return ret;
+}
+
+int TlsTakeMac(TLS *s)
+{
+    const char *sender;
+    size_t slen;
+
+    if (!s->server) {
+        sender = tls_md_server_finish_label;
+        slen = TLS_MD_SERVER_FINISH_LABEL_LEN;
+    } else {
+        sender = tls_md_client_finish_label;
+        slen = TLS_MD_CLIENT_FINISH_LABEL_LEN;
+    }
+
+    s->peer_finish_md_len = TlsFinalFinishMac(s, sender, slen,
+                                s->peer_finish_md);
+    if (s->peer_finish_md_len == 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 

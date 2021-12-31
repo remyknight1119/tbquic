@@ -16,6 +16,7 @@
 #include "sig_alg.h"
 #include "extension.h"
 #include "tls_lib.h"
+#include "mem.h"
 #include "log.h"
 
 static int TlsClientHelloBuild(TLS *, void *);
@@ -25,7 +26,7 @@ static int TlsServerCertProc(TLS *, void *);
 static int TlsCertVerifyProc(TLS *, void *);
 static int TlsClientFinishedProc(TLS *, void *);
 
-static const TlsProcess client_proc[HANDSHAKE_MAX] = {
+static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
         .flow_state = QUIC_FLOW_NOTHING,
         .next_state = TLS_ST_CW_CLIENT_HELLO,
@@ -33,43 +34,43 @@ static const TlsProcess client_proc[HANDSHAKE_MAX] = {
     [TLS_ST_CW_CLIENT_HELLO] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_CR_SERVER_HELLO,
-        .handshake_type = CLIENT_HELLO,
+        .msg_type = TLS_MT_CLIENT_HELLO,
         .handler = TlsClientHelloBuild,
     },
     [TLS_ST_CR_SERVER_HELLO] = {
         .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_CR_ENCRYPTED_EXTENSIONS,
-        .handshake_type = SERVER_HELLO,
+        .msg_type = TLS_MT_SERVER_HELLO,
         .handler = TlsServerHelloProc,
     },
     [TLS_ST_CR_ENCRYPTED_EXTENSIONS] = {
         .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_CR_SERVER_CERTIFICATE,
-        .handshake_type = ENCRYPTED_EXTENSIONS,
+        .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
         .handler = TlsEncExtProc,
     },
     [TLS_ST_CR_SERVER_CERTIFICATE] = {
         .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_CR_CERT_VERIFY,
-        .handshake_type = CERTIFICATE,
+        .msg_type = TLS_MT_CERTIFICATE,
         .handler = TlsServerCertProc,
     },
     [TLS_ST_CR_CERT_VERIFY] = {
         .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_CR_FINISHED,
-        .handshake_type = CERTIFICATE_VERIFY,
+        .msg_type = TLS_MT_CERTIFICATE_VERIFY,
         .handler = TlsCertVerifyProc,
     },
     [TLS_ST_CR_FINISHED] = {
         .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_CW_FINISHED,
-        .handshake_type = FINISHED,
+        .msg_type = TLS_MT_FINISHED,
         .handler = TlsClientFinishedProc,
     },
     [TLS_ST_CW_FINISHED] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_HANDSHAKE_DONE,
-        .handshake_type = FINISHED,
+        .msg_type = TLS_MT_FINISHED,
         .handler = TlsFinishedBuild,
     },
     [TLS_ST_HANDSHAKE_DONE] = {
@@ -77,7 +78,7 @@ static const TlsProcess client_proc[HANDSHAKE_MAX] = {
     },
 };
 
-static QuicFlowReturn TlsConnect(TLS *tls)
+QuicFlowReturn TlsConnect(TLS *tls)
 {
     return TlsHandshake(tls, client_proc, QUIC_NELEM(client_proc));
 }
@@ -281,7 +282,7 @@ static int TlsServerCertProc(TLS *s, void *packet)
     s->peer_cert = x;
     x = NULL;
 
-    if (TlsHandshakeHash(s, s->cert_verify_hash,
+    if (TlsHandshakeHash(s, s->cert_verify_hash, sizeof(s->cert_verify_hash),
                 &s->cert_verify_hash_len) < 0) {
         goto out;
     }
@@ -347,8 +348,20 @@ static int TlsCertVerifyProc(TLS *s, void *packet)
 
 static int TlsClientFinishedProc(TLS *s, void *packet)
 {
+    RPacket *pkt = packet;
     QUIC *quic = QuicTlsTrans(s);
+    size_t len = 0;
     size_t secret_size = 0;
+
+    len = s->peer_finish_md_len;
+    if (RPacketRemaining(pkt) != len) {
+        return -1;
+    }
+
+    if (QuicMemCmp(RPacketData(pkt), s->peer_finish_md, len) != 0) {
+        QuicPrint(s->peer_finish_md, len);
+        QuicPrint(RPacketData(pkt), len);
+    }
 
     if (TlsGenerateMasterSecret(s, s->master_secret, s->handshake_secret,
                                     &secret_size) < 0) {
@@ -362,7 +375,3 @@ static int TlsClientFinishedProc(TLS *s, void *packet)
     return QuicCreateHandshakeClientEncoders(quic);
 }
 
-void TlsClientInit(TLS *tls)
-{
-    tls->handshake = TlsConnect;
-}

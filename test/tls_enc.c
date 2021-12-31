@@ -47,6 +47,12 @@ static char handshake_insecret[] =
 static char handshake_secret[] =
     "E1A482F4E51A18DB76CA4967CD8047CBA210447428EFE9437A4707C25F9C7CFB"
     "C028CAE5327A2A72199F3B06FBC3614A";
+static char server_finished_pre_msg_hash[] =
+    "C84EF2A06765BEE28713472E8BF08CEEA900679ED730CF90EB654A83668B08E15C11F843480948D6E9D9A36D14246827";
+static char server_finished_secret[] =
+    "492DB343C836412E06F489DA5B0B7A3CECD64BABAB0E0F4F8A5A98699C318D39F13FCAEEF2DD7C835D6670D6AA3AFA36";
+static char server_finished_hash[] =
+    "AF8A07AA6A152DAD3057F3D275EE3FC92A427280DAB09C5E410A4386E3770865B4E8C9EEE7A4A7967E71A3D9BD35587A";
 
 int TlsGenerateSecretTest(void)
 {
@@ -143,6 +149,64 @@ int TlsGenerateServerSecretTest(void)
     if (handshake_secret_cmp_ok == 0) {
         printf("Handshake secret compare failed\n");
         goto out;
+    }
+
+    ret = 1;
+out:
+    QuicFree(quic);
+    QuicCtxFree(ctx);
+    return ret;
+}
+
+void TlsFinalFinishMacHashHook(uint8_t *hash, size_t len)
+{
+    str2hex(hash, server_finished_pre_msg_hash, len);
+}
+
+int TlsTlsFinalFinishMacTest(void)
+{
+    QUIC_CTX *ctx = NULL;
+    QUIC *quic = NULL;
+    TLS *s = NULL;
+    uint8_t hash[EVP_MAX_MD_SIZE] = {};
+    size_t hash_len = 0;
+    int ret = -1;
+
+    ctx = QuicCtxNew(QuicClientMethod());
+    if (ctx == NULL) {
+        goto out;
+    }
+
+    quic = QuicNew(ctx);
+    if (quic == NULL) {
+        goto out;
+    }
+
+    s = &quic->tls;
+    s->handshake_cipher = QuicGetTlsCipherById(TLS_CK_AES_256_GCM_SHA384);
+    if (s->handshake_cipher == NULL) {
+        printf("Find handshake cipher failed\n");
+        goto out;
+    }
+    hash_len = (sizeof(server_finished_secret) - 1)/2;
+    str2hex(s->server_finished_secret, server_finished_secret, hash_len);
+    str2hex(hash, server_finished_hash, hash_len);
+    s->handshake_msg_len = 16;
+    if (TlsDigestCachedRecords(s) < 0) {
+        printf("Digest Cached Records failed\n");
+        goto out;
+    }
+ 
+    QuicTlsFinalFinishMacHashHook = TlsFinalFinishMacHashHook;
+    if (TlsFinalFinishMac(s, tls_md_server_finish_label,
+                TLS_MD_SERVER_FINISH_LABEL_LEN, s->peer_finish_md) < 0) {
+        printf("Final Finish Mac failed\n");
+        goto out;
+    }
+
+    if (memcmp(hash, s->peer_finish_md, hash_len)) {
+        QuicPrint(s->peer_finish_md, hash_len);
+        QuicPrint(hash, hash_len);
     }
 
     ret = 1;

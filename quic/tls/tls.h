@@ -34,28 +34,28 @@
     (s->peer_sigalg != NULL && s->peer_sigalg->sig == EVP_PKEY_RSA_PSS)
 
 typedef enum {
-    HELLO_REQUEST = 0,
-    CLIENT_HELLO = 1,
-    SERVER_HELLO = 2,
-    HELLO_VERIFY_REQUEST = 3,
-    NEW_SESSION_TICKET = 4,
-    END_OF_EARLY_DATA = 5,
-    HELLO_RETRY_REQUEST = 6,
-    ENCRYPTED_EXTENSIONS = 8,
-    CERTIFICATE = 11,
-    SERVER_KEY_EXCHANGE = 12,
-    CERTIFICATE_REQUEST = 13,
-    SERVER_HELLO_DONE = 14,
-    CERTIFICATE_VERIFY = 15,
-    CLIENT_KEY_EXCHANGE = 16,
-    FINISHED = 20,
-    CERTIFICATE_URL = 21,
-    CERTIFICATE_STATUS = 22,
-    SUPPLEMENTAL_DATA = 23,
-    KEY_UPDATE = 24,
-    MESSAGE_HASH = 254,
-    HANDSHAKE_MAX,
-} HandshakeType;
+    TLS_MT_HELLO_REQUEST = 0,
+    TLS_MT_CLIENT_HELLO = 1,
+    TLS_MT_SERVER_HELLO = 2,
+    TLS_MT_HELLO_VERIFY_REQUEST = 3,
+    TLS_MT_NEW_SESSION_TICKET = 4,
+    TLS_MT_END_OF_EARLY_DATA = 5,
+    TLS_MT_HELLO_RETRY_REQUEST = 6,
+    TLS_MT_ENCRYPTED_EXTENSIONS = 8,
+    TLS_MT_CERTIFICATE = 11,
+    TLS_MT_SERVER_KEY_EXCHANGE = 12,
+    TLS_MT_CERTIFICATE_REQUEST = 13,
+    TLS_MT_SERVER_HELLO_DONE = 14,
+    TLS_MT_CERTIFICATE_VERIFY = 15,
+    TLS_MT_CLIENT_KEY_EXCHANGE = 16,
+    TLS_MT_FINISHED = 20,
+    TLS_MT_CERTIFICATE_URL = 21,
+    TLS_MT_CERTIFICATE_STATUS = 22,
+    TLS_MT_SUPPLEMENTAL_DATA = 23,
+    TLS_MT_KEY_UPDATE = 24,
+    TLS_MT_MESSAGE_HASH = 254,
+    TLS_MT_MESSAGE_TYPE_MAX,
+} TlsMessageType;
 
 typedef enum {
     TLS_ST_OK,
@@ -77,10 +77,14 @@ typedef enum {
     TLS_ST_MAX,
 } TlsState;
 
+typedef struct {
+    QuicFlowReturn (*handshake)(TLS *);
+} TlsMethod;
+
 struct Tls {
     TlsState handshake_state;
+    const TlsMethod *method;
     uint8_t server:1;
-    QuicFlowReturn (*handshake)(TLS *);
     uint8_t client_random[TLS_RANDOM_BYTE_LEN];
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;
@@ -97,10 +101,14 @@ struct Tls {
     uint8_t early_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_secret[EVP_MAX_MD_SIZE];
     uint8_t master_secret[EVP_MAX_MD_SIZE];
+    uint8_t client_finished_secret[EVP_MAX_MD_SIZE];
+    uint8_t server_finished_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_traffic_hash[EVP_MAX_MD_SIZE];
     uint8_t server_finished_hash[EVP_MAX_MD_SIZE];
     uint8_t cert_verify_hash[EVP_MAX_MD_SIZE];
     size_t cert_verify_hash_len;
+    uint8_t peer_finish_md[EVP_MAX_MD_SIZE];
+    size_t peer_finish_md_len;
     /* TLS extensions. */
     struct {
         char *hostname;
@@ -114,7 +122,7 @@ struct Tls {
 typedef struct {
     QuicFlowState flow_state;
     TlsState next_state;
-    HandshakeType handshake_type;
+    TlsMessageType msg_type;
     int (*handler)(TLS *, void *);
 } TlsProcess;
 
@@ -124,8 +132,8 @@ extern uint8_t *quic_random_test;
 
 int TlsInit(TLS *, QUIC_CTX *);
 void TlsFree(TLS *);
-void TlsClientInit(TLS *);
-void TlsServerInit(TLS *);
+QuicFlowReturn TlsConnect(TLS *tls);
+QuicFlowReturn TlsAccept(TLS *tls);
 QuicFlowReturn TlsDoHandshake(TLS *);
 int TlsDoProcess(TLS *, RPacket *, WPacket *, const TlsProcess *,
                         size_t);

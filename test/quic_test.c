@@ -79,6 +79,10 @@ static QuicFuncTest test_funcs[] = {
         .test = TlsGenerateMasterSecretTest,
         .err_msg = "TLS Generate Master Secret",
     },
+    {
+        .test = TlsTlsFinalFinishMacTest,
+        .err_msg = "TLS Final Finish Mac",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)

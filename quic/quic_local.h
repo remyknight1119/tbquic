@@ -44,6 +44,7 @@ struct QuicMethod {
     uint32_t version;
     int (*quic_connect)(QUIC *);
     int (*quic_accept)(QUIC *);
+    const TlsMethod *tls_method;
 };
 
 struct QuicCtx {

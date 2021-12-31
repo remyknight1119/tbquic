@@ -19,7 +19,7 @@
 QuicFlowReturn
 TlsDoHandshake(TLS *tls)
 {
-    return tls->handshake(tls);
+    return tls->method->handshake(tls);
 }
 
 static void TlsFlowFinish(TLS *tls, TlsState prev_state,
@@ -57,7 +57,7 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
         return QUIC_FLOW_RET_WANT_READ;
     }
 
-    if (type != p->handshake_type) {
+    if (type != p->msg_type) {
         QUIC_LOG("type not match\n");
         return QUIC_FLOW_RET_ERROR;
     }
@@ -81,6 +81,12 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
     }
 
     state = tls->handshake_state;
+    if (type == TLS_MT_FINISHED) {
+        if (TlsTakeMac(tls) < 0) {
+            return QUIC_FLOW_RET_ERROR;
+        }
+    }
+
     if (p->handler(tls, &msg) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
@@ -99,8 +105,8 @@ TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    if (WPacketPut1(pkt, p->handshake_type) < 0) {
-        QUIC_LOG("Put handshake type failed\n");
+    if (WPacketPut1(pkt, p->msg_type) < 0) {
+        QUIC_LOG("Put Message type failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -247,6 +253,7 @@ int TlsFinishedBuild(TLS *tls, void *packet)
 int TlsInit(TLS *tls, QUIC_CTX *ctx)
 {
     tls->handshake_state = TLS_ST_OK;
+    tls->method = ctx->method->tls_method;
     if (QuicBufInit(&tls->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
         return -1;
     }

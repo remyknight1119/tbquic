@@ -72,3 +72,10 @@ void *QuicMemset(void *s, int c, size_t n)
 {
     return memset(s, c, n);
 }
+
+int QuicMemCmp(const void *s1, const void *s2, size_t n)
+{
+    return memcmp(s1, s2, n);
+}
+
+

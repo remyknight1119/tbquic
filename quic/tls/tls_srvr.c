@@ -16,7 +16,7 @@
 static int TlsClientHelloProc(TLS *, void *);
 static int TlsServerHelloBuild(TLS *, void *);
 
-static const TlsProcess server_proc[HANDSHAKE_MAX] = {
+static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
         .flow_state = QUIC_FLOW_NOTHING,
         .next_state = TLS_ST_SR_CLIENT_HELLO,
@@ -25,18 +25,18 @@ static const TlsProcess server_proc[HANDSHAKE_MAX] = {
         .flow_state = QUIC_FLOW_READING,
         //.next_state = TLS_ST_SW_SERVER_HELLO,
         .next_state = TLS_ST_HANDSHAKE_DONE,
-        .handshake_type = CLIENT_HELLO,
+        .msg_type = TLS_MT_CLIENT_HELLO,
         .handler = TlsClientHelloProc,
     },
     [TLS_ST_SW_SERVER_HELLO] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_SW_SERVER_CERTIFICATE,
-        .handshake_type = SERVER_HELLO,
+        .msg_type = TLS_MT_SERVER_HELLO,
         .handler = TlsServerHelloBuild,
     },
 };
 
-static QuicFlowReturn TlsAccept(TLS *tls)
+QuicFlowReturn TlsAccept(TLS *tls)
 {
     return TlsHandshake(tls, server_proc, QUIC_NELEM(server_proc));
 }
@@ -108,7 +108,3 @@ static int TlsServerHelloBuild(TLS *tls, void *packet)
     return 0;
 }
 
-void TlsServerInit(TLS *tls)
-{
-    tls->handshake = TlsAccept;
-}

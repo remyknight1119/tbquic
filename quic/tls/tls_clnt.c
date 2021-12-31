@@ -359,8 +359,7 @@ static int TlsClientFinishedProc(TLS *s, void *packet)
     }
 
     if (QuicMemCmp(RPacketData(pkt), s->peer_finish_md, len) != 0) {
-        QuicPrint(s->peer_finish_md, len);
-        QuicPrint(RPacketData(pkt), len);
+        return -1;
     }
 
     if (TlsGenerateMasterSecret(s, s->master_secret, s->handshake_secret,

@@ -75,18 +75,18 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
         return QUIC_FLOW_RET_WANT_READ;
     }
  
-    RPacketHeadPush(&msg, offset);
-    if (TlsFinishMac(tls, RPacketHead(&msg), RPacketTotalLen(&msg)) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    state = tls->handshake_state;
     if (type == TLS_MT_FINISHED) {
         if (TlsTakeMac(tls) < 0) {
             return QUIC_FLOW_RET_ERROR;
         }
     }
 
+    RPacketHeadPush(&msg, offset);
+    if (TlsFinishMac(tls, RPacketHead(&msg), RPacketTotalLen(&msg)) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    state = tls->handshake_state;
     if (p->handler(tls, &msg) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }

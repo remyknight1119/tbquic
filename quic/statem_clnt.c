@@ -16,10 +16,10 @@
 #include "log.h"
 
 static QuicFlowReturn QuicClientInitialRecv(QUIC *, RPacket *,
-                                            QuicLPacketFlags);
+                                            QuicPacketFlags);
 static QuicFlowReturn QuicClientInitialSend(QUIC *);
 static QuicFlowReturn QuicClientHandshakeRecv(QUIC *, RPacket *,
-                                            QuicLPacketFlags);
+                                            QuicPacketFlags);
 static QuicFlowReturn QuicClientHandshakeSend(QUIC *);
 
 static QuicStatemFlow client_statem[QUIC_STATEM_MAX] = {
@@ -47,7 +47,7 @@ static QuicFlowReturn QuicClientInitialSend(QUIC *quic)
 }
 
 static QuicFlowReturn
-QuicClientInitialRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+QuicClientInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
     QuicFlowReturn ret;
 
@@ -68,7 +68,7 @@ static QuicFlowReturn QuicClientHandshakeSend(QUIC *quic)
 }
 
 static QuicFlowReturn
-QuicClientHandshakeRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+QuicClientHandshakeRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
     QuicFlowReturn ret;
 

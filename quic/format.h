@@ -17,6 +17,7 @@
 #define QUIC_LPACKET_TYPE_RETRY 		0x03
 
 #define QUIC_LPACKET_TYPE_RESV_MASK 	0x0F
+#define QUIC_SPACKET_TYPE_RESV_MASK 	0x1F
 
 /*
  * Although the QUIC SCID/DCID length field can store at most 255, v1 limits the
@@ -29,27 +30,31 @@
 #define QUIC_PACKET_NUM_MAX_LEN     4
 #define QUIC_VARIABLE_LEN_MAX_SIZE  8
 
-#define QUIC_PACKET_IS_LONG_PACKET(flags) (flags.header_form)
-
-typedef union {
-    uint8_t value;
-    struct {
-        uint8_t other_filed:6;
-        uint8_t fixed_bit:1;
-        uint8_t header_form:1;
-    };
-} QuicPacketFlags;
+#define QUIC_PACKET_IS_LONG_PACKET(flags) (flags.h.header_form)
 
 typedef union {
     uint8_t value;
     struct {
         uint8_t packet_num_len:2;
-        uint8_t reserved_bits:2;
+        uint8_t reserved:2;
         uint8_t lpacket_type:2;
-        uint8_t fixed_bit:1;
+        uint8_t fixed:1;
         uint8_t header_form:1;
-    };
-} QuicLPacketFlags;
+    } lh;
+    struct {
+        uint8_t packet_num_len:2;
+        uint8_t key_phase:1;
+        uint8_t reserved:2;
+        uint8_t spin:1;
+        uint8_t fixed:1;
+        uint8_t header_form:1;
+    } sh;
+    struct {
+        uint8_t others:6;
+        uint8_t fixed:1;
+        uint8_t header_form:1;
+    } h;
+} QuicPacketFlags;
 
 typedef union {
     uint8_t var;
@@ -66,9 +71,11 @@ int QuicVariableLengthValueWrite(WPacket *, uint64_t);
 uint32_t QuicPktNumberEncode(uint64_t, uint64_t, uint8_t);
 uint64_t QuicPktNumberDecode(uint64_t, uint32_t, uint8_t);
 int QuicLPacketHeaderParse(QUIC *, RPacket *);
+int QuicSPacketHeaderParse(QUIC *, RPacket *);
 int QuicInitPacketParse(QUIC *, RPacket *);
 int Quic0RttPacketParse(QUIC *, RPacket *);
 int QuicHandshakePacketParse(QUIC *, RPacket *);
+int QuicOneRttParse(QUIC *, RPacket *);
 int QuicRetryPacketParse(QUIC *, RPacket *);
 int QuicInitialPacketGen(QUIC *, WPacket *, QBUFF *);
 int QuicInitialPacketBuild(QUIC *, QBUFF *);

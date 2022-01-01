@@ -23,7 +23,7 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
     QUIC_BUFFER *qbuf = QUIC_READ_BUFFER(quic);
     RPacket pkt = {};
     uint32_t flag = 0;
-    QuicLPacketFlags flags;
+    QuicPacketFlags flags;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int rlen = 0;
 
@@ -149,14 +149,14 @@ int QuicCidGen(QUIC_DATA *cid, size_t len)
 }
 
 static int
-QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags, uint8_t type)
+QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags, uint8_t type)
 {
     if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
         QUIC_LOG("Not Long packet\n");
         return -1;
     }
 
-    if (flags.lpacket_type != type) {
+    if (flags.lh.lpacket_type != type) {
         QUIC_LOG("Type not match\n");
         return -1;
     }
@@ -169,8 +169,24 @@ QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags, uint8_t type)
     return 0;
 }
 
+static int
+QuicShortPktParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
+{
+    if (QUIC_PACKET_IS_LONG_PACKET(flags)) {
+        QUIC_LOG("Not Short packet\n");
+        return -1;
+    }
+
+    if (QuicSPacketHeaderParse(quic, pkt) < 0) {
+        QUIC_LOG("Header Parse failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 QuicFlowReturn
-QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
     if (QuicLongPktParse(quic, pkt, flags, QUIC_LPACKET_TYPE_INITIAL) < 0) {
         return QUIC_FLOW_RET_ERROR;
@@ -212,7 +228,7 @@ QuicFlowReturn QuicInitialSend(QUIC *quic)
 }
 
 QuicFlowReturn
-QuicHandshakeRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+QuicHandshakeRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
     if (QuicLongPktParse(quic, pkt, flags, QUIC_LPACKET_TYPE_HANDSHAKE) < 0) {
         QUIC_LOG("Long Packet parse failed\n");
@@ -227,9 +243,20 @@ QuicHandshakeRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
     return QUIC_FLOW_RET_FINISH;
 }
 
-QuicFlowReturn QuicAppDataRecv(QUIC *quic, RPacket *pkt, QuicLPacketFlags flags)
+#include "common.h"
+QuicFlowReturn QuicAppDataRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
-    QUIC_LOG("in\n");
+    QUIC_LOG("remaining = %lu\n", RPacketRemaining(pkt));
+    if (QuicShortPktParse(quic, pkt, flags)) {
+        QUIC_LOG("Short packet parser failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicOneRttParse(quic, pkt) < 0) {
+        QUIC_LOG("1RTT parse failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     return QUIC_FLOW_RET_ERROR;
 }
 

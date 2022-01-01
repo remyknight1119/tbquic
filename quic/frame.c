@@ -16,11 +16,13 @@
 static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt);
 static int QuicFramePingParser(QUIC *quic, RPacket *pkt);
 static int QuicFrameAckParser(QUIC *quic, RPacket *pkt);
+static int QuicFrameStreamParser(QUIC *quic, RPacket *pkt);
 
 static QuicFrameParser frame_parser[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_CRYPTO] = QuicFrameCryptoParser,
     [QUIC_FRAME_TYPE_PING] = QuicFramePingParser,
     [QUIC_FRAME_TYPE_ACK] = QuicFrameAckParser,
+    [QUIC_FRAME_TYPE_STREAM] = QuicFrameStreamParser,
 };
 
 int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
@@ -55,7 +57,7 @@ static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt)
     uint64_t total_len = 0;
 
     if (QuicVariableLengthDecode(pkt, &offset) < 0) {
-        QUIC_LOG("Offset decodd failed!\n");
+        QUIC_LOG("Offset decode failed!\n");
         return -1;
     }
 
@@ -109,37 +111,58 @@ static int QuicFrameAckParser(QUIC *quic, RPacket *pkt)
     uint64_t i = 0;
 
     if (QuicVariableLengthDecode(pkt, &largest_acked) < 0) {
-        QUIC_LOG("Offset decodd failed!\n");
+        QUIC_LOG("Offset decode failed!\n");
         return -1;
     }
 
     if (QuicVariableLengthDecode(pkt, &ack_delay) < 0) {
-        QUIC_LOG("Offset decodd failed!\n");
+        QUIC_LOG("Offset decode failed!\n");
         return -1;
     }
 
     if (QuicVariableLengthDecode(pkt, &range_count) < 0) {
-        QUIC_LOG("Offset decodd failed!\n");
+        QUIC_LOG("Offset decode failed!\n");
         return -1;
     }
 
     if (QuicVariableLengthDecode(pkt, &first_ack_range) < 0) {
-        QUIC_LOG("Offset decodd failed!\n");
+        QUIC_LOG("Offset decode failed!\n");
         return -1;
     }
 
     for (i = 0; i < range_count; i++) {
         if (QuicVariableLengthDecode(pkt, &gap) < 0) {
-            QUIC_LOG("Offset decodd failed!\n");
+            QUIC_LOG("Offset decode failed!\n");
             return -1;
         }
 
         if (QuicVariableLengthDecode(pkt, &ack_range_len) < 0) {
-            QUIC_LOG("Offset decodd failed!\n");
+            QUIC_LOG("Offset decode failed!\n");
             return -1;
         }
     }
 
+    return 0;
+}
+
+static int QuicFrameStreamParser(QUIC *quic, RPacket *pkt)
+{
+    const uint8_t *data = NULL;
+    size_t data_len = 0;
+    uint64_t id = 0;
+
+    if (QuicVariableLengthDecode(pkt, &id) < 0) {
+        QUIC_LOG("ID decode failed!\n");
+        return -1;
+    }
+
+    data_len = RPacketRemaining(pkt);
+    if (RPacketGetBytes(pkt, &data, data_len) < 0) {
+        QUIC_LOG("Peek stream data failed!\n");
+        return -1;
+    }
+
+    QuicPrint(data, data_len);
     return 0;
 }
 

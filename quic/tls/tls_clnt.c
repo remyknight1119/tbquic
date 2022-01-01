@@ -378,7 +378,6 @@ static int TlsClientFinishedProc(TLS *s, void *packet)
 
 static int TlsClientPostFinishedWork(TLS *s)
 {
-    QUIC_LOG("in\n");
     return QuicCreateAppDataClientEncoders(QuicTlsTrans(s));
 }
 

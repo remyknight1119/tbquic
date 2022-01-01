@@ -102,6 +102,21 @@ int QuicLPacketHeaderParse(QUIC *quic, RPacket *pkt)
     return 0;
 }
 
+int QuicSPacketHeaderParse(QUIC *quic, RPacket *pkt)
+{
+    uint32_t len = 0;
+
+    len = quic->scid.len;
+    if (QuicCidParse(&quic->scid, RPacketData(pkt), len) < 0) {
+        QUIC_LOG("DCID parse failed!\n");
+        return -1;
+    }
+ 
+    RPacketForward(pkt, len);
+
+    return 0;
+}
+
 static int QuicVariableLengthValueEncode(uint8_t *buf, size_t blen,
         uint64_t length, uint8_t prefix)
 {
@@ -295,16 +310,19 @@ static int QuicHPMaskGen(QuicHPCipher *hp_cipher, uint8_t *mask_out,
     size_t mask_len = 0;
 
     if (hp_cipher->cipher.ctx == NULL) {
+        QUIC_LOG("HP cipher not set\n");
         return -1;
     }
 
     if (total_len < QUIC_PACKET_NUM_MAX_LEN + QUIC_SAMPLE_LEN) {
+        QUIC_LOG("Total len is too small(%lu)\n", total_len);
         return -1;
     }
 
     sample = pkt_num_start + QUIC_PACKET_NUM_MAX_LEN;
     if (QuicHPDoCipher(hp_cipher, mask, &mask_len, sizeof(mask), sample,
                 QUIC_SAMPLE_LEN) < 0) {
+        QUIC_LOG("Do HP cipher failed\n");
         return -1;
     }
 
@@ -315,7 +333,7 @@ static int QuicHPMaskGen(QuicHPCipher *hp_cipher, uint8_t *mask_out,
     return 0;
 }
 
-int QuicDecryptLHeader(QuicHPCipher *hp_cipher, uint32_t *pkt_num,
+int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint32_t *pkt_num,
                         uint8_t *p_num_len, RPacket *pkt,
                         uint8_t bits_mask)
 {
@@ -328,6 +346,7 @@ int QuicDecryptLHeader(QuicHPCipher *hp_cipher, uint32_t *pkt_num,
     pkt_num_start = (void *)RPacketData(pkt);
     if (QuicHPMaskGen(hp_cipher, mask, sizeof(mask), pkt_num_start,
                 RPacketRemaining(pkt)) < 0) {
+        QUIC_LOG("HP mask gen failed\n");
         return -1;
     }
 
@@ -375,13 +394,6 @@ static int QuicEncryptLHeader(QuicHPCipher *hp_cipher, uint8_t *first_byte,
     }
 
     return 0;
-}
-
-int QuicDecryptInitPacketHeader(QuicHPCipher *hp_cipher, uint32_t *pkt_num,
-                                uint8_t *pkt_num_len, RPacket *pkt)
-{
-    return QuicDecryptLHeader(hp_cipher, pkt_num, pkt_num_len, pkt,
-                                QUIC_LPACKET_TYPE_RESV_MASK);
 }
 
 static int QuicCryptoSetIV(QuicPPCipher *cipher, uint64_t pkt_num)
@@ -560,7 +572,8 @@ static int QuicLengthParse(RPacket *msg, RPacket *pkt)
 }
  
 static int
-QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QUIC_BUFFER *buffer)
+QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QUIC_BUFFER *buffer,
+                    uint8_t bit_mask)
 {
     QUIC_CIPHERS *cipher = NULL;
     uint64_t pkt_num = 0;
@@ -568,8 +581,8 @@ QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QUIC_BUFFER *buffer)
     uint8_t pkt_num_len;
 
     cipher = &cs->ciphers;
-    if (QuicDecryptInitPacketHeader(&cipher->hp_cipher, &h_pkt_num,
-                &pkt_num_len, pkt) < 0) {
+    if (QuicDecryptHeader(&cipher->hp_cipher, &h_pkt_num,
+                &pkt_num_len, pkt, bit_mask) < 0) {
         QUIC_LOG("Decrypt Initial packet header failed!\n");
         return -1;
     }
@@ -644,7 +657,8 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
     }
 
     initial = &quic->initial.decrypt;
-    if (QuicDecryptPacket(initial, &message, buffer) < 0) {
+    if (QuicDecryptPacket(initial, &message, buffer,
+                QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
@@ -661,7 +675,21 @@ int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    if (QuicDecryptPacket(&quic->handshake.decrypt, &message, buffer) < 0) {
+    if (QuicDecryptPacket(&quic->handshake.decrypt, &message, buffer,
+                QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
+        QUIC_LOG("Decrypt message failed!\n");
+        return -1;
+    }
+
+    return QuicFrameParse(quic, buffer);
+}
+
+int QuicOneRttParse(QUIC *quic, RPacket *pkt)
+{
+    QUIC_BUFFER *buffer = QuicGetPlainTextBuffer();
+
+    if (QuicDecryptPacket(&quic->one_rtt.decrypt, pkt, buffer,
+                QUIC_SPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
@@ -738,13 +766,13 @@ static int QuicTokenPut(QUIC_DATA *token, WPacket *pkt)
 static int QuicLHeaderGen(QUIC *quic, uint8_t **first_byte, WPacket *pkt,
                             uint8_t type, uint8_t pkt_num_len)
 {
-    QuicLPacketFlags flags;
+    QuicPacketFlags flags;
 
-    flags.fixed_bit = 1;
-    flags.header_form = 1;
-    flags.reserved_bits = 0;
-    flags.lpacket_type = type;
-    flags.packet_num_len = (pkt_num_len & 0x3) - 1;
+    flags.lh.fixed = 1;
+    flags.lh.header_form = 1;
+    flags.lh.reserved = 0;
+    flags.lh.lpacket_type = type;
+    flags.lh.packet_num_len = (pkt_num_len & 0x3) - 1;
 
     *first_byte = WPacket_get_curr(pkt);
 

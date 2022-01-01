@@ -398,13 +398,13 @@ static int QuicInstallEncryptorDecryptor(TLS *s, const EVP_MD *md,
     fprintf(stdout, "%s ", log_label);
     int i = 0;
 
-    for (i = 0; i < sizeof(tls->client_random); i++) {
-        fprintf(stdout, "%02X", tls->client_random[i]);
+    for (i = 0; i < sizeof(s->client_random); i++) {
+        fprintf(stdout, "%02X", s->client_random[i]);
     }
 
     fprintf(stdout, " ");
     for (i = 0; i < EVP_MD_size(md); i++) {
-        fprintf(stdout, "%02X", secret[i]);
+        fprintf(stdout, "%02X", sec[i]);
     }
     fprintf(stdout, "\n");
 

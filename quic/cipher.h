@@ -68,6 +68,7 @@ int QuicCreateInitialDecoders(QUIC *, uint32_t);
 int QuicCreateHandshakeServerDecoders(QUIC *);
 int QuicCreateHandshakeClientEncoders(QUIC *);
 int QuicCreateAppDataServerDecoders(QUIC *);
+int QuicCreateAppDataClientEncoders(QUIC *);
 void QuicCipherCtxFree(QUIC_CIPHERS *);
 int QuicCipherNidFind(uint32_t);
 size_t QuicCipherLenGet(uint32_t, size_t);

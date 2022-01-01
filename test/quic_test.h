@@ -10,6 +10,7 @@
 #include <tbquic/types.h>
 
 #define ARRAY_SIZE(array)    (sizeof(array)/sizeof(array[0]))
+#define MSG_SIZE(m)  ((sizeof(m) - 1)/2)
 
 typedef union UdpConnKey {
 	struct sockaddr 		addr;

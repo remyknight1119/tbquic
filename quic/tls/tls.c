@@ -98,13 +98,18 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
 static QuicFlowReturn
 TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
 {
+    uint8_t *msg = NULL;
     TlsState state = 0;
+    size_t msg_len = 0;
+    size_t wlen = 0;
 
     if (p->handler == NULL) {
         QUIC_LOG("No handler func found\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
+    msg = WPacket_get_curr(pkt);
+    wlen = WPacket_get_written(pkt);
     if (WPacketPut1(pkt, p->msg_type) < 0) {
         QUIC_LOG("Put Message type failed\n");
         return QUIC_FLOW_RET_ERROR;
@@ -122,6 +127,12 @@ TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
 
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    msg_len = WPacket_get_written(pkt) - wlen;
+    assert(QUIC_GT(msg_len, 0));
+    if (TlsFinishMac(tls, msg, msg_len) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -165,6 +176,10 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
 
         if (ret == QUIC_FLOW_RET_WANT_READ) {
             return ret;
+        }
+
+        if (p->post_work != NULL && p->post_work(tls) < 0) {
+            return QUIC_FLOW_RET_ERROR;
         }
 
         state = tls->handshake_state;
@@ -245,8 +260,32 @@ int TlsExtLenParse(RPacket *pkt)
     return 0;
 }
 
-int TlsFinishedBuild(TLS *tls, void *packet)
+int TlsFinishedBuild(TLS *s, void *packet)
 {
+    WPacket *pkt = packet;
+    const char *sender = NULL;
+    size_t finish_md_len = 0;
+    size_t slen = 0;
+
+    if (s->server) {
+        sender = tls_md_server_finish_label;
+        slen = TLS_MD_SERVER_FINISH_LABEL_LEN;
+    } else {
+        sender = tls_md_client_finish_label;
+        slen = TLS_MD_CLIENT_FINISH_LABEL_LEN;
+    }
+
+    finish_md_len = TlsFinalFinishMac(s, sender, slen, s->finish_md);
+    if (finish_md_len == 0) {
+        return -1;
+    }
+
+    s->finish_md_len = finish_md_len;
+
+    if (WPacketMemcpy(pkt, s->finish_md, finish_md_len) < 0) {
+        return -1;
+    }
+
     return 0;
 }
 

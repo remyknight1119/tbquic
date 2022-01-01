@@ -25,6 +25,7 @@ static int TlsEncExtProc(TLS *, void *);
 static int TlsServerCertProc(TLS *, void *);
 static int TlsCertVerifyProc(TLS *, void *);
 static int TlsClientFinishedProc(TLS *, void *);
+static int TlsClientPostFinishedWork(TLS *);
 
 static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
@@ -72,6 +73,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .next_state = TLS_ST_HANDSHAKE_DONE,
         .msg_type = TLS_MT_FINISHED,
         .handler = TlsFinishedBuild,
+        .post_work = TlsClientPostFinishedWork,
     },
     [TLS_ST_HANDSHAKE_DONE] = {
         .flow_state = QUIC_FLOW_FINISHED,
@@ -372,5 +374,11 @@ static int TlsClientFinishedProc(TLS *s, void *packet)
     }
 
     return QuicCreateHandshakeClientEncoders(quic);
+}
+
+static int TlsClientPostFinishedWork(TLS *s)
+{
+    QUIC_LOG("in\n");
+    return QuicCreateAppDataClientEncoders(QuicTlsTrans(s));
 }
 

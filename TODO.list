@@ -1,1 +1,3 @@
-cipher buffer len check -- Done
+1. 0-RTT
+2. Cert Auth
+3. Session reuse

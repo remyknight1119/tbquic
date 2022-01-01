@@ -103,10 +103,14 @@ struct Tls {
     uint8_t master_secret[EVP_MAX_MD_SIZE];
     uint8_t client_finished_secret[EVP_MAX_MD_SIZE];
     uint8_t server_finished_secret[EVP_MAX_MD_SIZE];
+    uint8_t client_app_traffic_secret[EVP_MAX_MD_SIZE];
+    uint8_t server_app_traffic_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_traffic_hash[EVP_MAX_MD_SIZE];
     uint8_t server_finished_hash[EVP_MAX_MD_SIZE];
     uint8_t cert_verify_hash[EVP_MAX_MD_SIZE];
     size_t cert_verify_hash_len;
+    uint8_t finish_md[EVP_MAX_MD_SIZE];
+    size_t finish_md_len;
     uint8_t peer_finish_md[EVP_MAX_MD_SIZE];
     size_t peer_finish_md_len;
     /* TLS extensions. */
@@ -124,6 +128,7 @@ typedef struct {
     TlsState next_state;
     TlsMessageType msg_type;
     int (*handler)(TLS *, void *);
+    int (*post_work)(TLS *);
 } TlsProcess;
 
 #ifdef QUIC_TEST

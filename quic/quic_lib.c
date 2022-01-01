@@ -112,7 +112,7 @@ static int QUIC_set_hp_ciphers_alg(QUIC_CIPHERS *ciphers, uint32_t alg)
     return QUIC_set_cipher_alg(&ciphers->hp_cipher.cipher, alg);
 }
 
-static int QUIC_set_hp_cipher_space_alg(QuicCipherSpace *space, uint32_t alg)
+int QUIC_set_hp_cipher_space_alg(QuicCipherSpace *space, uint32_t alg)
 {
     return QUIC_set_hp_ciphers_alg(&space->ciphers, alg);
 }

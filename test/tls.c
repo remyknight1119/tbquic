@@ -105,10 +105,17 @@ static char server_traffic_secret[] =
 static char client_handshake_secret[] =
     "6847E634D0CEA4BFE50480CA433D5853F3A6D6DE1804778A6101DE5F56795529"
     "DB905EF6BCD1C2D234C98C7ACBE986AA";
+static char client_traffic_secret[] =
+    "E740EE5E7EA47791B0BA79B210ED3CF7C19638D6549D14B0D8870492FB38361F"
+    "64FB1ED48C7792F6C0DF2CB355B6272D";
+static char client_finish_msg[] =
+    "14000030EC36C28D43BCFA606FC627DB7CE1D96CB1600E1B721BE6F2ACDF2E43"
+    "017E526DB78FE9B63491AF505C2AACEB219623A6";
 
 static int server_handshake_secret_cmp_ok;
 static int server_traffic_secret_cmp_ok;
 static int client_handshake_secret_cmp_ok;
+static int client_traffic_secret_cmp_ok;
 
 static int QuicSecretCmp(uint8_t *dest, char *src, size_t len)
 {
@@ -122,7 +129,7 @@ static int QuicSecretCmp(uint8_t *dest, char *src, size_t len)
 #define SecretCmp(r, s, ret) \
     do { \
         size_t len = 0; \
-        len = (sizeof(r) - 1)/2; \
+        len = MSG_SIZE(r); \
         ret = QuicSecretCmp(s, r, len); \
     } while (0)
 
@@ -139,6 +146,9 @@ static void QuicHandshakeSecretComp(uint8_t *secret)
     } else if (seq == 2) {
         SecretCmp(client_handshake_secret, secret, \
                 client_handshake_secret_cmp_ok);
+    } else if (seq == 3) {
+        SecretCmp(client_traffic_secret, secret, \
+                client_traffic_secret_cmp_ok);
     }
 
     seq++;
@@ -217,6 +227,7 @@ int TlsClientHandshakeReadTest(void)
     BIO *rbio = NULL;
     BIO *wbio = NULL;
     const char *server_hello = NULL;
+    static uint8_t client_finish[(sizeof(client_finish_msg) - 1)/2];
     size_t msg_len = 0;
     int offset = 0;
     int err = 0;
@@ -309,6 +320,23 @@ int TlsClientHandshakeReadTest(void)
         goto out;
     }
 
+    if (client_traffic_secret_cmp_ok == 0) {
+        printf("Client Traffic secret compare failed\n");
+        goto out;
+    }
+
+    msg_len = MSG_SIZE(client_finish_msg);
+    str2hex((void *)client_finish, (void *)client_finish_msg, msg_len);
+    if (msg_len != QuicBufGetDataLength(buf)) {
+        printf("Msg len not match\n");
+        goto out;
+    }
+
+    if (memcmp(client_finish, QuicBufData(buf), msg_len) != 0) {
+        printf("Client Finish msg compare failed!\n");
+        goto out;
+    }
+
     ret = 1;
 out:
     BIO_free(wbio);
@@ -329,7 +357,7 @@ int TlsGenerateMasterSecretTest(void)
     static char outsecret[] =
         "ACAA9B84279FD9294988AF0A78C3C8F3B2EAC6AD0BA209147DFFFEF87EF"
         "21C665EB47963F8664715F054E81E197F3713";
-    static uint8_t secret[(sizeof(outsecret) - 1)/2];
+    static uint8_t secret[MSG_SIZE(outsecret)];
     size_t secret_size = 0;
     int ret = -1;
 

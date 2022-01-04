@@ -353,7 +353,7 @@ int TlsClientExtensionTest(void)
 
     TlsExtIndex = 0;
     TlsTransParamIndex = 0;
-    if (TlsClientConstructExtensions(&quic->tls, &pkt, TLSEXT_CLIENT_HELLO,
+    if (TlsClntConstructExtensions(&quic->tls, &pkt, TLSEXT_CLIENT_HELLO,
                 NULL, 0) < 0) {
         printf("Client Construct Extensions failed!\n");
         goto out;

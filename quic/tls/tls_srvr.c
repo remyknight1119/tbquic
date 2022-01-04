@@ -8,6 +8,7 @@
 #include <tbquic/types.h>
 #include <tbquic/quic.h>
 
+#include "extension.h"
 #include "packet_local.h"
 #include "tls_cipher.h"
 #include "common.h"
@@ -95,7 +96,8 @@ static int TlsClientHelloProc(TLS *tls, void *packet)
         return -1;
     }
 
-    if (TlsExtLenParse(pkt) < 0) {
+    if (TlsSrvrParseExtensions(tls, pkt, TLSEXT_CLIENT_HELLO, NULL, 0) < 0) {
+        QUIC_LOG("Parse Extension failed\n");
         return -1;
     }
 

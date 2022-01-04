@@ -13,6 +13,7 @@
 #include "format.h"
 #include "packet_local.h"
 #include "common.h"
+#include "extension.h"
 
 typedef struct FuncTest {
     int (*test)(void);
@@ -204,6 +205,9 @@ int main(int argc, char **argv)
             ok_num += ret;
             fprintf(stdout, "OK\n");
         }
+        QuicTestExtensionHook = NULL;
+        QuicTestTransParamHook = NULL;
+        QuicTestEncodedpointHook = NULL;
     }
 
     fprintf(stdout, "%d/%lu Function test passed! Total passed case number"

@@ -27,9 +27,11 @@ extern const char tls_md_server_finish_label[];
 extern void (*QuicHandshakeSecretHook)(uint8_t *);
 extern void (*QuicTlsFinalFinishMacHashHook)(uint8_t *, size_t);
 #endif
+void TlsGetPeerGroups(TLS *s, const uint16_t **, size_t *);
 void TlsGetSupportedGroups(TLS *, const uint16_t **, size_t *);
 int TlsSetSupportedGroups(uint16_t **, size_t *, uint16_t *, size_t);
 int TlsCheckFfdhGroup(uint16_t);
+int TlsCheckInList(TLS *, uint16_t, const uint16_t *, size_t);
 const EVP_MD *TlsHandshakeMd(TLS *);
 EVP_PKEY *TlsGeneratePkeyGroup(TLS *, uint16_t);
 int TlsDigestCachedRecords(TLS *);

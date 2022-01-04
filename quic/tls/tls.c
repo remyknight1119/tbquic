@@ -324,21 +324,23 @@ int TlsInit(TLS *tls, QUIC_CTX *ctx)
     return 0;
 }
 
-void TlsFree(TLS *tls)
+void TlsFree(TLS *s)
 {
-    if (tls->ext.hostname != NULL) {
-        QuicMemFree(tls->ext.hostname);
+    if (s->ext.hostname != NULL) {
+        QuicMemFree(s->ext.hostname);
     }
 
-    X509_free(tls->peer_cert);
-    EVP_MD_CTX_free(tls->handshake_dgst);
-    EVP_PKEY_free(tls->peer_kexch_key);
-    EVP_PKEY_free(tls->kexch_key);
-    QuicDataFree(&tls->ext.supported_groups);
-    QuicDataFree(&tls->ext.alpn);
+    X509_free(s->peer_cert);
+    EVP_MD_CTX_free(s->handshake_dgst);
+    EVP_PKEY_free(s->peer_kexch_key);
+    EVP_PKEY_free(s->kexch_key);
+    QuicDataFree(&s->ext.supported_groups);
+    QuicDataFree(&s->ext.peer_supported_groups);
+    QuicDataFree(&s->ext.peer_sigalgs);
+    QuicDataFree(&s->ext.alpn);
 
-    TlsDestroyCipherList(&tls->cipher_list);
-    QuicCertFree(tls->cert);
-    QuicBufFree(&tls->buffer);
+    TlsDestroyCipherList(&s->cipher_list);
+    QuicCertFree(s->cert);
+    QuicBufFree(&s->buffer);
 }
 

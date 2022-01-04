@@ -98,6 +98,7 @@ struct Tls {
     X509 *peer_cert;
     const SigAlgLookup *peer_sigalg;
     uint16_t group_id;
+    uint16_t psk_kex_mode;
     uint8_t early_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_secret[EVP_MAX_MD_SIZE];
     uint8_t master_secret[EVP_MAX_MD_SIZE];
@@ -119,6 +120,8 @@ struct Tls {
         QuicTransParams trans_param;
         QUIC_DATA alpn;
         QUIC_DATA supported_groups;
+        QUIC_DATA peer_supported_groups;
+        QUIC_DATA peer_sigalgs;
         size_t key_share_max_group_idx;
     } ext;
 };

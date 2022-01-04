@@ -371,7 +371,7 @@ int QuicDecryptHeader(QuicHPCipher *hp_cipher, uint32_t *pkt_num,
     return 0;
 }
 
-static int QuicEncryptLHeader(QuicHPCipher *hp_cipher, uint8_t *first_byte,
+static int QuicEncryptHeader(QuicHPCipher *hp_cipher, uint8_t *first_byte,
                             uint8_t *pkt_num_start, size_t data_len,
                             uint8_t bits_mask)
 {
@@ -934,7 +934,7 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt, QBUFF *qb)
         return -1;
     }
 
-    return QuicEncryptLHeader(&cs->ciphers.hp_cipher, first_byte,
+    return QuicEncryptHeader(&cs->ciphers.hp_cipher, first_byte,
                             pkt_num_start, pkt_num_len + cipher_len,
                             QUIC_LPACKET_TYPE_RESV_MASK);
 }

@@ -217,18 +217,42 @@ const TlsGroupInfo *TlsGroupIdLookup(uint16_t id)
     return &group_nid_list[id];
 }
 
+void TlsGetPeerGroups(TLS *s, const uint16_t **pgroups, size_t *pgroupslen)
+{
+    QuicDataGetU16(&s->ext.peer_supported_groups, pgroups, pgroupslen);
+}
+
+int TlsCheckInList(TLS *s, uint16_t group_id, const uint16_t *groups,
+                    size_t num_groups)
+{
+    size_t i = 0;
+    uint16_t group = 0;
+
+    if (groups == NULL || num_groups == 0) {
+        return -1;
+    }
+
+    for (i = 0; i < num_groups; i++) {
+        group = groups[i];
+        if (group_id == group) {
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
 /*
  * Set *pgroups to the supported groups list and *pgroupslen to
  * the number of groups supported.
  */
-void TlsGetSupportedGroups(TLS *tls, const uint16_t **pgroups,
-                               size_t *pgroupslen)
+void TlsGetSupportedGroups(TLS *s, const uint16_t **pgroups, size_t *pgroupslen)
 {
-    if (QuicDataIsEmpty(&tls->ext.supported_groups)) {
+    if (QuicDataIsEmpty(&s->ext.supported_groups)) {
         *pgroups = eccurves_default;
         *pgroupslen = QUIC_NELEM(eccurves_default);
     } else {
-        QuicDataGetU16(&tls->ext.supported_groups, pgroups, pgroupslen);
+        QuicDataGetU16(&s->ext.supported_groups, pgroups, pgroupslen);
     }
 }
 

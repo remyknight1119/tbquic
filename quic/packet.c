@@ -247,24 +247,89 @@ int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
     return 0;
 }
 
-int RPacketGetLengthPrefixed2(RPacket *pkt, RPacket *subpkt)
+static int RPacketGetLengthPrefixed(RPacket *pkt, RPacket *subpkt, size_t len)
 {
     const uint8_t *data = NULL;
-    RPacket tmp = *pkt;
+
+    if (RPacketRemaining(pkt) != len) {
+        return -1;
+    }
+
+    if (RPacketGetBytes(pkt, &data, len) < 0) {
+        return -1;
+    }
+
+    RPacketBufInit(subpkt, data, len);
+
+    return 0;
+}
+
+int RPacketGetLengthPrefixed1(RPacket *pkt, RPacket *subpkt)
+{
     uint32_t len = 0;
 
-    if (RPacketGet2(&tmp, &len) < 0) {
+    if (RPacketGet1(pkt, &len) < 0) {
         return -1;
     }
     
-    if (RPacketGetBytes(&tmp, &data, len) < 0) {
+    return RPacketGetLengthPrefixed(pkt, subpkt, len);
+}
+
+int RPacketGetLengthPrefixed2(RPacket *pkt, RPacket *subpkt)
+{
+    uint32_t len = 0;
+
+    if (RPacketGet2(pkt, &len) < 0) {
+        return -1;
+    }
+    
+    return RPacketGetLengthPrefixed(pkt, subpkt, len);
+}
+
+int PRacketContainsZeroByte(const RPacket *pkt)
+{
+    return memchr(pkt->curr, 0, pkt->remaining) != NULL;
+}
+
+int RPacketSaveU16(RPacket *pkt, uint16_t **pdest, size_t *pdestlen)
+{
+    uint16_t *buf = NULL;
+    size_t size = 0;
+    size_t i = 0;
+    uint32_t stmp = 0;
+
+    size = RPacketRemaining(pkt);
+
+    /* Invalid data length */
+    if (size == 0 || (size & 0x01) != 0) {
         return -1;
     }
 
-    *pkt = tmp;
-    RPacketBufInit(pkt, data, len);
+    size >>= 1;
+
+    if ((buf = QuicMemMalloc(size * sizeof(*buf))) == NULL)  {
+        return -1;
+    }
+
+    for (i = 0; i < size && RPacketGet2(pkt, &stmp) == 0; i++) {
+        buf[i] = stmp;
+    }
+
+    if (i != size) {
+        QuicMemFree(buf);
+        return -1;
+    }
+
+    QuicMemFree(*pdest);
+    *pdest = buf;
+    *pdestlen = size;
 
     return 0;
+}
+
+char *RPacketStrndup(const RPacket *pkt)
+{
+    return strndup((const char *)pkt->curr, RPacketRemaining(pkt));
 }
 
 void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)

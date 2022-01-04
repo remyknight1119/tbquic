@@ -85,7 +85,7 @@ QuicFlowReturn TlsConnect(TLS *tls)
     return TlsHandshake(tls, client_proc, QUIC_NELEM(client_proc));
 }
 
-static int TlsClientHelloBuild(TLS *tls, void *packet)
+static int TlsClientHelloBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
 
@@ -94,8 +94,7 @@ static int TlsClientHelloBuild(TLS *tls, void *packet)
         return -1;
     }
 
-    if (TlsGenRandom(tls->client_random, sizeof(tls->client_random),
-                            pkt) < 0) {
+    if (TlsGenRandom(s->client_random, sizeof(s->client_random), pkt) < 0) {
         QUIC_LOG("Generate Client Random failed\n");
         return -1;
     }
@@ -105,7 +104,7 @@ static int TlsClientHelloBuild(TLS *tls, void *packet)
         return -1;
     }
 
-    if (TlsPutCipherList(tls, pkt) < 0) {
+    if (TlsPutCipherList(s, pkt) < 0) {
         QUIC_LOG("Put cipher list failed\n");
         return -1;
     }
@@ -120,8 +119,7 @@ static int TlsClientHelloBuild(TLS *tls, void *packet)
         return -1;
     }
 
-    if (TlsClientConstructExtensions(tls, pkt, TLSEXT_CLIENT_HELLO,
-                                        NULL, 0) < 0) {
+    if (TlsClntConstructExtensions(s, pkt, TLSEXT_CLIENT_HELLO, NULL, 0) < 0) {
         QUIC_LOG("Construct extension failed\n");
         return -1;
     }
@@ -175,7 +173,7 @@ static int TlsServerHelloProc(TLS *tls, void *packet)
         return -1;
     }
 
-    if (TlsClientParseExtensions(tls, pkt, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
+    if (TlsClntParseExtensions(tls, pkt, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
         QUIC_LOG("Parse Extension failed\n");
         return -1;
     }
@@ -194,7 +192,7 @@ static int TlsServerHelloProc(TLS *tls, void *packet)
 
 static int TlsEncExtProc(TLS *tls, void *packet)
 {
-    return TlsClientParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0);
+    return TlsClntParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0);
 }
 
 static int TlsServerCertProc(TLS *s, void *packet)
@@ -258,7 +256,7 @@ static int TlsServerCertProc(TLS *s, void *packet)
             goto out;
         }
         
-        if (RPacketRemaining(&extensions) && TlsClientParseExtensions(s,
+        if (RPacketRemaining(&extensions) && TlsClntParseExtensions(s,
                     &extensions, TLSEXT_CERTIFICATE, x, chainidx) < 0) {
             QUIC_LOG("Parse cert extension failed\n");
             goto out;

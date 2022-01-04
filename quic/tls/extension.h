@@ -12,6 +12,9 @@
 
 #define TLSEXT_KEX_MODE_KE_DHE     0x01
 
+#define TLSEXT_NAMETYPE_HOST_NAME   0
+#define TLSEXT_MAXLEN_HOST_NAME     255
+
 typedef enum {
     EXT_TYPE_SERVER_NAME = 0,                             /* RFC 6066 */
     EXT_TYPE_MAX_FRAGMENT_LENGTH = 1,                     /* RFC 6066 */
@@ -97,9 +100,10 @@ int TlsConstructQtpExtension(TLS *, WPacket *, const TlsExtQtpDefinition *,
                             size_t);
 int TlsParseQtpExtension(TLS *, QuicTransParams *, RPacket *,
                                 const TlsExtQtpDefinition *, size_t);
-int TlsClientConstructExtensions(TLS *, WPacket *, uint32_t, X509 *,
+int TlsClntConstructExtensions(TLS *, WPacket *, uint32_t, X509 *,
                             size_t);
-int TlsClientParseExtensions(TLS *, RPacket *, uint32_t, X509 *, size_t);
+int TlsClntParseExtensions(TLS *, RPacket *, uint32_t, X509 *, size_t);
+int TlsSrvrParseExtensions(TLS *, RPacket *, uint32_t, X509 *, size_t);
 int TlsExtQtpCheckInteger(TLS *, QuicTransParams *, size_t);
 int TlsExtQtpConstructInteger(TLS *, QuicTransParams *, size_t,
                                     WPacket *);

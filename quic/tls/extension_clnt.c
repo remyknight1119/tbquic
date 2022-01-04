@@ -17,10 +17,26 @@
 #include "log.h"
 
 static int TlsExtClntCheckServerName(TLS *);
+static int TlsExtClntCheckAlpn(TLS *);
+static int TlsExtClntCheckUnknown(TLS *);
 static int TlsExtClntConstructServerName(TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
+static int TlsExtClntConstructSigAlgs(TLS *, WPacket *, uint32_t, X509 *,
+                                        size_t);
+static int TlsExtClntConstructTlsExtQtp(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
 static int TlsExtClntConstructSupportedGroups(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
+static int TlsExtClntConstructSupportedVersion(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
+static int TlsExtClntConstructKeyExchModes(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
+static int TlsExtClntConstructKeyShare(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
+static int TlsExtClntConstructAlpn(TLS *, WPacket *, uint32_t, X509 *,
+                                        size_t);
+static int TlsExtClntConstructUnknown(TLS *, WPacket *, uint32_t, X509 *,
+                                        size_t);
 static int TlsExtClntParseServerName(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntParseAlpn(TLS *, RPacket *, uint32_t,
@@ -31,22 +47,6 @@ static int TlsExtClntParseKeyShare(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntParseTlsExtQtp(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructSigAlgs(TLS *, WPacket *, uint32_t, X509 *,
-                                        size_t);
-static int TlsExtClntConstructTlsExtQtp(TLS *, WPacket *, uint32_t,
-                                        X509 *, size_t);
-static int TlsExtClntCheckAlpn(TLS *);
-static int TlsExtClntConstructAlpn(TLS *, WPacket *, uint32_t, X509 *,
-                                        size_t);
-static int TlsExtClntConstructSupportedVersion(TLS *, WPacket *, uint32_t,
-                                        X509 *, size_t);
-static int TlsExtClntConstructKeyExchModes(TLS *, WPacket *, uint32_t,
-                                        X509 *, size_t);
-static int TlsExtClntConstructKeyShare(TLS *, WPacket *, uint32_t,
-                                        X509 *, size_t);
-static int TlsExtClntCheckUnknown(TLS *);
-static int TlsExtClntConstructUnknown(TLS *, WPacket *, uint32_t, X509 *,
-                                        size_t);
 
 static const TlsExtConstruct client_ext_construct[] = {
     {
@@ -416,6 +416,7 @@ static int TlsExtClntAddKeyShare(TLS *tls, WPacket *pkt, uint16_t id)
 
     tls->kexch_key = key_share_key;
     tls->group_id = id;
+
     OPENSSL_free(encoded_point);
     return 0;
 out:
@@ -486,7 +487,7 @@ static int TlsExtClntConstructTlsExtQtp(TLS *tls, WPacket *pkt,
                                     QUIC_TRANS_PARAM_NUM);
 }
 
-int TlsClientConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
+int TlsClntConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
                              X509 *x, size_t chainidx)
 {
     return TlsConstructExtensions(tls, pkt, context, x, chainidx,
@@ -594,6 +595,11 @@ static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,
         return -1;
     }
 
+    if (group_id != tls->group_id) {
+        QUIC_LOG("Group ID %u not same[%d]\n",  group_id, tls->group_id);
+        return -1;
+    }
+
     if (RPacketGet2(pkt, &key_ex_len) < 0) {
         return -1;
     }
@@ -627,8 +633,8 @@ static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,
     return 0;
 }
 
-int TlsClientParseExtensions(TLS *tls, RPacket *pkt, uint32_t context,
-                            X509 *x, size_t chainidx)
+int TlsClntParseExtensions(TLS *tls, RPacket *pkt, uint32_t context, X509 *x,
+                                    size_t chainidx)
 {
     return TlsParseExtensions(tls, pkt, context, x, chainidx, client_ext_parse,
                                     QUIC_NELEM(client_ext_parse));

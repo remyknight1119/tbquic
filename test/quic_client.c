@@ -118,7 +118,7 @@ static const char *optstring = "Ha:p:c:k:";
 
 static int QuicTlsCtxClientExtensionSet(QUIC_CTX *ctx)
 {
-    const uint8_t alpn[] = "\x02\x68\x33";
+    const uint8_t alpn[] = "h3";
     uint16_t groups[] = {
         TLS_SUPPORTED_GROUPS_X25519,
         TLS_SUPPORTED_GROUPS_SECP256R1,

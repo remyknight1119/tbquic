@@ -108,9 +108,9 @@ struct Quic {
     QBuffQueueHead tx_queue;
 };
 
-static inline QUIC *QuicTlsTrans(TLS *tls)
+static inline QUIC *QuicTlsTrans(TLS *s)
 {
-    return (QUIC *)tls;
+    return (QUIC *)s;
 }
 
 int QUIC_set_handshake_hp_cipher(QUIC *, uint32_t);

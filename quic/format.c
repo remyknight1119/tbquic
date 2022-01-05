@@ -953,7 +953,7 @@ int QuicInitialPacketBuild(QUIC *quic, QBUFF *qb)
     return ret;
 }
 
-int QuicInitialFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
+int QuicFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
 {
     QBUFF *qb = NULL;
     WPacket pkt = {};

@@ -17,6 +17,7 @@
 #include "tls_cipher.h"
 #include "types.h"
 #include "sig_alg.h"
+#include "q_buff.h"
 
 #define TLS_RANDOM_BYTE_LEN     32
 #define TLS_HANDSHAKE_LEN_SIZE  3
@@ -71,8 +72,10 @@ typedef enum {
     TLS_ST_SR_CLIENT_HELLO,
     TLS_ST_SR_CERT_VERIFY,
     TLS_ST_SW_SERVER_HELLO,
+    TLS_ST_SW_ENCRYPTED_EXTENSIONS,
     TLS_ST_SW_SERVER_CERTIFICATE,
     TLS_ST_SW_CERT_VERIFY,
+    TLS_ST_SW_FINISHED,
     TLS_ST_HANDSHAKE_DONE,
     TLS_ST_MAX,
 } TlsState;
@@ -85,6 +88,7 @@ struct Tls {
     TlsState handshake_state;
     const TlsMethod *method;
     uint8_t server:1;
+    uint8_t alpn_sent:1;
     uint8_t client_random[TLS_RANDOM_BYTE_LEN];
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;
@@ -114,6 +118,8 @@ struct Tls {
     size_t finish_md_len;
     uint8_t peer_finish_md[EVP_MAX_MD_SIZE];
     size_t peer_finish_md_len;
+    QUIC_DATA alpn_selected;
+    QUIC_DATA alpn_proposed;
     /* TLS extensions. */
     struct {
         char *hostname;
@@ -124,13 +130,14 @@ struct Tls {
         QUIC_DATA peer_sigalgs;
         size_t key_share_max_group_idx;
     } ext;
+    QBuffPktBuilder build_pkt;
 };
 
 typedef struct {
     QuicFlowState flow_state;
     TlsState next_state;
     TlsMessageType msg_type;
-    int (*handler)(TLS *, void *);
+    QuicFlowReturn (*handler)(TLS *, void *);
     int (*post_work)(TLS *);
 } TlsProcess;
 
@@ -152,6 +159,6 @@ int TlsHelloHeadParse(TLS *, RPacket *, uint8_t *, size_t);
 int TlsExtLenParse(RPacket *);
 int TlsPutCipherList(TLS *, WPacket *);
 int TlsPutCompressionMethod(WPacket *);
-int TlsFinishedBuild(TLS *, void *);
+QuicFlowReturn TlsFinishedBuild(TLS *, void *);
 
 #endif

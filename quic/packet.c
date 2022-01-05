@@ -332,6 +332,29 @@ char *RPacketStrndup(const RPacket *pkt)
     return strndup((const char *)pkt->curr, RPacketRemaining(pkt));
 }
 
+int PRacketMemDup(const RPacket *pkt, uint8_t **data, size_t *len)
+{
+    size_t length = 0;
+
+    QuicMemFree(*data);
+    *data = NULL;
+    *len = 0;
+
+    length = RPacketRemaining(pkt);
+    if (length == 0) {
+        return 0;
+    }
+
+    *data = QuicMemDup(pkt->curr, length);
+    if (*data == NULL) {
+        return -1;
+    }
+
+    *len = length;
+    
+    return 0;
+}
+
 void WPacketBufInit(WPacket *pkt, BUF_MEM *buf)
 {
     memset(pkt, 0, sizeof(*pkt));

@@ -102,6 +102,20 @@ int TlsConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
     return 0;
 }
 
+int TlsExtConstructAlpn(QUIC_DATA *alpn, WPacket *pkt)
+{
+    if (WPacketStartSubU16(pkt) < 0) {
+        return -1;
+    }
+    
+    if (WPacketSubMemcpyU8(pkt, alpn->data, alpn->len) < 0) {
+        return -1;
+    }
+
+    return WPacketClose(pkt);
+}
+
+#if 0
 static const TlsExtParse *
 TlsFindExtParser(uint32_t type, const TlsExtParse *ext, size_t num)
 {
@@ -115,14 +129,16 @@ TlsFindExtParser(uint32_t type, const TlsExtParse *ext, size_t num)
 
     return NULL;
 }
+#endif
  
-int TlsParseExtensions(TLS *tls, RPacket *pkt, uint32_t context,
-                             X509 *x, size_t chainidx,
-                             const TlsExtParse *ext,
-                             size_t num)
+int TlsParseExtensions(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
+                        size_t chainidx, const TlsExtParse *ext,
+                        size_t num)
 {
     const TlsExtParse *thisexd = NULL;
+    RPacket tmp = {};
     RPacket ext_data = {};
+    size_t i = 0;
     uint32_t type = 0;
     uint32_t len = 0;
     int ret = 0;
@@ -131,40 +147,44 @@ int TlsParseExtensions(TLS *tls, RPacket *pkt, uint32_t context,
         return -1;
     }
 
-    while (RPacketRemaining(pkt)) {
-        if (RPacketGet2(pkt, &type) < 0) {
-            return -1;
-        }
-
-        if (RPacketGet2(pkt, &len) < 0) {
-            return -1;
-        }
-
-        if (len == 0) {
-            continue;
-        }
-
-        thisexd = TlsFindExtParser(type, ext, num);
-        if (thisexd == NULL) {
-            RPacketPull(pkt, len);
-            continue;
-        }
-
+    for (i = 0; i < num; i++) {
+        tmp = *pkt;
+        thisexd = ext + i;
         /* Skip if not relevant for our context */
-        if (!TlsShouldParseExtension(tls, thisexd->context, context)) {
-            RPacketPull(pkt, len);
+        if (!TlsShouldParseExtension(s, thisexd->context, context)) {
             continue;
         }
 
-        RPacketBufInit(&ext_data, RPacketData(pkt), len);
-        RPacketPull(pkt, len);
-        ret = thisexd->parse(tls, &ext_data, context, x, chainidx);
-        if (ret < 0) {
-            QUIC_LOG("Parse %u failed\n", type);
-            return -1;
+        while (RPacketRemaining(&tmp)) {
+            if (RPacketGet2(&tmp, &type) < 0) {
+                return -1;
+            }
+
+            if (RPacketGet2(&tmp, &len) < 0) {
+                return -1;
+            }
+
+            if (len == 0) {
+                continue;
+            }
+
+            if (type != thisexd->type) {
+                RPacketPull(&tmp, len);
+                continue;
+            }
+
+            RPacketBufInit(&ext_data, RPacketData(&tmp), len);
+            ret = thisexd->parse(s, &ext_data, context, x, chainidx);
+            if (ret < 0) {
+                QUIC_LOG("Parse %u failed\n", type);
+                return -1;
+            }
+
+            break;
         }
     }
 
+    RPacketPull(pkt, RPacketRemaining(pkt));
     return 0;
 }
 

@@ -13,6 +13,7 @@
 #include "datagram.h"
 #include "q_buff.h"
 #include "mem.h"
+#include "common.h"
 #include "log.h"
 
 static QuicFlowReturn
@@ -219,11 +220,6 @@ QuicFlowReturn QuicInitialSend(QUIC *quic)
         return ret;
     }
 
-    if (QuicInitialFrameBuild(quic, QuicInitialPacketBuild) < 0) {
-        QUIC_LOG("Initial frame build failed\n");
-        return QUIC_FLOW_RET_ERROR;
-    }
-
     return QUIC_FLOW_RET_FINISH;
 }
 
@@ -243,7 +239,6 @@ QuicHandshakeRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
     return QUIC_FLOW_RET_FINISH;
 }
 
-#include "common.h"
 QuicFlowReturn QuicAppDataRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
     QUIC_LOG("remaining = %lu\n", RPacketRemaining(pkt));

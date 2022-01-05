@@ -328,13 +328,19 @@ static int TlsExtClntCheckAlpn(TLS *tls)
     return 0;
 }
 
-static int TlsExtClntConstructAlpn(TLS *tls, WPacket *pkt,
+static int TlsExtClntConstructAlpn(TLS *s, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
-    QUIC_DATA *alpn = &tls->ext.alpn;
+    QUIC_DATA *alpn = &s->ext.alpn;
 
-    return WPacketSubMemcpyU16(pkt, alpn->data, alpn->len);
+    s->alpn_sent = 0;
+    if (TlsExtConstructAlpn(alpn, pkt) < 0) {
+        return -1;
+    }
+    s->alpn_sent = 1;
+
+    return 0;
 }
 
 static int TlsExtClntConstructSupportedVersion(TLS *tls, WPacket *pkt,
@@ -503,13 +509,15 @@ static int TlsExtClntParseServerName(TLS *tls, RPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntParseAlpn(TLS *tls, RPacket *pkt,
-                                uint32_t context, X509 *x,
+static int TlsExtClntParseAlpn(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
                                 size_t chainidx)
 {
     uint32_t len = 0;
 
-    QUIC_LOG("in\n");
+    if (!s->alpn_sent) {
+        return -1;
+    }
+
     if (RPacketGet2(pkt, &len) < 0) {
         return -1;
     }
@@ -518,10 +526,24 @@ static int TlsExtClntParseAlpn(TLS *tls, RPacket *pkt,
         return -1;
     }
 
-    if (RPacketPull(pkt, len) < 0) {
+    if (RPacketGet1(pkt, &len) < 0) {
         return -1;
     }
 
+    if (RPacketRemaining(pkt) != len) {
+        return -1;
+    }
+
+    if (PRacketMemDup(pkt, &s->alpn_selected.ptr_u8,
+                &s->alpn_selected.len) < 0) {
+        return -1;
+    }
+
+    if (RPacketPull(pkt, RPacketRemaining(pkt)) < 0) {
+        return -1;
+    }
+
+    QUIC_LOG("in\n");
     return 0;
 }
 

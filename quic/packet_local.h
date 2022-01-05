@@ -57,6 +57,7 @@ int RPacketGetLengthPrefixed1(RPacket *, RPacket *);
 int RPacketGetLengthPrefixed2(RPacket *, RPacket *);
 int PRacketContainsZeroByte(const RPacket *);
 int RPacketSaveU16(RPacket *, uint16_t **, size_t *);
+int PRacketMemDup(const RPacket *, uint8_t **, size_t *);
 char *RPacketStrndup(const RPacket *);
 void WPacketBufInit(WPacket *, BUF_MEM *);
 void WPacketStaticBufInit(WPacket *, uint8_t *, size_t);

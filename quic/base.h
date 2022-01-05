@@ -7,6 +7,7 @@
 typedef struct {
     union {
         void *data;
+        uint8_t *ptr_u8;
         uint16_t *ptr_u16;
     };
     size_t len;

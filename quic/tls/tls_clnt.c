@@ -19,12 +19,12 @@
 #include "mem.h"
 #include "log.h"
 
-static int TlsClientHelloBuild(TLS *, void *);
-static int TlsServerHelloProc(TLS *, void *);
-static int TlsEncExtProc(TLS *, void *);
-static int TlsServerCertProc(TLS *, void *);
-static int TlsCertVerifyProc(TLS *, void *);
-static int TlsClientFinishedProc(TLS *, void *);
+static QuicFlowReturn TlsClientHelloBuild(TLS *, void *);
+static QuicFlowReturn TlsServerHelloProc(TLS *, void *);
+static QuicFlowReturn TlsEncExtProc(TLS *, void *);
+static QuicFlowReturn TlsServerCertProc(TLS *, void *);
+static QuicFlowReturn TlsCertVerifyProc(TLS *, void *);
+static QuicFlowReturn TlsClientFinishedProc(TLS *, void *);
 static int TlsClientPostFinishedWork(TLS *);
 
 static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
@@ -85,49 +85,56 @@ QuicFlowReturn TlsConnect(TLS *tls)
     return TlsHandshake(tls, client_proc, QUIC_NELEM(client_proc));
 }
 
-static int TlsClientHelloBuild(TLS *s, void *packet)
+static QuicFlowReturn TlsClientHelloBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
 
     if (WPacketPut2(pkt, TLS_VERSION_1_2) < 0) {
         QUIC_LOG("Put leagacy version failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsGenRandom(s->client_random, sizeof(s->client_random), pkt) < 0) {
         QUIC_LOG("Generate Client Random failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (WPacketPut1(pkt, 0) < 0) {
         QUIC_LOG("Put session ID len failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsPutCipherList(s, pkt) < 0) {
         QUIC_LOG("Put cipher list failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (WPacketPut1(pkt, 1) < 0) {
         QUIC_LOG("Put compression len failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsPutCompressionMethod(pkt) < 0) {
         QUIC_LOG("Put compression method failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsClntConstructExtensions(s, pkt, TLSEXT_CLIENT_HELLO, NULL, 0) < 0) {
         QUIC_LOG("Construct extension failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
-    return 0;
+#if 0
+    if (QuicInitialFrameBuild(QuicTlsTrans(s)) < 0) {
+        QUIC_LOG("Initial frame build failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+#endif
+
+    return QUIC_FLOW_RET_STOP;
 }
 
-static int TlsServerHelloProc(TLS *tls, void *packet)
+static QuicFlowReturn TlsServerHelloProc(TLS *tls, void *packet)
 {
     QUIC *quic = QuicTlsTrans(tls);
     RPacket *pkt = packet;
@@ -139,12 +146,12 @@ static int TlsServerHelloProc(TLS *tls, void *packet)
     if (TlsHelloHeadParse(tls, pkt, tls->server_random,
                 sizeof(tls->server_random)) < 0) {
         QUIC_LOG("Parse Hello Head failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsParseCipherList(&cipher_list, pkt, 2) < 0) {
         QUIC_LOG("Parse cipher list failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     /* Get the only one cipher member */
@@ -158,44 +165,48 @@ static int TlsServerHelloProc(TLS *tls, void *packet)
 
     if (id == 0) {
         QUIC_LOG("Get server cipher failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     cipher = TlsCipherMatchListById(&tls->cipher_list, id);
     if (cipher == NULL) {
         QUIC_LOG("Get shared cipher failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     tls->handshake_cipher = cipher;
     /* Skip legacy Compression Method */
     if (RPacketPull(pkt, 1) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsClntParseExtensions(tls, pkt, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
         QUIC_LOG("Parse Extension failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     tls->handshake_msg_len = RPacketTotalLen(pkt);
     //change cipher state
     if (QuicCreateHandshakeServerDecoders(quic) < 0) {
         QUIC_LOG("Create Handshake Decoders failed\n");
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     tls->handshake_msg_len = 0;
     QuicBufClear(QUIC_TLS_BUFFER(quic));
-    return 0;
+    return QUIC_FLOW_RET_FINISH;
 }
 
-static int TlsEncExtProc(TLS *tls, void *packet)
+static QuicFlowReturn TlsEncExtProc(TLS *tls, void *packet)
 {
-    return TlsClntParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0);
+    if (TlsClntParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return QUIC_FLOW_RET_FINISH;
 }
 
-static int TlsServerCertProc(TLS *s, void *packet)
+static QuicFlowReturn TlsServerCertProc(TLS *s, void *packet)
 {
     QUIC *quic = QuicTlsTrans(s);
     RPacket *pkt = packet;
@@ -209,22 +220,22 @@ static int TlsServerCertProc(TLS *s, void *packet)
     uint32_t cert_list_len = 0;
     uint32_t cert_len = 0;
     int v = 0;
-    int ret = -1;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
     if (RPacketGet1(pkt, &context) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (RPacketGet3(pkt, &cert_list_len) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (RPacketRemaining(pkt) != cert_list_len) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if ((sk = sk_X509_new_null()) == NULL) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     for (chainidx = 0; RPacketRemaining(pkt); chainidx++) {
@@ -287,14 +298,14 @@ static int TlsServerCertProc(TLS *s, void *packet)
         goto out;
     }
 
-    ret = 0;
+    ret = QUIC_FLOW_RET_FINISH;
 out:
     X509_free(x);
     sk_X509_pop_free(sk, X509_free);
     return ret;
 }
 
-static int TlsCertVerifyProc(TLS *s, void *packet)
+static QuicFlowReturn TlsCertVerifyProc(TLS *s, void *packet)
 {
     RPacket *pkt = packet;
     EVP_PKEY *pkey = NULL;
@@ -306,47 +317,47 @@ static int TlsCertVerifyProc(TLS *s, void *packet)
 
     pkey = X509_get0_pubkey(s->peer_cert);
     if (pkey == NULL) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsLookupSigAlgByPkey(pkey) == NULL) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (RPacketGet2(pkt, &sigalg) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsCheckPeerSigalg(s, sigalg, pkey) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     md = TlsLookupMd(s->peer_sigalg);
     if (md == NULL) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (RPacketGet2(pkt, &len) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     pkey_size = EVP_PKEY_size(pkey);
     if (pkey_size != len) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (RPacketGetBytes(pkt, &data, len) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsDoCertVerify(s, data, len, pkey, md) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
-    return 0;
+    return QUIC_FLOW_RET_FINISH;
 }
 
-static int TlsClientFinishedProc(TLS *s, void *packet)
+static QuicFlowReturn TlsClientFinishedProc(TLS *s, void *packet)
 {
     RPacket *pkt = packet;
     QUIC *quic = QuicTlsTrans(s);
@@ -355,23 +366,27 @@ static int TlsClientFinishedProc(TLS *s, void *packet)
 
     len = s->peer_finish_md_len;
     if (RPacketRemaining(pkt) != len) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (QuicMemCmp(RPacketData(pkt), s->peer_finish_md, len) != 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (TlsGenerateMasterSecret(s, s->master_secret, s->handshake_secret,
                                     &secret_size) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     if (QuicCreateAppDataServerDecoders(quic) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
-    return QuicCreateHandshakeClientEncoders(quic);
+    if (QuicCreateHandshakeClientEncoders(quic) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return QUIC_FLOW_RET_FINISH;
 }
 
 static int TlsClientPostFinishedWork(TLS *s)

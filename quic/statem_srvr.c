@@ -37,7 +37,7 @@ QuicServerInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 
 static QuicFlowReturn QuicServerInitialSend(QUIC *quic)
 {
-    return QUIC_FLOW_RET_FINISH;
+    return QuicInitialSend(quic);
 }
 
 static QuicFlowReturn

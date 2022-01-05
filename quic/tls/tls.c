@@ -37,6 +37,7 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
     RPacket packet = {};
     RPacket msg = {};
     TlsState state = 0;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
     size_t remain = 0;
     uint32_t type = 0;
     uint32_t len = 0;
@@ -87,12 +88,13 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
     }
 
     state = tls->handshake_state;
-    if (p->handler(tls, &msg) < 0) {
+    ret = p->handler(tls, &msg);
+    if (ret == QUIC_FLOW_RET_ERROR) {
         return QUIC_FLOW_RET_ERROR;
     }
 
     TlsFlowFinish(tls, state, p->next_state);
-    return QUIC_FLOW_RET_FINISH;
+    return ret;
 }
 
 static QuicFlowReturn
@@ -100,6 +102,7 @@ TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
 {
     uint8_t *msg = NULL;
     TlsState state = 0;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
     size_t msg_len = 0;
     size_t wlen = 0;
 
@@ -121,7 +124,8 @@ TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
     }
  
     state = tls->handshake_state;
-    if (p->handler(tls, pkt) < 0) {
+    ret = p->handler(tls, pkt);
+    if (ret == QUIC_FLOW_RET_ERROR) {
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -138,7 +142,7 @@ TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
 
     TlsFlowFinish(tls, state, p->next_state);
 
-    return QUIC_FLOW_RET_FINISH;
+    return ret;
 }
 
 static QuicFlowReturn
@@ -182,6 +186,9 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
             return QUIC_FLOW_RET_ERROR;
         }
 
+        if (ret == QUIC_FLOW_RET_STOP) {
+            break;
+        }
         state = tls->handshake_state;
         assert(state >= 0 && state < num);
         p = &proc[state];
@@ -191,20 +198,21 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
 }
 
 QuicFlowReturn
-TlsHandshake(TLS *tls, const TlsProcess *proc, size_t num)
+TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
 {
-    QUIC_BUFFER *buffer = &tls->buffer;
+    QUIC_BUFFER *buffer = &s->buffer;
     RPacket rpkt = {};
     WPacket wpkt = {};
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     size_t data_len = 0;
+    size_t wlen = 0;
 
     data_len = QuicBufGetDataLength(buffer) - QuicBufGetOffset(buffer);
     assert(QUIC_GE(data_len, 0));
     RPacketBufInit(&rpkt, QuicBufMsg(buffer), data_len);
     WPacketBufInit(&wpkt, buffer->buf);
 
-    ret = TlsHandshakeStatem(tls, &rpkt, &wpkt, proc, num);
+    ret = TlsHandshakeStatem(s, &rpkt, &wpkt, proc, num);
     if (ret == QUIC_FLOW_RET_WANT_READ && RPacketRemaining(&rpkt)) {
         if (QuicBufAddOffset(buffer, RPacketReadLen(&rpkt)) < 0) {
             return QUIC_FLOW_RET_ERROR;
@@ -213,8 +221,14 @@ TlsHandshake(TLS *tls, const TlsProcess *proc, size_t num)
         QuicBufResetOffset(buffer);
     }
 
-    QuicBufSetDataLength(buffer, WPacket_get_written(&wpkt));
+    wlen = WPacket_get_written(&wpkt);
     WPacketCleanup(&wpkt);
+    QuicBufSetDataLength(buffer, wlen);
+
+    if (wlen != 0 && QuicFrameBuild(QuicTlsTrans(s), s->build_pkt) < 0) {
+        QUIC_LOG("Initial frame build failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
 
     return ret;
 }
@@ -260,7 +274,7 @@ int TlsExtLenParse(RPacket *pkt)
     return 0;
 }
 
-int TlsFinishedBuild(TLS *s, void *packet)
+QuicFlowReturn TlsFinishedBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
     const char *sender = NULL;
@@ -277,55 +291,59 @@ int TlsFinishedBuild(TLS *s, void *packet)
 
     finish_md_len = TlsFinalFinishMac(s, sender, slen, s->finish_md);
     if (finish_md_len == 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
     s->finish_md_len = finish_md_len;
 
     if (WPacketMemcpy(pkt, s->finish_md, finish_md_len) < 0) {
-        return -1;
+        return QUIC_FLOW_RET_ERROR;
     }
 
-    return 0;
+    return QUIC_FLOW_RET_FINISH;
 }
 
-int TlsInit(TLS *tls, QUIC_CTX *ctx)
+int TlsInit(TLS *s, QUIC_CTX *ctx)
 {
-    tls->handshake_state = TLS_ST_OK;
-    tls->method = ctx->method->tls_method;
-    if (QuicBufInit(&tls->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
+    s->handshake_state = TLS_ST_OK;
+    s->method = ctx->method->tls_method;
+    if (QuicBufInit(&s->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
         return -1;
     }
 
-    tls->cert = QuicCertDup(ctx->cert);
-    if (tls->cert == NULL) {
+    s->cert = QuicCertDup(ctx->cert);
+    if (s->cert == NULL) {
         return -1;
     }
 
-    if (QuicDataDup(&tls->ext.alpn, &ctx->ext.alpn) < 0) {
+    if (QuicDataDup(&s->ext.alpn, &ctx->ext.alpn) < 0) {
         return -1;
     }
 
     if (!QuicDataIsEmpty(&ctx->ext.supported_groups)) {
-        if (QuicDataDupU16(&tls->ext.supported_groups,
+        if (QuicDataDupU16(&s->ext.supported_groups,
                     &ctx->ext.supported_groups) < 0) {
             return -1;
         }
     }
 
-    INIT_HLIST_HEAD(&tls->cipher_list);
+    INIT_HLIST_HEAD(&s->cipher_list);
 
-    if (TlsCreateCipherList(&tls->cipher_list, TLS_CIPHERS_DEF,
+    if (TlsCreateCipherList(&s->cipher_list, TLS_CIPHERS_DEF,
                                 sizeof(TLS_CIPHERS_DEF) - 1) < 0) {
         QUIC_LOG("Create cipher list failed\n");
         return -1;
     }
 
+    s->build_pkt = QuicInitialPacketBuild;
     return 0;
 }
 
 void TlsFree(TLS *s)
 {
+    QuicDataFree(&s->alpn_selected);
+    QuicDataFree(&s->alpn_proposed);
+
     if (s->ext.hostname != NULL) {
         QuicMemFree(s->ext.hostname);
     }

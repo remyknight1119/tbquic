@@ -70,6 +70,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     char quic_data[QUIC_RECORD_MAX_LEN] = {};
     socklen_t addrlen = sizeof(udp_key);
 	ssize_t rlen = 0;
+	ssize_t wlen = 0;
     int sockfd = 0;
     int reuse = 1;
     int epfd = 0;
@@ -77,6 +78,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     int efd = 0;
     int handshake_done = 0;
     int i = 0;
+    int err = 0;
     int ret = 0;
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
@@ -140,20 +142,36 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                         QUIC_set_bio(quic, rbio, wbio);
                     } else {
                         rbio = QUIC_get_rbio(quic);
+                        wbio = QUIC_get_wbio(quic);
                     }
 
                     BIO_write(rbio, quic_data, rlen);
                     rbio = NULL;
-                    wbio = NULL;
                     if (handshake_done == 0) {
                         ret = QuicDoHandshake(quic);
                         if (ret < 0) {
-                            goto next;
+                            err = QUIC_get_error(quic, ret);
+                            if (err != QUIC_ERROR_WANT_READ) {
+                                wbio = NULL;
+                                goto next;
+                            }
+                        } else {
+                            handshake_done = 1;
                         }
-                        handshake_done = 1;
                     }
 
                     printf("conn found, sport = %d\n", ntohs(udp_key.addr4.sin_port));
+                    rlen = BIO_read(wbio, quic_data, sizeof(quic_data));
+                    wbio = NULL;
+                    printf("rlen = %d\n", (int)rlen);
+                    if (rlen > 0) {
+                        wlen = sendto(efd, quic_data, rlen, 0,
+                                (const struct sockaddr *)&udp_key, addrlen);
+                        if (wlen <= 0) {
+                            printf("Send failed\n");
+                        }
+                        printf("wlen = %d\n", (int)wlen);
+                    }
                     //bzero(buf, sizeof(buf));
                     /* 接收客户端的消息 */
 

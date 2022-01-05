@@ -291,6 +291,35 @@ int TlsSetSupportedGroups(uint16_t **pext, size_t *pextlen, uint16_t *groups,
     return 0;
 }
 
+/* Generate a private key from parameters */
+EVP_PKEY *TlsGeneratePkey(EVP_PKEY *pm)
+{
+    EVP_PKEY_CTX *pctx = NULL;
+    EVP_PKEY *pkey = NULL;
+
+    if (pm == NULL) {
+        return NULL;
+    }
+
+    pctx = EVP_PKEY_CTX_new(pm, NULL);
+    if (pctx == NULL) {
+        goto err;
+    }
+
+    if (EVP_PKEY_keygen_init(pctx) <= 0) {
+        goto err;
+    }
+
+    if (EVP_PKEY_keygen(pctx, &pkey) <= 0) {
+        EVP_PKEY_free(pkey);
+        pkey = NULL;
+    }
+
+err:
+    EVP_PKEY_CTX_free(pctx);
+    return pkey;
+}
+
 EVP_PKEY *TlsGeneratePkeyGroup(TLS *tls, uint16_t id)
 {
     EVP_PKEY *pkey = NULL;
@@ -329,6 +358,54 @@ EVP_PKEY *TlsGeneratePkeyGroup(TLS *tls, uint16_t id)
     }
 
 out:
+    EVP_PKEY_CTX_free(pctx);
+    return pkey;
+}
+
+/*
+ * Generate parameters from a group ID
+ */
+EVP_PKEY *TlsGenerateParamGroup(uint16_t id)
+{
+    EVP_PKEY_CTX *pctx = NULL;
+    EVP_PKEY *pkey = NULL;
+    const TlsGroupInfo *g_info = NULL;
+    uint16_t gtype = 0;
+
+    g_info = TlsGroupIdLookup(id);
+    if (g_info == NULL) {
+        return NULL;
+    }
+ 
+    gtype = g_info->flags & TLS_CURVE_TYPE;
+    if (gtype == TLS_CURVE_CUSTOM) {
+        pkey = EVP_PKEY_new();
+        if (pkey != NULL && EVP_PKEY_set_type(pkey, g_info->nid)) {
+            return pkey;
+        }
+        EVP_PKEY_free(pkey);
+        return NULL;
+    }
+
+    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+    if (pctx == NULL) {
+        goto err;
+    }
+
+    if (EVP_PKEY_paramgen_init(pctx) <= 0) {
+        goto err;
+    }
+
+    if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, g_info->nid) <= 0) {
+        goto err;
+    }
+
+    if (EVP_PKEY_paramgen(pctx, &pkey) <= 0) {
+        EVP_PKEY_free(pkey);
+        pkey = NULL;
+    }
+
+ err:
     EVP_PKEY_CTX_free(pctx);
     return pkey;
 }

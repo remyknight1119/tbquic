@@ -84,13 +84,13 @@ int QBuffAddDataLen(QBUFF *qb, size_t len)
     return QBuffSetDataLen(qb, qb->data_len + len);
 }
 
-int QBuffBuildPkt(QUIC *quic, QBUFF *qb)
+int QBuffBuildPkt(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
 {
     if (qb->build_pkt == NULL) {
         return -1;
     }
 
-    return qb->build_pkt(quic, qb);
+    return qb->build_pkt(quic, pkt, qb, last);
 }
 
 void QBuffQueueAdd(QBuffQueueHead *h, QBUFF *qb)

@@ -77,8 +77,8 @@ int Quic0RttPacketParse(QUIC *, RPacket *);
 int QuicHandshakePacketParse(QUIC *, RPacket *);
 int QuicOneRttParse(QUIC *, RPacket *);
 int QuicRetryPacketParse(QUIC *, RPacket *);
-int QuicInitialPacketGen(QUIC *, WPacket *, QBUFF *);
-int QuicInitialPacketBuild(QUIC *, QBUFF *);
+int QuicInitialPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
+int QuicHandshakePacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt);
 
 #ifdef QUIC_TEST

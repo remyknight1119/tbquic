@@ -65,8 +65,10 @@ struct QuicCiphers {
 extern void (*QuicSecretTest)(uint8_t *secret);
 #endif
 int QuicCreateInitialDecoders(QUIC *, uint32_t);
-int QuicCreateHandshakeServerDecoders(QUIC *);
 int QuicCreateHandshakeClientEncoders(QUIC *);
+int QuicCreateHandshakeClientDecoders(QUIC *);
+int QuicCreateHandshakeServerEncoders(QUIC *);
+int QuicCreateHandshakeServerDecoders(QUIC *);
 int QuicCreateAppDataServerDecoders(QUIC *);
 int QuicCreateAppDataClientEncoders(QUIC *);
 void QuicCipherCtxFree(QUIC_CIPHERS *);

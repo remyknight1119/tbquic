@@ -18,7 +18,8 @@
 
 static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
 static QuicFlowReturn TlsServerHelloBuild(TLS *, void *);
-static QuicFlowReturn TlsServerEncryptedExtBuild(TLS *, void *);
+static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *, void *);
+static int TlsServerHelloPostWork(TLS *);
 
 static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
@@ -36,19 +37,20 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .next_state = TLS_ST_SW_ENCRYPTED_EXTENSIONS,
         .msg_type = TLS_MT_SERVER_HELLO,
         .handler = TlsServerHelloBuild,
+        .post_work = TlsServerHelloPostWork,
     },
     [TLS_ST_SW_ENCRYPTED_EXTENSIONS] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_SW_SERVER_CERTIFICATE,
         .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
-        .handler = TlsServerEncryptedExtBuild,
+        .handler = TlsSrvrEncryptedExtBuild,
     },
     [TLS_ST_SW_SERVER_CERTIFICATE] = {
         .flow_state = QUIC_FLOW_FINISHED,
         //.flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_SW_CERT_VERIFY,
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
-//        .handler = TlsServerEncryptedExtBuild,
+//        .handler = TlsSrvrEncryptedExtBuild,
     },
 };
 
@@ -137,7 +139,7 @@ static QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
     }
 
     if (TlsGenRandom(s->server_random, sizeof(s->server_random), pkt) < 0) {
-        QUIC_LOG("Generate Server Random failed\n");
+        QUIC_LOG("Generate Srvr Random failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -162,12 +164,24 @@ static QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    printf("SSSSSSSSSSSSSSSSSSSSSServerhello Build\n");
+    printf("SSSSSSSSSSSSSSSSSSSSSSrvrhello Build\n");
     return QUIC_FLOW_RET_STOP;
 }
 
-static QuicFlowReturn TlsServerEncryptedExtBuild(TLS *, void *)
+static int TlsServerHelloPostWork(TLS *s)
 {
+    QUIC *quic = QuicTlsTrans(s);
+
+    if (QuicCreateHandshakeServerEncoders(quic) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
+{
+    s->build_pkt = QuicHandshakePacketBuild;
     QUIC_LOG("Build\n");
     return QUIC_FLOW_RET_FINISH;
 }

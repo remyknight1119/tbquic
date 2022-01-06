@@ -222,10 +222,6 @@ static int TlsExtSrvrConstructKeyShare(TLS *s, WPacket *pkt, uint32_t context,
         return -1;
     }
 
-    if (WPacketStartSubU16(pkt) < 0) { 
-        return -1;
-    }
-
     if (WPacketPut2(pkt, s->group_id) < 0) {
         return -1;
     }
@@ -243,10 +239,6 @@ static int TlsExtSrvrConstructKeyShare(TLS *s, WPacket *pkt, uint32_t context,
     ret = WPacketSubMemcpyU16(pkt, encoded_point, encoded_pt_len);
     OPENSSL_free(encoded_point);
     if (ret < 0) {
-        goto out;
-    }
-
-    if (WPacketClose(pkt) < 0) {
         goto out;
     }
 

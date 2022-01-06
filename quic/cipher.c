@@ -389,12 +389,14 @@ static int QuicInstallEncryptorDecryptor(TLS *s, const EVP_MD *md,
         sec = secret;
     }
 
+    QuicPrint(in_secret, 48);
+    QuicPrint(hash, 48);
     if (TlsDeriveSecrets(s, md, in_secret, label, labellen, hash, sec) < 0) {
         QUIC_LOG("Derive secret failed\n");
         return -1;
     }
 
-#if 0
+#if QUIC_DEBUG
     fprintf(stdout, "%s ", log_label);
     int i = 0;
 
@@ -548,6 +550,16 @@ static int QuicCreateAppDataServerEncryptorDecryptor(QUIC *quic, int enc)
 int QuicCreateHandshakeClientEncoders(QUIC *quic)
 {
     return QuicCreateHandshakeClientEncryptorDecryptor(quic, QUIC_EVP_ENCRYPT);
+}
+
+int QuicCreateHandshakeClientDecoders(QUIC *quic)
+{
+    return QuicCreateHandshakeClientEncryptorDecryptor(quic, QUIC_EVP_DECRYPT);
+}
+
+int QuicCreateHandshakeServerEncoders(QUIC *quic)
+{
+    return QuicCreateHandshakeServerEncryptorDecryptor(quic, QUIC_EVP_ENCRYPT);
 }
 
 int QuicCreateHandshakeServerDecoders(QUIC *quic)

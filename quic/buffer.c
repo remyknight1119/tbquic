@@ -137,6 +137,11 @@ void QuicBufAddDataLength(QUIC_BUFFER *qbuf, size_t len)
     qbuf->data_len += len;
 }
 
+void QuicBufResetDataLength(QUIC_BUFFER *qbuf)
+{
+    qbuf->data_len = 0;
+}
+
 void QuicBufReserve(QUIC_BUFFER *qbuf)
 {
     qbuf->reserved = qbuf->data_len;

@@ -32,6 +32,7 @@ size_t QuicBufGetReserved(QUIC_BUFFER *);
 size_t QuicBufGetDataLength(QUIC_BUFFER *);
 void QuicBufSetDataLength(QUIC_BUFFER *, size_t);
 void QuicBufAddDataLength(QUIC_BUFFER *, size_t);
+void QuicBufResetDataLength(QUIC_BUFFER *);
 int QuicBufCopyData(QUIC_BUFFER *, const uint8_t *, size_t);
 void QuicBufReserve(QUIC_BUFFER *);
 QUIC_BUFFER *QuicGetPlainTextBuffer(void);

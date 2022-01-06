@@ -71,6 +71,7 @@ int WPacketPut1(WPacket *, uint32_t);
 int WPacketPut2(WPacket *, uint32_t);
 int WPacketPut3(WPacket *, uint32_t);
 int WPacketPut4(WPacket *, uint32_t);
+int WPacketBufPull(WPacket *, size_t);
 int WPacketMemcpy(WPacket *, const void *, size_t);
 int WPacketMemmove(WPacket *, const void *, size_t);
 int WPacketMemset(WPacket *, int, size_t);

@@ -436,6 +436,17 @@ int WPacketAllocateBytes(WPacket *pkt, size_t len, uint8_t **allocbytes)
     return 0;
 }
 
+int WPacketBufPull(WPacket *pkt, size_t len)
+{
+    if (QUIC_LT(pkt->maxsize, len)) {
+        return -1;
+    }
+
+    pkt->curr += len;
+    pkt->maxsize -= len;
+    return 0;
+}
+
 int WPacketMemcpy(WPacket *pkt, const void *src, size_t len)
 {
     uint8_t *dest;

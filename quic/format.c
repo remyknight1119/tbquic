@@ -847,7 +847,8 @@ QuicGetEncryptedPayloadLen(QUIC *quic, QuicPPCipher *pp_cipher, QBUFF *qb)
     return QuicCipherLenGet(pp_cipher->cipher.alg, QBuffGetDataLen(qb));
 }
 
-int QuicInitialPacketGen(QUIC *quic, WPacket *pkt, QBUFF *qb)
+int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
+                        QBUFF *qb, bool last)
 {
     QuicCipherSpace *cs = NULL;
     QuicPPCipher *pp_cipher = NULL;
@@ -866,19 +867,19 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt, QBUFF *qb)
     int len_offset = 0;
     int offset = 0;
 
-    if (QuicLHeaderGen(quic, &first_byte, pkt, QUIC_LPACKET_TYPE_INITIAL,
-                pkt_num_len) < 0) {
+    if (QuicLHeaderGen(quic, &first_byte, pkt, type, pkt_num_len) < 0) {
         QUIC_LOG("Long header generate failed\n");
         return -1;
     }
 
-    if (QuicTokenPut(&quic->token, pkt) < 0) {
+    if (type == QUIC_LPACKET_TYPE_INITIAL &&
+            QuicTokenPut(&quic->token, pkt) < 0) {
         QUIC_LOG("Token put failed\n");
         return -1;
     }
 
     total_len = WPacket_get_written(pkt);
-    cs = &quic->initial.encrypt;
+    cs = &c->encrypt;
     cs->pkt_num++;
 
     qb->pkt_num = cs->pkt_num;
@@ -898,7 +899,8 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt, QBUFF *qb)
     }
 
     total_len += len + wlen;
-    if (QUIC_LT(total_len, QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN)) {
+    if (last == true &&
+            QUIC_LT(total_len, QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN)) {
         padding_len = QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN - total_len;
         len += padding_len;
         wlen_curr = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
@@ -939,18 +941,17 @@ int QuicInitialPacketGen(QUIC *quic, WPacket *pkt, QBUFF *qb)
                             QUIC_LPACKET_TYPE_RESV_MASK);
 }
 
-int QuicInitialPacketBuild(QUIC *quic, QBUFF *qb)
+
+int QuicInitialPacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
 {
-    QUIC_BUFFER *qbuf = QUIC_WRITE_BUFFER(quic);
-    WPacket pkt = {};
-    int ret = 0;
+    return QuicLPacketBuild(quic, &quic->initial, QUIC_LPACKET_TYPE_INITIAL,
+                                pkt, qb, last);
+}
 
-    WPacketBufInit(&pkt, qbuf->buf);
-    ret = QuicInitialPacketGen(quic, &pkt, qb);
-    QuicBufSetDataLength(qbuf, WPacket_get_written(&pkt));
-    WPacketCleanup(&pkt);
-
-    return ret;
+int QuicHandshakePacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
+{
+    return QuicLPacketBuild(quic, &quic->handshake, QUIC_LPACKET_TYPE_HANDSHAKE,
+                                pkt, qb, last);
 }
 
 int QuicFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)

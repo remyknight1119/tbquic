@@ -124,13 +124,6 @@ static QuicFlowReturn TlsClientHelloBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-#if 0
-    if (QuicInitialFrameBuild(QuicTlsTrans(s)) < 0) {
-        QUIC_LOG("Initial frame build failed\n");
-        return QUIC_FLOW_RET_ERROR;
-    }
-#endif
-
     return QUIC_FLOW_RET_STOP;
 }
 

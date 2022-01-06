@@ -39,8 +39,13 @@ static QuicStatemFlow client_statem[QUIC_STATEM_MAX] = {
 
 static QuicFlowReturn QuicClientInitialSend(QUIC *quic)
 {
+    QUIC_DATA *cid = NULL;
     QuicFlowReturn ret;
 
+    cid = &quic->dcid;
+    if (cid->data == NULL && QuicCidGen(cid, quic->cid_len) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
     ret = QuicInitialSend(quic);
     QuicBufReserve(QUIC_TLS_BUFFER(quic));
     return ret;

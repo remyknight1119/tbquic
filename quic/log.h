@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 
+#define QUIC_DEBUG 1
+
 #define QUIC_LOG(format, ...) \
     do { \
         fprintf(stdout, "[%s, %d]: "format, __FUNCTION__, \

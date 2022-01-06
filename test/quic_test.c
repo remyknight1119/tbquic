@@ -208,6 +208,7 @@ int main(int argc, char **argv)
         QuicTestExtensionHook = NULL;
         QuicTestTransParamHook = NULL;
         QuicTestEncodedpointHook = NULL;
+        QuicEncryptPayloadHook = NULL;
     }
 
     fprintf(stdout, "%d/%lu Function test passed! Total passed case number"

@@ -10,7 +10,7 @@
 #include "mem.h"
 #include "log.h"
 
-static __thread QUIC_BUFFER QuicPlainTextBuffer;
+static __thread QuicStaticBuffer QuicInternalBuf[QUIC_STATIC_BUF_TYPE_MAX];
 
 int QuicBufInit(QUIC_BUFFER *qbuf, size_t len)
 {
@@ -40,19 +40,14 @@ void QuicBufFree(QUIC_BUFFER *qbuf)
     BUF_MEM_free(qbuf->buf);
 }
 
-QUIC_BUFFER *QuicGetPlainTextBuffer(void)
+QuicStaticBuffer *QuicGetPlainTextBuffer(void)
 {
-    return &QuicPlainTextBuffer;
+    return &QuicInternalBuf[QUIC_STATIC_BUF_TYPE_PLAINTEXT];
 }
 
-int QuicInitPlainTextBuffer(void)
+QuicStaticBuffer *QuicGetSendBuffer(void)
 {
-    return QuicBufInit(&QuicPlainTextBuffer, QUIC_BUF_MAX_LEN);
-}
-
-void QuicFreePlainTextBuffer(void)
-{
-    QuicBufFree(&QuicPlainTextBuffer);
+    return &QuicInternalBuf[QUIC_STATIC_BUF_TYPE_SEND];
 }
 
 size_t QuicBufMemGrow(QUIC_BUFFER *qbuf, size_t len)

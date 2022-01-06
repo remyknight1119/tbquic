@@ -36,11 +36,11 @@ int QuicDatagramRecv(QUIC *quic)
     return QuicDatagramRecvBuffer(quic, QUIC_READ_BUFFER(quic));
 }
 
-int QuicDatagramSendBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
+int QuicDatagramSendBytes(QUIC *quic, uint8_t *data, size_t len)
 {
     int write_bytes = 0;
 
-    if (QuicBufGetDataLength(qbuf) == 0) {
+    if (len == 0) {
         return 0;
     }
 
@@ -50,18 +50,12 @@ int QuicDatagramSendBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
     }
 
     quic->statem.rwstate = QUIC_WRITING;
-    write_bytes = BIO_write(quic->wbio, QuicBufData(qbuf),
-            QuicBufGetDataLength(qbuf));
-    if (write_bytes < 0 || write_bytes < QuicBufGetDataLength(qbuf)) {
+    write_bytes = BIO_write(quic->wbio, data, len);
+    if (write_bytes < 0 || write_bytes < len) {
         return -1;
     }
 
     quic->statem.rwstate = QUIC_FINISHED;
-    QuicBufSetDataLength(qbuf, 0);
     return 0;
 }
 
-int QuicDatagramSend(QUIC *quic)
-{
-    return QuicDatagramSendBuffer(quic, QUIC_WRITE_BUFFER(quic));
-}

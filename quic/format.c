@@ -572,7 +572,7 @@ static int QuicLengthParse(RPacket *msg, RPacket *pkt)
 }
  
 static int
-QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QUIC_BUFFER *buffer,
+QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QuicStaticBuffer *buffer,
                     uint8_t bit_mask)
 {
     QUIC_CIPHERS *cipher = NULL;
@@ -600,16 +600,16 @@ QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QUIC_BUFFER *buffer,
 
     cs->pkt_num = pkt_num;
 
-    return QuicDecryptMessage(&cipher->pp_cipher, QuicBufData(buffer),
-                &buffer->data_len, QuicBufLength(buffer),
+    return QuicDecryptMessage(&cipher->pp_cipher, buffer->data,
+                &buffer->len, sizeof(buffer->data),
                 h_pkt_num, pkt_num_len, pkt);
 }
 
-static int QuicFrameParse(QUIC *quic, QUIC_BUFFER *f_buf)
+static int QuicFrameParse(QUIC *quic, QuicStaticBuffer *buffer)
 {
     RPacket frame = {};
 
-    RPacketBufInit(&frame, QuicBufData(f_buf), QuicBufGetDataLength(f_buf));
+    RPacketBufInit(&frame, buffer->data, buffer->len);
     if (QuicFrameDoParser(quic, &frame) < 0) {
         QUIC_LOG("Do parser failed!\n");
         return -1;
@@ -631,7 +631,7 @@ int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
 int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 {
     QuicCipherSpace *initial = NULL;
-    QUIC_BUFFER *buffer = QuicGetPlainTextBuffer();
+    QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
     RPacket message = {};
     uint64_t token_len = 0;
 
@@ -668,7 +668,7 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 
 int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
 {
-    QUIC_BUFFER *buffer = QuicGetPlainTextBuffer();
+    QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
     RPacket message = {};
 
     if (QuicLengthParse(&message, pkt) < 0) {
@@ -686,7 +686,7 @@ int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
 
 int QuicOneRttParse(QUIC *quic, RPacket *pkt)
 {
-    QUIC_BUFFER *buffer = QuicGetPlainTextBuffer();
+    QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
 
     if (QuicDecryptPacket(&quic->one_rtt.decrypt, pkt, buffer,
                 QUIC_SPACKET_TYPE_RESV_MASK) < 0) {

@@ -40,6 +40,11 @@ static int TlsExtSrvrParseAlpn(TLS *, RPacket *, uint32_t, X509 *,
                                         size_t);
 static const TlsExtConstruct server_ext_construct[] = {
     {
+        .type = EXT_TYPE_SERVER_NAME,
+        .context = TLSEXT_ENCRYPTED_EXT,
+        .construct = TlsExtSrvrConstructServerName,
+    },
+    {
         .type = EXT_TYPE_SUPPORTED_VERSIONS,
         .context = TLSEXT_SERVER_HELLO,
         .construct = TlsExtSrvrConstructSupportedVersion,
@@ -50,23 +55,15 @@ static const TlsExtConstruct server_ext_construct[] = {
         .check = TlsExtSrvrCheckKeyShare,
         .construct = TlsExtSrvrConstructKeyShare,
     },
-};
- 
-static const TlsExtConstruct server_encrypted_ext_construct[] = {
-    {
-        .type = EXT_TYPE_SERVER_NAME,
-        .context = TLSEXT_SERVER_HELLO,
-        .construct = TlsExtSrvrConstructServerName,
-    },
     {
         .type = EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
-        .context = TLSEXT_SERVER_HELLO,
+        .context = TLSEXT_ENCRYPTED_EXT,
         .check = TlsExtSrvrCheckAlpn,
         .construct = TlsExtSrvrConstructAlpn,
     },
     {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
-        .context = TLSEXT_SERVER_HELLO,
+        .context = TLSEXT_ENCRYPTED_EXT,
         .construct = TlsExtSrvronstructQtp,
     },
 };
@@ -543,14 +540,6 @@ int TlsSrvrConstructExtensions(TLS *s, WPacket *pkt, uint32_t context, X509 *x,
     return TlsConstructExtensions(s, pkt, context, x, chainidx,
                                     server_ext_construct,
                                     QUIC_NELEM(server_ext_construct));
-}
-
-int TlsSrvrConstructEncryptedExtensions(TLS *s, WPacket *pkt, uint32_t context, X509 *x,
-                        size_t chainidx)
-{
-    return TlsConstructExtensions(s, pkt, context, x, chainidx,
-                                    server_encrypted_ext_construct,
-                                    QUIC_NELEM(server_encrypted_ext_construct));
 }
 
 

@@ -19,6 +19,7 @@
 static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
 static QuicFlowReturn TlsServerHelloBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *, void *);
+static QuicFlowReturn TlsSrvrCertBuild(TLS *, void *);
 static int TlsServerHelloPostWork(TLS *);
 
 static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
@@ -46,11 +47,21 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .handler = TlsSrvrEncryptedExtBuild,
     },
     [TLS_ST_SW_SERVER_CERTIFICATE] = {
+        .flow_state = QUIC_FLOW_WRITING,
+        .next_state = TLS_ST_SW_CERT_VERIFY,
+        .msg_type = TLS_MT_CERTIFICATE,
+        .handler = TlsSrvrCertBuild,
+    },
+    [TLS_ST_SW_CERT_VERIFY] = {
         .flow_state = QUIC_FLOW_FINISHED,
         //.flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SW_CERT_VERIFY,
+        .next_state = TLS_ST_SW_FINISHED,
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
-//        .handler = TlsSrvrEncryptedExtBuild,
+//        .handler = TlsSrvrCertVerifyBuild,
+    },
+    [TLS_ST_HANDSHAKE_DONE] = {
+        .flow_state = QUIC_FLOW_FINISHED,
+        .next_state = TLS_ST_HANDSHAKE_DONE,
     },
 };
 
@@ -181,7 +192,19 @@ static int TlsServerHelloPostWork(TLS *s)
 
 static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
 {
+    if (TlsSrvrConstructExtensions(s, packet, TLSEXT_ENCRYPTED_EXT, NULL,
+                0) < 0) {
+        QUIC_LOG("Construct extension failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     s->build_pkt = QuicHandshakePacketBuild;
+    return QUIC_FLOW_RET_FINISH;
+}
+
+static QuicFlowReturn TlsSrvrCertBuild(TLS *s, void *packet)
+{
     QUIC_LOG("Build\n");
     return QUIC_FLOW_RET_FINISH;
 }
+

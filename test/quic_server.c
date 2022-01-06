@@ -105,6 +105,16 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    if (QuicCtxUsePrivateKeyFile(ctx, key, QUIC_FILE_TYPE_PEM) < 0) {
+        printf("Use Private Key file %s failed\n", key);
+        goto out;
+    }
+
+    if (QuicCtxUseCertificateFile(ctx, cert, QUIC_FILE_TYPE_PEM) < 0) {
+        printf("Use Private Cert file %s failed\n", cert);
+        goto out;
+    }
+
     while (1) {
         nfds = epoll_wait(epfd, events, TEST_EVENT_MAX_NUM, -1);
         for (i = 0; i < nfds; i++) {

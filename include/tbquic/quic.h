@@ -56,7 +56,7 @@ extern void QuicCtxFree(QUIC_CTX *ctx);
 extern int QuicCtxCtrl(QUIC_CTX *ctx, uint32_t cmd, void *parg, long larg);
 extern int QuicCtxUsePrivateKeyFile(QUIC_CTX *ctx, const char *file,
                                     uint32_t type);
-extern int QuicCtxUseCertificate_File(QUIC_CTX *ctx, const char *file,
+extern int QuicCtxUseCertificateFile(QUIC_CTX *ctx, const char *file,
                                         uint32_t type);
 extern int QUIC_CTX_set_transport_parameter(QUIC_CTX *ctx, uint64_t type,
                                         void *value, size_t len);

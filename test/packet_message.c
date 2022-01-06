@@ -223,7 +223,7 @@ int QuicPktFormatTestServer(void)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
-    QUIC_BUFFER *buffer = QuicGetPlainTextBuffer();
+    QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
     BIO *rbio = NULL;
     BIO *wbio = NULL;
     int case_num = -1;
@@ -261,7 +261,7 @@ int QuicPktFormatTestServer(void)
         goto out;
     }
 
-    if (QuicCtxUseCertificate_File(ctx, quic_cert, QUIC_FILE_TYPE_PEM) < 0) {
+    if (QuicCtxUseCertificateFile(ctx, quic_cert, QUIC_FILE_TYPE_PEM) < 0) {
         printf("Use Private Cert file %s failed\n", quic_cert);
         goto out;
     }
@@ -294,12 +294,12 @@ int QuicPktFormatTestServer(void)
         goto out;
     }
 
-    if (buffer->data_len != sizeof(payload_plaintext)) {
+    if (buffer->len != sizeof(payload_plaintext)) {
         printf("Plaintext len incorrect\n");
         goto out;
     }
 
-    if (memcmp(buffer->buf->data, payload_plaintext,
+    if (memcmp(buffer->data, payload_plaintext,
                 sizeof(payload_plaintext)) != 0) {
         printf("Plaintext incorrect\n");
         goto out;

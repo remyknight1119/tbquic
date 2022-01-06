@@ -20,14 +20,8 @@
 
 #define QUIC_BUFFER_HEAD(buffer) (uint8_t *)((buffer)->buf->data)
 #define QUIC_R_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(&quic->rbuffer)
-#define QUIC_W_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(&quic->wbuffer)
-
-#define QUIC_BUFFER_DATA_LEN(buffer) (buffer)->data_len
-#define QUIC_R_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->rbuffer)
-#define QUIC_W_BUFFER_DATA_LEN(quic) QUIC_BUFFER_DATA_LEN(&quic->wbuffer)
 
 #define QUIC_READ_BUFFER(quic) (&quic->rbuffer)
-#define QUIC_WRITE_BUFFER(quic) (&quic->wbuffer)
 #define QUIC_TLS_BUFFER(quic) (&quic->tls.buffer)
 
 #define QUIC_IS_SERVER(q) (q->quic_server)
@@ -96,8 +90,6 @@ struct Quic {
     int (*do_handshake)(QUIC *);
     /* Read Buffer */
     QUIC_BUFFER rbuffer;
-    /* Write Buffer */
-    QUIC_BUFFER wbuffer;
     QUIC_DATA dcid;
     QUIC_DATA scid;
     QUIC_DATA token;

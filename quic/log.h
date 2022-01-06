@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#define QUIC_DEBUG 1
+#define QUIC_DEBUG 0
 
 #define QUIC_LOG(format, ...) \
     do { \

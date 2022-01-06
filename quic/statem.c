@@ -65,15 +65,14 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
     return ret;
 }
 
-static int QuicWritePkt(QUIC *quic)
+static int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
 {
-    QUIC_BUFFER *wbuf = QUIC_WRITE_BUFFER(quic);
     QBuffQueueHead *send_queue = &quic->tx_queue;
     QBUFF *qb = NULL;
     QBUFF *tail = NULL;
     WPacket pkt = {};
 
-    WPacketBufInit(&pkt, wbuf->buf);
+    WPacketStaticBufInit(&pkt, buffer->data, sizeof(buffer->data));
     tail = QBUF_LAST_NODE(send_queue);
     QBUF_LIST_FOR_EACH(qb, send_queue) {
         QUIC_LOG("last = %d, data len = %lu\n", qb == tail, QBuffGetDataLen(qb));
@@ -82,8 +81,7 @@ static int QuicWritePkt(QUIC *quic)
         }
     }
 
-    //WPacketStaticBufInit(&pkt, QuicBufTail(qbuf), QuicBufRemaining(qbuf));
-    QuicBufSetDataLength(wbuf, WPacket_get_written(&pkt));
+    buffer->len = WPacket_get_written(&pkt);
     WPacketCleanup(&pkt);
 
     return 0;
@@ -94,6 +92,7 @@ QuicWriteStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
     const QuicStatemFlow *sm = NULL;
     QUIC_STATEM *st = &quic->statem;
+    QuicStaticBuffer *buffer = NULL;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int wlen = -1;
 
@@ -106,15 +105,17 @@ QuicWriteStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
         }
     }
 
-    if (QuicWritePkt(quic) < 0) {
+    buffer = QuicGetSendBuffer();
+    if (QuicWritePkt(quic, buffer) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
-    wlen = QuicDatagramSend(quic);
+    wlen = QuicDatagramSendBytes(quic, buffer->data, buffer->len);
     if (wlen < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
+    buffer->len = 0;
     if (st->state == QUIC_STATEM_HANDSHAKE_DONE) {
         return QUIC_FLOW_RET_END;
     }

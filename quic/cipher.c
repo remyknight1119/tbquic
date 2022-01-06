@@ -389,8 +389,6 @@ static int QuicInstallEncryptorDecryptor(TLS *s, const EVP_MD *md,
         sec = secret;
     }
 
-    QuicPrint(in_secret, 48);
-    QuicPrint(hash, 48);
     if (TlsDeriveSecrets(s, md, in_secret, label, labellen, hash, sec) < 0) {
         QUIC_LOG("Derive secret failed\n");
         return -1;

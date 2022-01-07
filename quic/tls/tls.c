@@ -352,6 +352,7 @@ void TlsFree(TLS *s)
     EVP_MD_CTX_free(s->handshake_dgst);
     EVP_PKEY_free(s->peer_kexch_key);
     EVP_PKEY_free(s->kexch_key);
+    QuicDataFree(&s->shared_sigalgs);
     QuicDataFree(&s->ext.supported_groups);
     QuicDataFree(&s->ext.peer_supported_groups);
     QuicDataFree(&s->ext.peer_sigalgs);

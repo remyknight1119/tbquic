@@ -20,7 +20,8 @@ static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
 static QuicFlowReturn TlsServerHelloBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrCertBuild(TLS *, void *);
-static int TlsServerHelloPostWork(TLS *);
+static int TlsSrvrClientHelloPostWork(TLS *);
+static int TlsSrvrServerHelloPostWork(TLS *);
 
 static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
@@ -32,13 +33,14 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .next_state = TLS_ST_SW_SERVER_HELLO,
         .msg_type = TLS_MT_CLIENT_HELLO,
         .handler = TlsClientHelloProc,
+        .post_work = TlsSrvrClientHelloPostWork,
     },
     [TLS_ST_SW_SERVER_HELLO] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_SW_ENCRYPTED_EXTENSIONS,
         .msg_type = TLS_MT_SERVER_HELLO,
         .handler = TlsServerHelloBuild,
-        .post_work = TlsServerHelloPostWork,
+        .post_work = TlsSrvrServerHelloPostWork,
     },
     [TLS_ST_SW_ENCRYPTED_EXTENSIONS] = {
         .flow_state = QUIC_FLOW_WRITING,
@@ -175,19 +177,7 @@ static QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    printf("SSSSSSSSSSSSSSSSSSSSSSrvrhello Build\n");
     return QUIC_FLOW_RET_STOP;
-}
-
-static int TlsServerHelloPostWork(TLS *s)
-{
-    QUIC *quic = QuicTlsTrans(s);
-
-    if (QuicCreateHandshakeServerEncoders(quic) < 0) {
-        return -1;
-    }
-
-    return 0;
 }
 
 static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
@@ -204,7 +194,53 @@ static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
 
 static QuicFlowReturn TlsSrvrCertBuild(TLS *s, void *packet)
 {
+    WPacket *pkt = packet;
+
+    if (WPacketPut1(pkt, 0) < 0) {
+        QUIC_LOG("Put session ID len failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (WPacketStartSubU24(pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     QUIC_LOG("Build\n");
     return QUIC_FLOW_RET_FINISH;
 }
+
+static int TlsSrvrServerHelloPostWork(TLS *s)
+{
+    QUIC *quic = QuicTlsTrans(s);
+
+    if (QuicCreateHandshakeServerEncoders(quic) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int TlsEarlyPostProcessClientHello(TLS *s)
+{
+    if (TlsSetServerSigalgs(s) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int TlsSrvrClientHelloPostWork(TLS *s)
+{
+    
+    if (TlsEarlyPostProcessClientHello(s) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 

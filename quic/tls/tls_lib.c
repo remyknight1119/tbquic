@@ -716,6 +716,11 @@ int TlsCheckPeerSigalg(TLS *tls, uint16_t sig, EVP_PKEY *pkey)
     return 0;
 }
 
+int TlsSetServerSigalgs(TLS *s)
+{
+    return 0;
+}
+
 const EVP_MD *TlsLookupMd(const SigAlgLookup *lu)
 {
     if (lu == NULL) {

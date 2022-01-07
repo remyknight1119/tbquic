@@ -120,6 +120,7 @@ struct Tls {
     size_t peer_finish_md_len;
     QUIC_DATA alpn_selected;
     QUIC_DATA alpn_proposed;
+    QUIC_DATA shared_sigalgs;
     /* TLS extensions. */
     struct {
         char *hostname;

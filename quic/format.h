@@ -79,7 +79,7 @@ int QuicOneRttParse(QUIC *, RPacket *);
 int QuicRetryPacketParse(QUIC *, RPacket *);
 int QuicInitialPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicHandshakePacketBuild(QUIC *, WPacket *, QBUFF *, bool);
-int QuicFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt);
+int QuicTlsFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt);
 
 #ifdef QUIC_TEST
 extern void (*QuicEncryptPayloadHook)(QBUFF *qb);

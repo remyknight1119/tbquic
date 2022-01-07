@@ -68,17 +68,28 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 static int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
 {
     QBuffQueueHead *send_queue = &quic->tx_queue;
-    QBUFF *qb = NULL;
+    QBUFF *head = NULL;
     QBUFF *tail = NULL;
     WPacket pkt = {};
+    int ret = 0;
 
-    WPacketStaticBufInit(&pkt, buffer->data, sizeof(buffer->data));
+    WPacketStaticBufInit(&pkt, buffer->data, quic->mss);
     tail = QBUF_LAST_NODE(send_queue);
-    QBUF_LIST_FOR_EACH(qb, send_queue) {
-        QUIC_LOG("last = %d, data len = %lu\n", qb == tail, QBuffGetDataLen(qb));
-        if (QBuffBuildPkt(quic, &pkt, qb, qb == tail) < 0) {
+    QBUF_LIST_FOR_EACH(quic->send_head, send_queue) {
+        head = quic->send_head;
+        QUIC_LOG("last = %d, data len = %lu\n", head == tail, QBuffGetDataLen(head));
+        ret = QBuffBuildPkt(quic, &pkt, head, head == tail);
+        if (ret == 1) {
+            break;
+        }
+        if (ret < 0) {
             return -1;
         }
+
+        if (head == tail) {
+            quic->send_head = NULL;
+            break;
+        } 
     }
 
     buffer->len = WPacket_get_written(&pkt);

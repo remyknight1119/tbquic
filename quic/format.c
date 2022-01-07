@@ -837,7 +837,7 @@ void (*QuicEncryptPayloadHook)(QBUFF *qb);
 #endif
 
 static size_t
-QuicGetEncryptedPayloadLen(QUIC *quic, QuicPPCipher *pp_cipher, QBUFF *qb)
+QuicGetEncryptedPayloadLen(QuicPPCipher *pp_cipher, QBUFF *qb)
 {
 #ifdef QUIC_TEST
     if (QuicEncryptPayloadHook != NULL) {
@@ -845,6 +845,55 @@ QuicGetEncryptedPayloadLen(QUIC *quic, QuicPPCipher *pp_cipher, QBUFF *qb)
     }
 #endif
     return QuicCipherLenGet(pp_cipher->cipher.alg, QBuffGetDataLen(qb));
+}
+
+static size_t QuicCidWriteLen(QUIC_DATA *cid)
+{
+    return 1 + cid->len;
+}
+
+static size_t QuicLPacketGetHeaderLen(QUIC *quic, uint8_t type)
+{
+    size_t hlen = 0;
+    uint64_t var_len = 0;
+    int wlen = 0;
+
+    //flag + version + dcid + scid
+    hlen = 1 + 4 + QuicCidWriteLen(&quic->dcid) + QuicCidWriteLen(&quic->scid);
+    if (type == QUIC_LPACKET_TYPE_INITIAL) {
+        wlen = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), 
+                quic->token.len);
+        if (wlen < 0) {
+            QUIC_LOG("Encode token len failed\n");
+        }
+        hlen += wlen + quic->token.len;
+    }
+
+    return hlen;
+}
+
+static size_t QuicLPacketGetTotalLen(QUIC *quic, QuicCrypto *c, uint8_t type,
+                                QBUFF *qb)
+{
+    size_t hlen = 0;
+    size_t total_len = 0;
+    size_t cipher_len = 0;
+    uint64_t var_len = 0;
+    uint64_t len = 0;
+    uint8_t pkt_num_len = quic->pkt_num_len + 1;
+    int wlen = 0;
+
+    hlen = QuicLPacketGetHeaderLen(quic, type);
+
+    total_len += hlen;
+    cipher_len = QuicGetEncryptedPayloadLen(&c->encrypt.ciphers.pp_cipher, qb);
+    len = cipher_len + pkt_num_len;
+    wlen = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
+    if (wlen < 0) {
+        QUIC_LOG("Encode token len failed\n");
+    }
+
+    return total_len + len + wlen;
 }
 
 int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
@@ -858,14 +907,16 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
     size_t cipher_len = 0;
     size_t total_len = 0;
     size_t padding_len = 0;
-    uint64_t var_len = 0;
     uint64_t len = 0;
     uint32_t pkt_num = 0;
     uint8_t pkt_num_len = quic->pkt_num_len + 1;
-    int wlen = 0;
-    int wlen_curr = 0;
-    int len_offset = 0;
     int offset = 0;
+
+    total_len = QuicLPacketGetTotalLen(quic, c, type, qb);
+    total_len += WPacket_get_written(pkt);
+    if (QUIC_GT(total_len, WPacket_get_maxsize(pkt))) {
+        return 1;
+    }
 
     if (QuicLHeaderGen(quic, &first_byte, pkt, type, pkt_num_len) < 0) {
         QUIC_LOG("Long header generate failed\n");
@@ -878,38 +929,27 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
         return -1;
     }
 
-    total_len = WPacket_get_written(pkt);
     cs = &c->encrypt;
     cs->pkt_num++;
 
     qb->pkt_num = cs->pkt_num;
     pkt_num = QuicPktNumberEncode(cs->pkt_num, cs->pkt_acked, pkt_num_len*8);
 
+    if (last == true &&
+            QUIC_LT(total_len, QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN)) {
+        padding_len = QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN - total_len;
+        if (QuicFrameBufferAddPadding(quic, padding_len, qb) < 0) {
+            return -1;
+        }
+    }
+
     pp_cipher = &cs->ciphers.pp_cipher;
-    cipher_len = QuicGetEncryptedPayloadLen(quic, pp_cipher, qb);
+    cipher_len = QuicGetEncryptedPayloadLen(pp_cipher, qb);
     if (cipher_len == 0) {
         return -1;
     }
 
     len = cipher_len + pkt_num_len;
-
-    wlen = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
-    if (wlen < 0) {
-        return -1;
-    }
-
-    total_len += len + wlen;
-    if (last == true &&
-            QUIC_LT(total_len, QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN)) {
-        padding_len = QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN - total_len;
-        len += padding_len;
-        wlen_curr = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
-        len_offset = wlen_curr - wlen;
-        assert(len_offset >= 0);
-        padding_len -= len_offset;
-        len -= len_offset;
-        cipher_len += padding_len;
-    }
 
     if (QuicVariableLengthWrite(pkt, len) < 0) {
         return -1;
@@ -926,10 +966,6 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
 
     offset = dest - first_byte;
     assert(offset > 0);
-
-    if (QuicFrameBufferAddPadding(quic, padding_len, qb) < 0) {
-        return -1;
-    }
 
     if (QuicEncryptPayload(quic, pp_cipher, first_byte, offset, dest, cipher_len,
                             pkt_num, pkt_num_len, qb) < 0) {
@@ -954,31 +990,56 @@ int QuicHandshakePacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
                                 pkt, qb, last);
 }
 
-int QuicFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
+void QuicAddQueue(QUIC *quic, QBUFF *qb)
 {
+    QBuffQueueAdd(&quic->tx_queue, qb);
+    
+    if (quic->send_head == NULL) {
+        quic->send_head = qb;
+    }
+}
+
+static size_t QuicTlsFramGetWriteLen(size_t data_len, uint64_t offset)
+{
+    if (QUIC_LE(data_len, offset)) {
+        return 0;
+    }
+
+    return data_len;
+}
+
+int QuicTlsFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
+{
+    QUIC_BUFFER *buf = QUIC_TLS_BUFFER(quic);
     QBUFF *qb = NULL;
+    uint8_t *head = NULL;
     WPacket pkt = {};
+    uint64_t offset = 0;
+    size_t data_len = 0;
+    size_t wlen = 0;
     int ret = -1;
 
-    qb = QBuffNew(quic->mtu, build_pkt);
-    if (qb == NULL) {
-        return -1;
-    }
+    data_len = QuicBufGetDataLength(buf);
+    head = QUIC_BUFFER_HEAD(buf);
 
-    WPacketStaticBufInit(&pkt, QBuffHead(qb), QBuffLen(qb));
-    if (QuicFramePingBuild(&pkt) < 0) {
-        goto out;
-    }
+    while ((wlen = QuicTlsFramGetWriteLen(data_len, offset)) != 0) {
+        qb = QBuffNew(quic->mss, build_pkt);
+        if (qb == NULL) {
+            goto out;
+        }
 
-    if (QuicFrameCryptoBuild(quic, &pkt) < 0) {
-        goto out;
-    }
+        WPacketStaticBufInit(&pkt, QBuffHead(qb), QBuffLen(qb));
+        if (QuicFrameCryptoBuild(&pkt, offset, &head[offset], wlen) < 0) {
+            goto out;
+        }
 
-    if (QBuffSetDataLen(qb, WPacket_get_written(&pkt)) < 0) {
-        goto out;
-    }
+        if (QBuffSetDataLen(qb, WPacket_get_written(&pkt)) < 0) {
+            goto out;
+        }
 
-    QBuffQueueAdd(&quic->tx_queue, qb);
+        QuicAddQueue(quic, qb);
+        offset += wlen;
+    }
 
     ret = 0;
 out:

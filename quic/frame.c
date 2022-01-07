@@ -176,15 +176,9 @@ int QuicFramePingBuild(WPacket *pkt)
     return WPacketPut1(pkt, QUIC_FRAME_TYPE_PING);
 }
 
-int QuicFrameCryptoBuild(QUIC *quic, WPacket *pkt)
+int QuicFrameCryptoBuild(WPacket *pkt, uint64_t offset,
+                            uint8_t *data, size_t len)
 {
-    QUIC_BUFFER *crypto_buf = QUIC_TLS_BUFFER(quic);
-    uint64_t offset = 0;
-
-    if (crypto_buf->data_len == 0) {
-        return 0;
-    }
-
     if (WPacketPut1(pkt, QUIC_FRAME_TYPE_CRYPTO) < 0) {
         return -1;
     }
@@ -193,11 +187,10 @@ int QuicFrameCryptoBuild(QUIC *quic, WPacket *pkt)
         return -1;
     }
 
-    if (QuicVariableLengthWrite(pkt, crypto_buf->data_len) < 0) {
+    if (QuicVariableLengthWrite(pkt, len) < 0) {
         return -1;
     }
 
-    return WPacketMemcpy(pkt, QUIC_BUFFER_HEAD(crypto_buf),
-                            crypto_buf->data_len);
+    return WPacketMemcpy(pkt, data, len);
 }
 

@@ -43,7 +43,8 @@ struct QuicMethod {
 
 struct QuicCtx {
     const QUIC_METHOD *method;
-    uint32_t mtu;
+    /* Max Segment Size */
+    uint32_t mss;
     uint32_t verify_mode;
     QuicCert *cert;
     struct {
@@ -79,7 +80,7 @@ struct Quic {
     QuicStreamState stream_state;
     QUIC_STATEM statem;
     uint32_t version;
-    uint32_t mtu;
+    uint32_t mss;
     uint32_t verify_mode;
     uint64_t pkt_num_len:2;
     uint64_t cid_len:8;
@@ -97,6 +98,7 @@ struct Quic {
     QuicCrypto handshake;
     QuicCrypto zero_rtt;
     QuicCrypto one_rtt;
+    QBUFF *send_head;
     QBuffQueueHead tx_queue;
 };
 

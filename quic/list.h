@@ -494,6 +494,16 @@ static inline void list_splice_tail_init(struct list_head *list,
 	     pos = list_next_entry(pos, member))
 
 /**
+ * list_for_each_entry_start	-	iterate over list of given type from a given item
+ * @pos:	the type * start from and use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_head within the struct.
+ */
+#define list_for_each_entry_start(pos, head, member)	    \
+	for (; pos != NULL && &pos->member != (head);			\
+	     pos = list_next_entry(pos, member))
+
+/**
  * list_for_each_entry_reverse - iterate backwards over list of given type.
  * @pos:	the type * to use as a loop cursor.
  * @head:	the head for your list.

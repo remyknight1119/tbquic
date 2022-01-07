@@ -42,6 +42,6 @@ enum QuicFrameType {
 int QuicFrameDoParser(QUIC *, RPacket *);
 int QuicFramePaddingBuild(WPacket *, size_t);
 int QuicFramePingBuild(WPacket *);
-int QuicFrameCryptoBuild(QUIC *, WPacket *);
+int QuicFrameCryptoBuild(WPacket *, uint64_t, uint8_t *, size_t);
 
 #endif

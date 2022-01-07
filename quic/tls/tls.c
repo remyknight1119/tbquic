@@ -207,6 +207,17 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
     size_t data_len = 0;
     size_t wlen = 0;
 
+    /*
+     * Read buffer:
+     *                                       second
+     * |------------ first read -----------| read  |
+     * ---------------------------------------------
+     * | prev message | new message seg 1  | seg 2 |
+     * ---------------------------------------------
+     * |--- offset ---|
+     * |------------- total data len --------------|
+     *                |--- new message data len ---|
+     */
     data_len = QuicBufGetDataLength(buffer) - QuicBufGetOffset(buffer);
     assert(QUIC_GE(data_len, 0));
     RPacketBufInit(&rpkt, QuicBufMsg(buffer), data_len);
@@ -225,7 +236,7 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
     WPacketCleanup(&wpkt);
     QuicBufSetDataLength(buffer, wlen);
 
-    if (wlen != 0 && QuicFrameBuild(QuicTlsTrans(s), s->build_pkt) < 0) {
+    if (wlen != 0 && QuicTlsFrameBuild(QuicTlsTrans(s), s->build_pkt) < 0) {
         QUIC_LOG("Initial frame build failed\n");
         return QUIC_FLOW_RET_ERROR;
     }

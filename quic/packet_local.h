@@ -63,6 +63,7 @@ void WPacketBufInit(WPacket *, BUF_MEM *);
 void WPacketStaticBufInit(WPacket *, uint8_t *, size_t);
 uint8_t *WPacket_get_curr(WPacket *);
 int WPacket_get_space(WPacket *);
+size_t WPacket_get_maxsize(WPacket *);
 size_t WPacket_get_written(WPacket *);
 int WPacketAllocateBytes(WPacket *, size_t, uint8_t **);
 int WPacketPutValue(uint8_t *, size_t, size_t);

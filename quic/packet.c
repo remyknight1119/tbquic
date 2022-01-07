@@ -387,6 +387,11 @@ int WPacket_get_space(WPacket *pkt)
     return (int)(pkt->maxsize - pkt->written);
 }
 
+size_t WPacket_get_maxsize(WPacket *pkt)
+{
+    return pkt->maxsize;
+}
+
 size_t WPacket_get_written(WPacket *pkt)
 {
     return pkt->written;

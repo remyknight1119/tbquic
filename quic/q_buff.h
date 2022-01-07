@@ -7,7 +7,9 @@
 #include "list.h"
 #include "packet_local.h"
 
-#define QBUF_LIST_FOR_EACH(qb, head) list_for_each_entry(qb, &(head)->queue, node)
+#define QBUF_LIST_FOR_EACH(qb, head) \
+    list_for_each_entry_start(qb, &(head)->queue, node)
+
 #define QBUF_LAST_NODE(head) \
     ({ \
         QBUFF *pos = NULL; \

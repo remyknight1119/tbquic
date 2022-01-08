@@ -897,7 +897,7 @@ static size_t QuicLPacketGetTotalLen(QUIC *quic, QuicCrypto *c, uint8_t type,
 }
 
 int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
-                        QBUFF *qb, bool last)
+                        QBUFF *qb, bool end)
 {
     QuicCipherSpace *cs = NULL;
     QuicPPCipher *pp_cipher = NULL;
@@ -935,7 +935,7 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
     qb->pkt_num = cs->pkt_num;
     pkt_num = QuicPktNumberEncode(cs->pkt_num, cs->pkt_acked, pkt_num_len*8);
 
-    if (last == true &&
+    if (end == true &&
             QUIC_LT(total_len, QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN)) {
         padding_len = QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN - total_len;
         if (QuicFrameBufferAddPadding(quic, padding_len, qb) < 0) {
@@ -977,17 +977,28 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
                             QUIC_LPACKET_TYPE_RESV_MASK);
 }
 
-
-int QuicInitialPacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
+size_t QuicInitialPacketGetTotalLen(QUIC *quic, QBUFF *qb)
 {
-    return QuicLPacketBuild(quic, &quic->initial, QUIC_LPACKET_TYPE_INITIAL,
-                                pkt, qb, last);
+    QuicCrypto *c = &quic->initial;
+    return QuicLPacketGetTotalLen(quic, c, QUIC_LPACKET_TYPE_INITIAL, qb);
 }
 
-int QuicHandshakePacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
+size_t QuicHandshakePacketGetTotalLen(QUIC *quic, QBUFF *qb)
 {
-    return QuicLPacketBuild(quic, &quic->handshake, QUIC_LPACKET_TYPE_HANDSHAKE,
-                                pkt, qb, last);
+    QuicCrypto *c = &quic->handshake;
+    return QuicLPacketGetTotalLen(quic, c, QUIC_LPACKET_TYPE_HANDSHAKE, qb);
+}
+
+int QuicInitialPacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool end)
+{
+    QuicCrypto *c = &quic->initial;
+    return QuicLPacketBuild(quic, c, QUIC_LPACKET_TYPE_INITIAL, pkt, qb, end);
+}
+
+int QuicHandshakePacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool end)
+{
+    QuicCrypto *c = &quic->handshake;
+    return QuicLPacketBuild(quic, c, QUIC_LPACKET_TYPE_HANDSHAKE, pkt, qb, end);
 }
 
 void QuicAddQueue(QUIC *quic, QBUFF *qb)
@@ -999,7 +1010,8 @@ void QuicAddQueue(QUIC *quic, QBUFF *qb)
     }
 }
 
-static size_t QuicTlsFramGetWriteLen(size_t data_len, uint64_t offset)
+static size_t
+QuicTlsFramGetWriteLen(QUIC *quic, size_t data_len, uint64_t offset)
 {
     if (QUIC_LE(data_len, offset)) {
         return 0;
@@ -1008,7 +1020,7 @@ static size_t QuicTlsFramGetWriteLen(size_t data_len, uint64_t offset)
     return data_len;
 }
 
-int QuicTlsFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
+int QuicTlsFrameBuild(QUIC *quic, uint32_t pkt_type)
 {
     QUIC_BUFFER *buf = QUIC_TLS_BUFFER(quic);
     QBUFF *qb = NULL;
@@ -1022,8 +1034,8 @@ int QuicTlsFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt)
     data_len = QuicBufGetDataLength(buf);
     head = QUIC_BUFFER_HEAD(buf);
 
-    while ((wlen = QuicTlsFramGetWriteLen(data_len, offset)) != 0) {
-        qb = QBuffNew(quic->mss, build_pkt);
+    while ((wlen = QuicTlsFramGetWriteLen(quic, data_len, offset)) != 0) {
+        qb = QBuffNew(quic->mss, pkt_type);
         if (qb == NULL) {
             goto out;
         }

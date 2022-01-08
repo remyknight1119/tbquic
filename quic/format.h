@@ -32,6 +32,15 @@
 
 #define QUIC_PACKET_IS_LONG_PACKET(flags) (flags.h.header_form)
 
+enum {
+    QUIC_PKT_TYPE_INITIAL,
+    QUIC_PKT_TYPE_0RTT,
+    QUIC_PKT_TYPE_HANDSHAKE,
+    QUIC_PKT_TYPE_RETRY,
+    QUIC_PKT_TYPE_1RTT,
+    QUIC_PKT_TYPE_MAX,
+};
+
 typedef union {
     uint8_t value;
     struct {
@@ -77,9 +86,11 @@ int Quic0RttPacketParse(QUIC *, RPacket *);
 int QuicHandshakePacketParse(QUIC *, RPacket *);
 int QuicOneRttParse(QUIC *, RPacket *);
 int QuicRetryPacketParse(QUIC *, RPacket *);
+size_t QuicInitialPacketGetTotalLen(QUIC *, QBUFF *);
+size_t QuicHandshakePacketGetTotalLen(QUIC *, QBUFF *);
 int QuicInitialPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicHandshakePacketBuild(QUIC *, WPacket *, QBUFF *, bool);
-int QuicTlsFrameBuild(QUIC *quic, QBuffPktBuilder build_pkt);
+int QuicTlsFrameBuild(QUIC *quic, uint32_t);
 
 #ifdef QUIC_TEST
 extern void (*QuicEncryptPayloadHook)(QBUFF *qb);

@@ -131,7 +131,6 @@ struct Tls {
         QUIC_DATA peer_sigalgs;
         size_t key_share_max_group_idx;
     } ext;
-    QBuffPktBuilder build_pkt;
 };
 
 typedef struct {
@@ -140,6 +139,7 @@ typedef struct {
     TlsMessageType msg_type;
     QuicFlowReturn (*handler)(TLS *, void *);
     int (*post_work)(TLS *);
+    uint32_t pkt_type;
 } TlsProcess;
 
 #ifdef QUIC_TEST

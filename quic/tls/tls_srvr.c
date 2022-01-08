@@ -14,6 +14,7 @@
 #include "tls_cipher.h"
 #include "tls_lib.h"
 #include "common.h"
+#include "format.h"
 #include "log.h"
 
 static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
@@ -34,6 +35,7 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .msg_type = TLS_MT_CLIENT_HELLO,
         .handler = TlsClientHelloProc,
         .post_work = TlsSrvrClientHelloPostWork,
+        .pkt_type = QUIC_PKT_TYPE_INITIAL,
     },
     [TLS_ST_SW_SERVER_HELLO] = {
         .flow_state = QUIC_FLOW_WRITING,
@@ -41,18 +43,21 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .msg_type = TLS_MT_SERVER_HELLO,
         .handler = TlsServerHelloBuild,
         .post_work = TlsSrvrServerHelloPostWork,
+        .pkt_type = QUIC_PKT_TYPE_INITIAL,
     },
     [TLS_ST_SW_ENCRYPTED_EXTENSIONS] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_SW_SERVER_CERTIFICATE,
         .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
         .handler = TlsSrvrEncryptedExtBuild,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_SW_SERVER_CERTIFICATE] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_SW_CERT_VERIFY,
         .msg_type = TLS_MT_CERTIFICATE,
         .handler = TlsSrvrCertBuild,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_SW_CERT_VERIFY] = {
         .flow_state = QUIC_FLOW_FINISHED,
@@ -60,6 +65,7 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .next_state = TLS_ST_SW_FINISHED,
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
 //        .handler = TlsSrvrCertVerifyBuild,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_HANDSHAKE_DONE] = {
         .flow_state = QUIC_FLOW_FINISHED,
@@ -188,7 +194,6 @@ static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    s->build_pkt = QuicHandshakePacketBuild;
     return QUIC_FLOW_RET_FINISH;
 }
 

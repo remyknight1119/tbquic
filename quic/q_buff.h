@@ -19,6 +19,12 @@
 
 typedef struct QBuff QBUFF;
 typedef int (*QBuffPktBuilder)(QUIC *, WPacket *, QBUFF *, bool);
+typedef size_t (*QBuffPktGetTotalLen)(QUIC *, QBUFF *);
+
+typedef struct {
+    QBuffPktBuilder build_pkt;
+    QBuffPktGetTotalLen get_totallen;
+} QBuffPktMethod;
 
 typedef struct {
     struct list_head queue; 
@@ -27,14 +33,14 @@ typedef struct {
 struct QBuff {
     struct list_head node; 
     uint64_t pkt_num;
-    QBuffPktBuilder build_pkt;
+    const QBuffPktMethod *method;
     void *buff;
     size_t buff_len;
     size_t data_len;
 };
 
 void QBuffQueueHeadInit(QBuffQueueHead *);
-QBUFF *QBuffNew(size_t, QBuffPktBuilder);
+QBUFF *QBuffNew(size_t, uint32_t);
 void QBuffFree(QBUFF *);
 void *QBuffHead(QBUFF *);
 void *QBuffTail(QBUFF *);

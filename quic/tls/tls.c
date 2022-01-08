@@ -147,7 +147,8 @@ TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
 
 static QuicFlowReturn
 TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
-                        const TlsProcess *proc, size_t num)
+                        const TlsProcess *proc, size_t num,
+                        uint32_t *pkt_type)
 {
     const TlsProcess *p = NULL;
     TlsState state = 0;
@@ -174,6 +175,7 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
                 return QUIC_FLOW_RET_ERROR;
         }
 
+        *pkt_type = p->pkt_type;
         if (ret == QUIC_FLOW_RET_ERROR) {
             return ret;
         }
@@ -206,6 +208,7 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     size_t data_len = 0;
     size_t wlen = 0;
+    uint32_t pkt_type = 0;
 
     /*
      * Read buffer:
@@ -223,7 +226,7 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
     RPacketBufInit(&rpkt, QuicBufMsg(buffer), data_len);
     WPacketBufInit(&wpkt, buffer->buf);
 
-    ret = TlsHandshakeStatem(s, &rpkt, &wpkt, proc, num);
+    ret = TlsHandshakeStatem(s, &rpkt, &wpkt, proc, num, &pkt_type);
     if (ret == QUIC_FLOW_RET_WANT_READ && RPacketRemaining(&rpkt)) {
         if (QuicBufAddOffset(buffer, RPacketReadLen(&rpkt)) < 0) {
             return QUIC_FLOW_RET_ERROR;
@@ -236,7 +239,7 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
     WPacketCleanup(&wpkt);
     QuicBufSetDataLength(buffer, wlen);
 
-    if (wlen != 0 && QuicTlsFrameBuild(QuicTlsTrans(s), s->build_pkt) < 0) {
+    if (wlen != 0 && QuicTlsFrameBuild(QuicTlsTrans(s), pkt_type) < 0) {
         QUIC_LOG("Initial frame build failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
@@ -346,7 +349,6 @@ int TlsInit(TLS *s, QUIC_CTX *ctx)
         return -1;
     }
 
-    s->build_pkt = QuicInitialPacketBuild;
     return 0;
 }
 

@@ -7,16 +7,32 @@
 #include <assert.h>
 
 #include "mem.h"
+#include "format.h"
 #include "common.h"
+
+static const QBuffPktMethod QuicBuffPktMethod[QUIC_PKT_TYPE_MAX] = {
+    [QUIC_PKT_TYPE_INITIAL] = {
+        .build_pkt = QuicInitialPacketBuild,
+        .get_totallen = QuicInitialPacketGetTotalLen,
+    },
+    [QUIC_PKT_TYPE_HANDSHAKE] = {
+        .build_pkt = QuicHandshakePacketBuild,
+        .get_totallen = QuicHandshakePacketGetTotalLen,
+    },
+};
 
 void QBuffQueueHeadInit(QBuffQueueHead *h)
 {
     INIT_LIST_HEAD(&h->queue);
 }
 
-QBUFF *QBuffNew(size_t len, QBuffPktBuilder build_pkt)
+QBUFF *QBuffNew(size_t len, uint32_t pkt_type)
 {
     QBUFF *qb = NULL;
+
+    if (QUIC_GE(pkt_type, QUIC_PKT_TYPE_MAX)) {
+        return NULL;
+    }
 
     qb = QuicMemCalloc(sizeof(*qb));
     if (qb == NULL) {
@@ -30,7 +46,7 @@ QBUFF *QBuffNew(size_t len, QBuffPktBuilder build_pkt)
     }
 
     qb->buff_len = len;
-    qb->build_pkt = build_pkt;
+    qb->method = &QuicBuffPktMethod[pkt_type];
 
     return qb;
 }
@@ -86,11 +102,7 @@ int QBuffAddDataLen(QBUFF *qb, size_t len)
 
 int QBuffBuildPkt(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
 {
-    if (qb->build_pkt == NULL) {
-        return -1;
-    }
-
-    return qb->build_pkt(quic, pkt, qb, last);
+    return qb->method->build_pkt(quic, pkt, qb, last);
 }
 
 void QBuffQueueAdd(QBuffQueueHead *h, QBUFF *qb)

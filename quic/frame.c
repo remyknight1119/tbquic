@@ -176,6 +176,25 @@ int QuicFramePingBuild(WPacket *pkt)
     return WPacketPut1(pkt, QUIC_FRAME_TYPE_PING);
 }
 
+int QuicFrameCryptoComputeLen(uint64_t offset, size_t len)
+{
+    uint64_t vlen = 0;
+    int owlen = 0;
+    int lwlen = 0;
+
+    owlen = QuicVariableLengthEncode((uint8_t *)&vlen, sizeof(vlen), offset);
+    if (owlen < 0) {
+        return -1;
+    }
+
+    lwlen = QuicVariableLengthEncode((uint8_t *)&vlen, sizeof(vlen), len);
+    if (lwlen < 0) {
+        return -1;
+    }
+
+    return 1 + owlen + lwlen + len;
+}
+
 int QuicFrameCryptoBuild(WPacket *pkt, uint64_t offset,
                             uint8_t *data, size_t len)
 {

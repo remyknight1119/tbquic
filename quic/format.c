@@ -837,14 +837,9 @@ void (*QuicEncryptPayloadHook)(QBUFF *qb);
 #endif
 
 static size_t
-QuicGetEncryptedPayloadLen(QuicPPCipher *pp_cipher, QBUFF *qb)
+QuicGetEncryptedPayloadLen(QuicPPCipher *pp_cipher, size_t data_len)
 {
-#ifdef QUIC_TEST
-    if (QuicEncryptPayloadHook != NULL) {
-        QuicEncryptPayloadHook(qb);
-    }
-#endif
-    return QuicCipherLenGet(pp_cipher->cipher.alg, QBuffGetDataLen(qb));
+    return QuicCipherLenGet(pp_cipher->cipher.alg, data_len);
 }
 
 static size_t QuicCidWriteLen(QUIC_DATA *cid)
@@ -873,7 +868,7 @@ static size_t QuicLPacketGetHeaderLen(QUIC *quic, uint8_t type)
 }
 
 static size_t QuicLPacketGetTotalLen(QUIC *quic, QuicCrypto *c, uint8_t type,
-                                QBUFF *qb)
+                                size_t data_len)
 {
     size_t hlen = 0;
     size_t total_len = 0;
@@ -886,7 +881,8 @@ static size_t QuicLPacketGetTotalLen(QUIC *quic, QuicCrypto *c, uint8_t type,
     hlen = QuicLPacketGetHeaderLen(quic, type);
 
     total_len += hlen;
-    cipher_len = QuicGetEncryptedPayloadLen(&c->encrypt.ciphers.pp_cipher, qb);
+    cipher_len = QuicGetEncryptedPayloadLen(&c->encrypt.ciphers.pp_cipher,
+                                            data_len);
     len = cipher_len + pkt_num_len;
     wlen = QuicVariableLengthEncode((uint8_t *)&var_len, sizeof(var_len), len);
     if (wlen < 0) {
@@ -912,7 +908,12 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
     uint8_t pkt_num_len = quic->pkt_num_len + 1;
     int offset = 0;
 
-    total_len = QuicLPacketGetTotalLen(quic, c, type, qb);
+#ifdef QUIC_TEST
+    if (QuicEncryptPayloadHook != NULL) {
+        QuicEncryptPayloadHook(qb);
+    }
+#endif
+    total_len = QuicLPacketGetTotalLen(quic, c, type, QBuffGetDataLen(qb));
     total_len += WPacket_get_written(pkt);
     if (QUIC_GT(total_len, WPacket_get_maxsize(pkt))) {
         return 1;
@@ -944,7 +945,7 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
     }
 
     pp_cipher = &cs->ciphers.pp_cipher;
-    cipher_len = QuicGetEncryptedPayloadLen(pp_cipher, qb);
+    cipher_len = QuicGetEncryptedPayloadLen(pp_cipher, QBuffGetDataLen(qb));
     if (cipher_len == 0) {
         return -1;
     }
@@ -977,16 +978,17 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
                             QUIC_LPACKET_TYPE_RESV_MASK);
 }
 
-size_t QuicInitialPacketGetTotalLen(QUIC *quic, QBUFF *qb)
+size_t QuicInitialPacketGetTotalLen(QUIC *quic, size_t data_len)
 {
     QuicCrypto *c = &quic->initial;
-    return QuicLPacketGetTotalLen(quic, c, QUIC_LPACKET_TYPE_INITIAL, qb);
+    return QuicLPacketGetTotalLen(quic, c, QUIC_LPACKET_TYPE_INITIAL, data_len);
 }
 
-size_t QuicHandshakePacketGetTotalLen(QUIC *quic, QBUFF *qb)
+size_t QuicHandshakePacketGetTotalLen(QUIC *quic, size_t data_len)
 {
     QuicCrypto *c = &quic->handshake;
-    return QuicLPacketGetTotalLen(quic, c, QUIC_LPACKET_TYPE_HANDSHAKE, qb);
+    return QuicLPacketGetTotalLen(quic, c, QUIC_LPACKET_TYPE_HANDSHAKE,
+                                    data_len);
 }
 
 int QuicInitialPacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool end)
@@ -1010,16 +1012,6 @@ void QuicAddQueue(QUIC *quic, QBUFF *qb)
     }
 }
 
-static size_t
-QuicTlsFramGetWriteLen(QUIC *quic, size_t data_len, uint64_t offset)
-{
-    if (QUIC_LE(data_len, offset)) {
-        return 0;
-    }
-
-    return data_len;
-}
-
 int QuicTlsFrameBuild(QUIC *quic, uint32_t pkt_type)
 {
     QUIC_BUFFER *buf = QUIC_TLS_BUFFER(quic);
@@ -1027,15 +1019,52 @@ int QuicTlsFrameBuild(QUIC *quic, uint32_t pkt_type)
     uint8_t *head = NULL;
     WPacket pkt = {};
     uint64_t offset = 0;
+    uint32_t mss = 0;
     size_t data_len = 0;
+    size_t curr_total_len = 0;
     size_t wlen = 0;
+    size_t head_tail_len = 0;
+    size_t frame_head_len = 0;
+    size_t remaining = 0;
+    size_t space = 0;
+    int frame_len = 0;
     int ret = -1;
 
     data_len = QuicBufGetDataLength(buf);
     head = QUIC_BUFFER_HEAD(buf);
 
-    while ((wlen = QuicTlsFramGetWriteLen(quic, data_len, offset)) != 0) {
-        qb = QBuffNew(quic->mss, pkt_type);
+    mss = quic->mss;
+    if (quic->send_head != NULL) {
+        curr_total_len = QBuffQueueComputePktTotalLen(quic, quic->send_head);
+        assert(QUIC_GE(mss, curr_total_len));
+    }
+
+    space = mss - curr_total_len;
+    while (QUIC_GT(data_len, offset)) {
+        remaining = data_len - offset;
+        frame_len = QuicFrameCryptoComputeLen(offset, remaining);
+        if (frame_len < 0) {
+            goto out;
+        }
+        head_tail_len = QBufPktComputeTotalLenByType(quic, pkt_type, frame_len)
+                        - frame_len;
+        QUIC_LOG("h = %lu\n", head_tail_len);
+        frame_head_len = frame_len - remaining;
+        wlen = space - head_tail_len - frame_head_len;
+        if (QUIC_LE(wlen, 0)) {
+            if (space == mss) {
+                goto out;
+            }
+            space = mss;
+            continue;
+        }
+
+        if (QUIC_GT(wlen, remaining)) {
+            wlen = remaining;
+        }
+
+    QUIC_LOG("wlen = %lu\n", wlen);
+        qb = QBuffNew(mss, pkt_type);
         if (qb == NULL) {
             goto out;
         }
@@ -1050,6 +1079,7 @@ int QuicTlsFrameBuild(QUIC *quic, uint32_t pkt_type)
         }
 
         QuicAddQueue(quic, qb);
+        space -= QBufPktComputeTotalLen(quic, qb);
         offset += wlen;
     }
 

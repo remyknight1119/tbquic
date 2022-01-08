@@ -8,16 +8,17 @@
 
 #include "mem.h"
 #include "format.h"
+#include "quic_local.h"
 #include "common.h"
 
 static const QBuffPktMethod QuicBuffPktMethod[QUIC_PKT_TYPE_MAX] = {
     [QUIC_PKT_TYPE_INITIAL] = {
         .build_pkt = QuicInitialPacketBuild,
-        .get_totallen = QuicInitialPacketGetTotalLen,
+        .compute_totallen = QuicInitialPacketGetTotalLen,
     },
     [QUIC_PKT_TYPE_HANDSHAKE] = {
         .build_pkt = QuicHandshakePacketBuild,
-        .get_totallen = QuicHandshakePacketGetTotalLen,
+        .compute_totallen = QuicHandshakePacketGetTotalLen,
     },
 };
 
@@ -105,9 +106,40 @@ int QBuffBuildPkt(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
     return qb->method->build_pkt(quic, pkt, qb, last);
 }
 
+size_t QBufPktComputeTotalLenByType(QUIC *quic, uint32_t pkt_type,
+                                    size_t data_len)
+{
+    if (pkt_type >= QUIC_PKT_TYPE_MAX) {
+        return 0;
+    }
+
+    return QuicBuffPktMethod[pkt_type].compute_totallen(quic, data_len);
+}
+
+size_t QBufPktComputeTotalLen(QUIC *quic, QBUFF *qb)
+{
+    return qb->method->compute_totallen(quic, QBuffGetDataLen(qb));
+}
+
 void QBuffQueueAdd(QBuffQueueHead *h, QBUFF *qb)
 {
     list_add_tail(&qb->node, &h->queue);
+}
+
+size_t QBuffQueueComputePktTotalLen(QUIC *quic, QBUFF *first)
+{
+    QBUFF *qb = first;
+    size_t total_len = 0;
+
+    if (first == NULL) {
+        return 0;
+    }
+
+    QBUF_LIST_FOR_EACH(qb, &quic->tx_queue) {
+        total_len += QBufPktComputeTotalLen(quic, qb);
+    }
+
+    return total_len;
 }
 
 void QBuffQueueDestroy(QBuffQueueHead *h)

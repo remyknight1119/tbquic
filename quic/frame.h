@@ -43,5 +43,6 @@ int QuicFrameDoParser(QUIC *, RPacket *);
 int QuicFramePaddingBuild(WPacket *, size_t);
 int QuicFramePingBuild(WPacket *);
 int QuicFrameCryptoBuild(WPacket *, uint64_t, uint8_t *, size_t);
+int QuicFrameCryptoComputeLen(uint64_t, size_t);
 
 #endif

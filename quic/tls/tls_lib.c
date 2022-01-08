@@ -13,6 +13,7 @@
 
 #include "tls.h"
 #include "base.h"
+#include "cert.h"
 #include "crypto.h"
 #include "common.h"
 #include "cipher.h"
@@ -702,7 +703,7 @@ int TlsGenerateMasterSecret(TLS *s, uint8_t *out, uint8_t *prev,
     return TlsGenerateSecret(md, prev, NULL, 0, out);
 }
 
-int TlsCheckPeerSigalg(TLS *tls, uint16_t sig, EVP_PKEY *pkey)
+int TlsCheckPeerSigAlg(TLS *tls, uint16_t sig, EVP_PKEY *pkey)
 {
     const SigAlgLookup *lu = NULL;
 
@@ -716,9 +717,133 @@ int TlsCheckPeerSigalg(TLS *tls, uint16_t sig, EVP_PKEY *pkey)
     return 0;
 }
 
-int TlsSetServerSigalgs(TLS *s)
+static size_t
+TlsGetSharedSigAlgsInfo(const SigAlgLookup **shared, const QUIC_DATA *sigalg1,
+                                    const QUIC_DATA *sigalg2)
 {
+    const SigAlgLookup *lu = NULL;
+    size_t i = 0;
+    size_t j = 0;
+    size_t matched = 0;
+    uint16_t sigalg = 0;
+
+    for (i = 0; i < sigalg1->len; i++) {
+        sigalg = sigalg1->ptr_u16[i];
+        lu = TlsLookupSigAlg(sigalg);
+        if (lu == NULL) {
+            continue;
+        }
+        for (j = 0; j < sigalg2->len; j++) {
+            if (sigalg == sigalg2->ptr_u16[j]) {
+                if (shared != NULL) {
+                    *(shared + matched) = lu;
+                }
+                matched++;
+            }
+        }
+    }
+
+    return matched;
+}
+
+int TlsGetSharedSigAlgs(TLS *s, const QUIC_DATA *sigalg1,
+                            const QUIC_DATA *sigalg2)
+{
+    const SigAlgLookup **salgs = NULL;
+    size_t matched = 0;
+
+    if (QuicDataIsEmpty(sigalg1) || QuicDataIsEmpty(sigalg2)) {
+        return -1;
+    }
+
+    matched = TlsGetSharedSigAlgsInfo(NULL, sigalg1, sigalg2);
+    if (matched == 0) {
+        return -1;
+    }
+
+    salgs = QuicMemMalloc(matched * sizeof(*salgs));
+    if (salgs == NULL) {
+        return -1;
+    }
+
+    s->shared_sigalgs_len = TlsGetSharedSigAlgsInfo(salgs, sigalg1, sigalg2);
+    s->shared_sigalgs = salgs;
     return 0;
+}
+
+int TlsSetServerSigAlgs(TLS *s)
+{
+    const uint16_t *salgs = NULL;
+    QUIC_DATA sigalgs = {};
+
+    QuicMemFree(s->shared_sigalgs);
+    s->shared_sigalgs_len = 0;
+
+    if (QuicDataIsEmpty(&s->ext.peer_sigalgs)) {
+    }
+
+    sigalgs.len = TlsGetPSigAlgs(s, &salgs);
+    sigalgs.ptr_u16 = (void *)salgs;
+
+    return TlsGetSharedSigAlgs(s, &s->ext.peer_sigalgs, &sigalgs);
+}
+
+static bool TlsHasCert(const TLS *s, int idx)
+{
+    if (idx < 0 || idx >= QUIC_PKEY_NUM) {
+        return false;
+    }
+
+    return (s->cert->pkeys[idx].x509 != NULL &&
+            s->cert->pkeys[idx].privatekey != NULL);
+}
+
+static bool TlsCheckCertUsable(TLS *s, const SigAlgLookup *sig, X509 *x,
+                                EVP_PKEY *pkey)
+{
+    size_t i = 0;
+    int default_mdnid = 0;
+
+    if (EVP_PKEY_get_default_digest_nid(pkey, &default_mdnid) == 2 &&
+            sig->hash != default_mdnid) {
+        QUIC_LOG("Default digest not match\n");
+        return false;
+    }
+
+    if (!QuicDataIsEmpty(&s->tmp.peer_cert_sigalgs)) {
+        for (i = 0; i < s->tmp.peer_cert_sigalgs.len; i++) {
+        }
+    }
+
+    return true;
+}
+
+static bool TlsHasUsableCert(TLS *s, const SigAlgLookup *sig)
+{
+    int idx = sig->sig_idx;
+
+    if (TlsHasCert(s, idx) == false) {
+        return false;
+    }
+
+    return TlsCheckCertUsable(s, sig, s->cert->pkeys[idx].x509,
+            s->cert->pkeys[idx].privatekey);
+}
+
+static bool
+TlsIsUsableCert(TLS *s, const SigAlgLookup *sig, X509 *x, EVP_PKEY *pkey)
+{
+    size_t idx = 0;
+
+    if (QuicCertLookupByPkey(pkey, &idx) == NULL) {
+        return false;
+    }
+
+    if (idx != sig->sig_idx) {
+        return false;
+    }
+
+    return TlsCheckCertUsable(s, sig, x, pkey);
 }
 
 const EVP_MD *TlsLookupMd(const SigAlgLookup *lu)
@@ -727,7 +852,105 @@ const EVP_MD *TlsLookupMd(const SigAlgLookup *lu)
         return NULL;
     }
 
+    if (lu->hash == NID_undef) {
+        return NULL;
+    }
+
     return QuicMd(lu->hash_idx);
+}
+
+/*
+* Check if key is large enough to generate RSA-PSS signature.
+*
+* The key must greater than or equal to 2 * hash length + 2.
+* SHA512 has a hash length of 64 bytes, which is incompatible
+* with a 128 byte (1024 bit) key.
+*/
+#define RSA_PSS_MINIMUM_KEY_SIZE(md) (2 * EVP_MD_size(md) + 2)
+static int TlsRsaPssCheckMinKeySize(const RSA *rsa, const SigAlgLookup *lu)
+{
+    const EVP_MD *md = NULL;
+
+    if (rsa == NULL) {
+        return -1;
+    }
+
+    md = TlsLookupMd(lu);
+    if (md == NULL) {
+        return -1;
+    }
+
+    if (RSA_size(rsa) < RSA_PSS_MINIMUM_KEY_SIZE(md)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+const SigAlgLookup *TlsFindSigAlg(TLS *s, X509 *x, EVP_PKEY *pkey)
+{
+    const SigAlgLookup *lu = NULL;
+    EVP_PKEY *tmppkey = NULL;
+    EC_KEY *ec = NULL;
+    size_t i = 0;
+    int curve = -1;
+
+    for (i = 0; i < s->shared_sigalgs_len; i++) {
+        lu = s->shared_sigalgs[i];
+        if (TlsLookupMd(lu) == NULL) {
+            continue;
+        }
+
+        if (pkey == NULL && TlsHasUsableCert(s, lu) == false) {
+            continue;
+        }
+
+        if (pkey != NULL && TlsIsUsableCert(s, lu, x, pkey) == false) {
+            continue;
+        }
+
+        tmppkey = (pkey != NULL) ? pkey
+                                 : s->cert->pkeys[lu->sig_idx].privatekey;
+        if (lu->sig == EVP_PKEY_EC) {
+            if (curve == -1) {
+                ec = EVP_PKEY_get0_EC_KEY(tmppkey);
+                curve = EC_GROUP_get_curve_name(EC_KEY_get0_group(ec));
+            }
+
+            if (lu->curve != NID_undef && curve != lu->curve) {
+                continue;
+            }
+        } else if (lu->sig == EVP_PKEY_RSA_PSS) {
+            /* validate that key is large enough for the signature algorithm */
+            if (TlsRsaPssCheckMinKeySize(EVP_PKEY_get0(tmppkey), lu) < 0) {
+                continue;
+            }
+        }
+
+        break;
+    }
+
+    if (i == s->shared_sigalgs_len) {
+        return NULL;
+    }
+
+    return lu;
+}
+
+int TlsChooseSigalg(TLS *s)
+{
+    const SigAlgLookup *lu = NULL;
+
+    lu = TlsFindSigAlg(s, NULL, NULL);
+    if (lu == NULL) {
+        return -1;
+    }
+
+    s->tmp.cert = &s->cert->pkeys[lu->sig_idx];
+    s->cert->key = s->tmp.cert;
+    s->tmp.sigalg = lu;
+
+    return 0;
 }
 
 /*

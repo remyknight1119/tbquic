@@ -200,22 +200,14 @@ static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
 static QuicFlowReturn TlsSrvrCertBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
+    QuicCertPkey *cpk = s->tmp.cert;
 
     if (WPacketPut1(pkt, 0) < 0) {
         QUIC_LOG("Put session ID len failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
-    if (WPacketStartSubU24(pkt) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (WPacketClose(pkt) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    QUIC_LOG("Build\n");
-    return QUIC_FLOW_RET_FINISH;
+    return TlsCertChainBuild(s, pkt, cpk, TlsSrvrConstructExtensions);
 }
 
 static int TlsSrvrServerHelloPostWork(TLS *s)
@@ -231,7 +223,7 @@ static int TlsSrvrServerHelloPostWork(TLS *s)
 
 static int TlsEarlyPostProcessClientHello(TLS *s)
 {
-    if (TlsSetServerSigalgs(s) < 0) {
+    if (TlsSetServerSigAlgs(s) < 0) {
         return -1;
     }
 
@@ -242,6 +234,10 @@ static int TlsSrvrClientHelloPostWork(TLS *s)
 {
     
     if (TlsEarlyPostProcessClientHello(s) < 0) {
+        return -1;
+    }
+
+    if (TlsChooseSigalg(s) < 0) {
         return -1;
     }
 

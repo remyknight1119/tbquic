@@ -8,8 +8,9 @@
 #include "mem.h"
 #include "cipher.h"
 #include "common.h"
+#include "log.h"
 
-static const QuicCertLookup QuicCertInfo[QUIC_PKEY_MAX] = {
+static const QuicCertLookup QuicCertInfo[QUIC_PKEY_NUM] = {
     [QUIC_PKEY_RSA] = {
         .nid = EVP_PKEY_RSA,
         .mask = QUIC_A_ALG_MASK_RSA,
@@ -61,7 +62,7 @@ QuicCert *QuicCertDup(QuicCert *cert)
     }
 
     dst->key = &dst->pkeys[cert->key - cert->pkeys];
-    for (i = 0; i < QUIC_PKEY_MAX; i++) {
+    for (i = 0; i < QUIC_PKEY_NUM; i++) {
         cpk = &cert->pkeys[i];
         dpk = &dst->pkeys[i];
         if (cpk->x509 != NULL) {
@@ -95,7 +96,7 @@ static void QuicCertClearCerts(QuicCert *c)
         return;
     }
 
-    for (i = 0; i < QUIC_PKEY_MAX; i++) {
+    for (i = 0; i < QUIC_PKEY_NUM; i++) {
         cp = &c->pkeys[i];
         X509_free(cp->x509);
         cp->x509 = NULL;

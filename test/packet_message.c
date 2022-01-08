@@ -226,12 +226,27 @@ int QuicPktFormatTestServer(void)
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
     BIO *rbio = NULL;
     BIO *wbio = NULL;
+    uint32_t mss = 1200;
     int case_num = -1;
     int err = 0;
     int ret = 0;
 
     ctx = QuicCtxNew(QuicServerMethod());
     if (ctx == NULL) {
+        goto out;
+    }
+
+    if (QuicCtxUsePrivateKeyFile(ctx, quic_key, QUIC_FILE_TYPE_PEM) < 0) {
+        printf("Use Private Key file %s failed\n", quic_key);
+        goto out;
+    }
+
+    if (QuicCtxUseCertificateFile(ctx, quic_cert, QUIC_FILE_TYPE_PEM) < 0) {
+        printf("Use Private Cert file %s failed\n", quic_cert);
+        goto out;
+    }
+
+    if (QuicCtxCtrl(ctx, QUIC_CTRL_SET_MSS, &mss, 0) < 0) {
         goto out;
     }
 
@@ -255,16 +270,6 @@ int QuicPktFormatTestServer(void)
     BIO_write(rbio, client_init_packet, sizeof(client_init_packet) - 1);
     rbio = NULL;
     wbio = NULL;
-
-    if (QuicCtxUsePrivateKeyFile(ctx, quic_key, QUIC_FILE_TYPE_PEM) < 0) {
-        printf("Use Private Key file %s failed\n", quic_key);
-        goto out;
-    }
-
-    if (QuicCtxUseCertificateFile(ctx, quic_cert, QUIC_FILE_TYPE_PEM) < 0) {
-        printf("Use Private Cert file %s failed\n", quic_cert);
-        goto out;
-    }
 
     ret = QuicDoHandshake(quic);
     if (ret < 0) {

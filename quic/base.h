@@ -13,10 +13,10 @@ typedef struct {
     size_t len;
 } QUIC_DATA;
 
-int QuicDataIsEmpty(QUIC_DATA *);
+int QuicDataIsEmpty(const QUIC_DATA *);
 void QuicDataSet(QUIC_DATA *, const void *, size_t);
-void QuicDataGet(QUIC_DATA *, const void **, size_t *);
-void QuicDataGetU16(QUIC_DATA *, const uint16_t **, size_t *);
+void QuicDataGet(const QUIC_DATA *, const void **, size_t *);
+void QuicDataGetU16(const QUIC_DATA *, const uint16_t **, size_t *);
 int QuicDataDup(QUIC_DATA *, const QUIC_DATA *);
 int QuicDataDupU16(QUIC_DATA *, const QUIC_DATA *);
 int QuicDataCopy(QUIC_DATA *, const uint8_t *, size_t);

@@ -15,7 +15,7 @@ typedef struct {
 
 typedef struct {
     QuicCertPkey *key;
-    QuicCertPkey pkeys[QUIC_PKEY_MAX];
+    QuicCertPkey pkeys[QUIC_PKEY_NUM];
     QUIC_DATA conf_sigalgs;
 } QuicCert;
 
@@ -30,5 +30,6 @@ void QuicCertFree(QuicCert *);
 int QuicVerifyCertChain(QUIC *, STACK_OF(X509) *);
 int QuicSetPkey(QuicCert *, EVP_PKEY *);
 int QuicSetCert(QuicCert *, X509 *);
+const QuicCertLookup *QuicCertLookupByPkey(const EVP_PKEY *, size_t *);
 
 #endif

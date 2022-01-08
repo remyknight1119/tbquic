@@ -6,7 +6,9 @@
 #include <tbquic/ec.h>
 
 //MTU - IP Header - UDP Header
-#define QUIC_DATAGRAM_SIZE_MAX_DEF  (1500 - 20 - 8)
+#define QUIC_DATAGRAM_GET_MSS(mtu)  (mtu - 20 - 8)
+#define QUIC_DATAGRAM_SIZE_MAX_DEF  QUIC_DATAGRAM_GET_MSS(1500)
+#define QUIC_DATAGRAM_SIZE_MAX      QUIC_DATAGRAM_GET_MSS(65535)
 
 #define QUIC_ERROR_NONE         0
 #define QUIC_ERROR_QUIC         1
@@ -47,6 +49,7 @@ enum {
     QUIC_CTRL_SET_GROUPS,
     QUIC_CTRL_SET_SIGALGS,
     QUIC_CTRL_SET_TLSEXT_HOSTNAME,
+    QUIC_CTRL_SET_MSS,
 };
 
 extern int QuicInit(void);

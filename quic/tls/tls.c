@@ -13,6 +13,7 @@
 #include "tls_cipher.h"
 #include "tls_lib.h"
 #include "mem.h"
+#include "extension.h"
 #include "common.h"
 #include "log.h"
 
@@ -288,6 +289,79 @@ int TlsExtLenParse(RPacket *pkt)
     return 0;
 }
 
+static int TlsAddCertToWpacket(TLS *s, WPacket *pkt, X509 *x, int chain,
+                                TlsExtConstructor ext)
+{
+    unsigned char *outbytes = NULL;
+    int len = 0;
+
+    len = i2d_X509(x, NULL);
+    if (len < 0) {
+        return -1;
+    }
+
+    if (WPacketSubAllocBytesU24(pkt, len, &outbytes) < 0) {
+        return -1;
+    }
+
+    if (i2d_X509(x, &outbytes) != len) {
+        return -1;
+    }
+
+    QUIC_LOG("len = %d\n", len);
+    return ext(s, pkt, TLSEXT_CERTIFICATE, x, chain);
+}
+
+int TlsAddCertChain(TLS *s, WPacket *pkt, QuicCertPkey *cpk,
+                    TlsExtConstructor ext)
+{
+    STACK_OF(X509) *extra_certs = NULL;
+    X509 *x = NULL;
+    int i = 0;
+
+    if (cpk == NULL || cpk->x509 == NULL) {
+        return -1;
+    }
+
+    x = cpk->x509;
+
+    if (cpk->chain != NULL) {
+        extra_certs = cpk->chain;
+    }
+
+    if (TlsAddCertToWpacket(s, pkt, x, 0, ext) < 0) {
+        return -1;
+    }
+
+    for (i = 0; i < sk_X509_num(extra_certs); i++) {
+        x = sk_X509_value(extra_certs, i);
+        if (TlsAddCertToWpacket(s, pkt, x, i + 1, ext) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+QuicFlowReturn TlsCertChainBuild(TLS *s, WPacket *pkt, QuicCertPkey *cpk,
+                                    TlsExtConstructor ext)
+{
+    if (WPacketStartSubU24(pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (TlsAddCertChain(s, pkt, cpk, ext) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    QUIC_LOG("cpk = %p\n", cpk);
+    return QUIC_FLOW_RET_FINISH;
+}
+
 QuicFlowReturn TlsFinishedBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
@@ -365,7 +439,8 @@ void TlsFree(TLS *s)
     EVP_MD_CTX_free(s->handshake_dgst);
     EVP_PKEY_free(s->peer_kexch_key);
     EVP_PKEY_free(s->kexch_key);
-    QuicDataFree(&s->shared_sigalgs);
+    QuicMemFree((void *)s->shared_sigalgs);
+    QuicDataFree(&s->tmp.peer_cert_sigalgs);
     QuicDataFree(&s->ext.supported_groups);
     QuicDataFree(&s->ext.peer_supported_groups);
     QuicDataFree(&s->ext.peer_sigalgs);

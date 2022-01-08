@@ -47,8 +47,9 @@ int TlsGenerateSecret(const EVP_MD *, const uint8_t *, const uint8_t *, size_t,
                         uint8_t *);
 int TlsKeyDerive(TLS *, EVP_PKEY *, EVP_PKEY *);
 int TlsGenerateMasterSecret(TLS *, uint8_t *, uint8_t *, size_t *);
-int TlsCheckPeerSigalg(TLS *, uint16_t, EVP_PKEY *);
-int TlsSetServerSigalgs(TLS *);
+int TlsCheckPeerSigAlg(TLS *, uint16_t, EVP_PKEY *);
+int TlsSetServerSigAlgs(TLS *);
+int TlsChooseSigalg(TLS *);
 const EVP_MD *TlsLookupMd(const SigAlgLookup *);
 int TlsDoCertVerify(TLS *, const uint8_t *, size_t, EVP_PKEY *, const EVP_MD *);
 size_t TlsFinalFinishMac(TLS *, const char *, size_t, uint8_t *);

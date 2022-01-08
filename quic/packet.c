@@ -658,6 +658,25 @@ int WPacketSubMemcpyU32(WPacket *pkt, const void *src, size_t len)
     return WPacketSubMemcpyBytes(pkt, src, len, 4);
 }
 
+int WPacketSubAllocBytes(WPacket *pkt, size_t len, uint8_t **allocbytes,
+                            size_t lenbytes)
+{
+    if (WPacketStartSubBytes(pkt, lenbytes) < 0) {
+        return -1;
+    }
+    
+    if (WPacketAllocateBytes(pkt, len, allocbytes) < 0) {
+        return -1;
+    }
+
+    return WPacketClose(pkt);
+}
+
+int WPacketSubAllocBytesU24(WPacket *pkt, size_t len, uint8_t **allocbytes)
+{
+    return WPacketSubAllocBytes(pkt, len, allocbytes, 3);
+}
+
 void WPacketCleanup(WPacket *pkt)
 {
     WPACKET_SUB *sub = NULL;

@@ -74,14 +74,14 @@ static const QuicCipherSuite cipher_suite[QUIC_ALG_MAX] = {
     },
 };
 
-static int quic_digest_method_map[QUIC_DIGEST_MAX] = {
+static int quic_digest_method_map[QUIC_DIGEST_NUM] = {
     [QUIC_DIGEST_SHA256] = NID_sha256,
     [QUIC_DIGEST_SHA384] = NID_sha384,
     [QUIC_DIGEST_SHA512] = NID_sha512,
     [QUIC_DIGEST_SHA1] = NID_sha1,
 };
 
-static const EVP_MD *quic_digest_methods[QUIC_DIGEST_MAX];
+static const EVP_MD *quic_digest_methods[QUIC_DIGEST_NUM];
 
 static const uint8_t handshake_salt_v1[] =
     "\x38\x76\x2C\xF7\xF5\x59\x34\xB3\x4D\x17"
@@ -601,7 +601,7 @@ int QuicDoCipher(QUIC_CIPHER *cipher, uint8_t *out, size_t *outl,
 
 const EVP_MD *QuicMd(uint32_t idx)
 {
-    if (QUIC_GE(idx, QUIC_DIGEST_MAX)) {
+    if (QUIC_GE(idx, QUIC_DIGEST_NUM)) {
         return NULL;
     }
     
@@ -625,7 +625,7 @@ int QuicLoadCiphers(void)
     const EVP_MD *md = NULL;
     uint32_t md_id = 0;
 
-    for (md_id = 0; md_id < QUIC_DIGEST_MAX; md_id++) {
+    for (md_id = 0; md_id < QUIC_DIGEST_NUM; md_id++) {
         md = EVP_get_digestbynid(quic_digest_method_map[md_id]);
         if (md == NULL) {
             return -1;

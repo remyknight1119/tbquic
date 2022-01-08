@@ -328,7 +328,7 @@ static QuicFlowReturn TlsCertVerifyProc(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    if (TlsCheckPeerSigalg(s, sigalg, pkey) < 0) {
+    if (TlsCheckPeerSigAlg(s, sigalg, pkey) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 

@@ -71,6 +71,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     socklen_t addrlen = sizeof(udp_key);
 	ssize_t rlen = 0;
 	ssize_t wlen = 0;
+    uint32_t mss = 1200;
     int sockfd = 0;
     int reuse = 1;
     int epfd = 0;
@@ -112,6 +113,10 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
 
     if (QuicCtxUseCertificateFile(ctx, cert, QUIC_FILE_TYPE_PEM) < 0) {
         printf("Use Private Cert file %s failed\n", cert);
+        goto out;
+    }
+
+    if (QuicCtxCtrl(ctx, QUIC_CTRL_SET_MSS, &mss, 0) < 0) {
         goto out;
     }
 

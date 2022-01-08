@@ -34,6 +34,8 @@
 #define TLS_USE_PSS(s) \
     (s->peer_sigalg != NULL && s->peer_sigalg->sig == EVP_PKEY_RSA_PSS)
 
+typedef int (*TlsExtConstructor)(TLS *, WPacket *, uint32_t, X509 *, size_t);
+
 typedef enum {
     TLS_MT_HELLO_REQUEST = 0,
     TLS_MT_CLIENT_HELLO = 1,
@@ -120,7 +122,13 @@ struct Tls {
     size_t peer_finish_md_len;
     QUIC_DATA alpn_selected;
     QUIC_DATA alpn_proposed;
-    QUIC_DATA shared_sigalgs;
+    const SigAlgLookup **shared_sigalgs;
+    size_t shared_sigalgs_len;
+    struct {
+        QuicCertPkey *cert;
+        const SigAlgLookup *sigalg;
+        QUIC_DATA peer_cert_sigalgs;
+    } tmp;
     /* TLS extensions. */
     struct {
         char *hostname;
@@ -160,6 +168,8 @@ int TlsHelloHeadParse(TLS *, RPacket *, uint8_t *, size_t);
 int TlsExtLenParse(RPacket *);
 int TlsPutCipherList(TLS *, WPacket *);
 int TlsPutCompressionMethod(WPacket *);
+QuicFlowReturn TlsCertChainBuild(TLS *s, WPacket *, QuicCertPkey *,
+                                TlsExtConstructor);
 QuicFlowReturn TlsFinishedBuild(TLS *, void *);
 
 #endif

@@ -4,7 +4,7 @@ dir=`dirname $0`
 #cd $dir
 
 set -e
-key_bits=2048
+key_bits=4096
 expire_days=3650
 subj=/C="CA"/ST="California"/L="Sunnyvale"/O="TBQUIC"/OU="TBQUIC"/CN="tbquic.rsasingle.com"
 ca_name=ca-root

@@ -6,9 +6,9 @@
 
 #include "mem.h"
 
-int QuicDataIsEmpty(QUIC_DATA *data)
+int QuicDataIsEmpty(const QUIC_DATA *data)
 {
-    return data->data == NULL;
+    return data->data == NULL || data->len == 0;
 }
 
 static int QuicDataDupBytes(QUIC_DATA *dst, const QUIC_DATA *src, size_t byte_len)
@@ -46,13 +46,13 @@ void QuicDataSet(QUIC_DATA *dst, const void *data, size_t len)
     dst->len = len;
 }
 
-void QuicDataGet(QUIC_DATA *src, const void **data, size_t *len)
+void QuicDataGet(const QUIC_DATA *src, const void **data, size_t *len)
 {
     *data = src->data;
     *len = src->len;
 }
 
-void QuicDataGetU16(QUIC_DATA *src, const uint16_t **data, size_t *len)
+void QuicDataGetU16(const QUIC_DATA *src, const uint16_t **data, size_t *len)
 {
     *data = src->ptr_u16;
     *len = src->len;

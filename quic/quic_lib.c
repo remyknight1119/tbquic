@@ -57,6 +57,14 @@ int QuicCtxCtrl(QUIC_CTX *ctx, uint32_t cmd, void *parg, long larg)
                     parg, larg);
         case QUIC_CTRL_SET_SIGALGS:
             return TlsSetSigalgs(ctx->cert, parg, larg);
+        case QUIC_CTRL_SET_MSS:
+            uint32_t mss = *((uint32_t *)(parg));
+            if (QUIC_GT(mss, QUIC_DATAGRAM_SIZE_MAX)) {
+                return -1;
+            }
+
+            ctx->mss = mss;
+            return 0;
         default:
             return -1;
     }

@@ -27,7 +27,7 @@ enum {
     QUIC_DIGEST_SHA384,
     QUIC_DIGEST_SHA512,
     QUIC_DIGEST_SHA1,
-    QUIC_DIGEST_MAX,
+    QUIC_DIGEST_NUM,
 };
 
 enum {
@@ -36,7 +36,7 @@ enum {
     QUIC_PKEY_ECC,
     QUIC_PKEY_ED25519,
     QUIC_PKEY_ED448,
-    QUIC_PKEY_MAX,
+    QUIC_PKEY_NUM,
 };
 
 struct QuicCipher {

@@ -4,19 +4,23 @@
 
 #include "frame.h"
 
+#include <assert.h>
 #include <string.h>
 
 #include "common.h"
 #include "log.h"
 #include "format.h"
 #include "quic_local.h"
+#include "q_buff.h"
 #include "buffer.h"
 
 
-static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt);
-static int QuicFramePingParser(QUIC *quic, RPacket *pkt);
-static int QuicFrameAckParser(QUIC *quic, RPacket *pkt);
-static int QuicFrameStreamParser(QUIC *quic, RPacket *pkt);
+static int QuicFrameCryptoParser(QUIC *, RPacket *);
+static int QuicFramePingParser(QUIC *, RPacket *);
+static int QuicFrameAckParser(QUIC *, RPacket *);
+static int QuicFrameStreamParser(QUIC *, RPacket *);
+static int QuicFrameCryptoBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
+static int QuicFrameStreamBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 
 static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_PING] = {
@@ -25,14 +29,14 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     },
     [QUIC_FRAME_TYPE_CRYPTO] = {
         .parser = QuicFrameCryptoParser,
-        //.build = ,
-        //.compute_len = ,
+        .builder = QuicFrameCryptoBuild,
     },
     [QUIC_FRAME_TYPE_ACK] = {
         .parser = QuicFrameAckParser,
     },
     [QUIC_FRAME_TYPE_STREAM] = {
         .parser = QuicFrameStreamParser,
+        .builder = QuicFrameStreamBuild,
     },
 };
 
@@ -182,7 +186,8 @@ int QuicFramePaddingBuild(WPacket *pkt, size_t len)
     return WPacketMemset(pkt, 0, len);
 }
 
-int QuicFramePingBuild(QUIC *, WPacket *pkt)
+int QuicFramePingBuild(QUIC *quic, WPacket *pkt, uint8_t *data, uint64_t offset,
+                            size_t len)
 {
     return WPacketPut1(pkt, QUIC_FRAME_TYPE_PING);
 }
@@ -206,9 +211,38 @@ int QuicFrameCryptoComputeLen(uint64_t offset, size_t len)
     return 1 + owlen + lwlen + len;
 }
 
-int QuicFrameCryptoBuild(WPacket *pkt, uint64_t offset,
-                            uint8_t *data, size_t len)
+static int QuicFrameCryptoBuild(QUIC *quic, WPacket *pkt, uint8_t *data,
+                            uint64_t offset, size_t len)
 {
+    uint64_t var = 0;
+    int data_len = len - offset;
+    int space = 0;
+    int wlen = 0;
+
+    if (data_len <= 0) {
+        return 0;
+    }
+
+    wlen = QuicVariableLengthEncode((uint8_t *)&var, sizeof(var), offset);
+    if (wlen < 0) {
+        return -1;
+    }
+
+    space = WPacket_get_space(pkt) - wlen - 1;
+    wlen = QuicVariableLengthEncode((uint8_t *)&var, sizeof(var), data_len);
+    if (wlen < 0) {
+        return -1;
+    }
+
+    space -= wlen;
+    if (space <= 0) {
+        return 0;
+    }
+
+    if (data_len > space) {
+        data_len = space;
+    }
+
     if (WPacketPut1(pkt, QUIC_FRAME_TYPE_CRYPTO) < 0) {
         return -1;
     }
@@ -217,15 +251,27 @@ int QuicFrameCryptoBuild(WPacket *pkt, uint64_t offset,
         return -1;
     }
 
-    if (QuicVariableLengthWrite(pkt, len) < 0) {
+    if (QuicVariableLengthWrite(pkt, data_len) < 0) {
         return -1;
     }
 
-    return WPacketMemcpy(pkt, data, len);
+    if (WPacketMemcpy(pkt, &data[offset], data_len) < 0) {
+        return -1;
+    }
+
+    return data_len;
 }
 
-int QuicFrameStreamBuild(WPacket *pkt, uint64_t id, uint8_t *data, size_t len)
+int QuicFrameStreamBuild(QUIC *quic, WPacket *pkt, uint8_t *data,
+                            uint64_t offset, size_t len)
 {
+    size_t data_len = len - offset;
+    uint64_t id = 3;
+
+    if (QUIC_LE(data_len, 0)) {
+        return 0;
+    }
+
     if (WPacketPut1(pkt, QUIC_FRAME_TYPE_STREAM) < 0) {
         return -1;
     }
@@ -234,6 +280,141 @@ int QuicFrameStreamBuild(WPacket *pkt, uint64_t id, uint8_t *data, size_t len)
         return -1;
     }
 
-    return WPacketMemcpy(pkt, data, len);
+    return WPacketFillData(pkt, &data[offset], data_len);
+}
+
+static int QuicFrameAddQueue(QUIC *quic, WPacket *pkt, QBUFF *qb)
+{
+    size_t written = 0;
+
+    written = WPacket_get_written(pkt);
+    if (written == 0) {
+        return -1;
+    }
+
+    if (QBuffSetDataLen(qb, written) < 0) {
+        return -1;
+    }
+
+    QuicAddQueue(quic, qb);
+    WPacketCleanup(pkt);
+    return 0;
+}
+ 
+int
+QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
+{
+    QuicFrameBuilder builder = NULL;
+    QuicFrameNode *n = NULL;
+    QBUFF *qb = NULL;
+    uint8_t *data = NULL;
+    WPacket pkt = {};
+    size_t blen = 0;
+    size_t i = 0;
+    size_t written = 0;
+    size_t space = 0;
+    size_t buf_len = 0;
+    size_t data_len = 0;
+    size_t total_len = 0;
+    size_t head_tail_len = 0;
+    uint64_t type = 0;
+    uint64_t offset = 0;
+    uint32_t mss = 0;
+    int wlen = 0;
+    int ret = -1;
+
+    mss = quic->mss;
+
+    if (quic->send_head != NULL) {
+        total_len = QBuffQueueComputePktTotalLen(quic, quic->send_head);
+        QUIC_LOG("clen = %lu\n", total_len);
+        if (QUIC_LT(mss, total_len)) {
+            mss = total_len % mss;
+        }
+    }
+
+    space = mss - total_len;
+    head_tail_len = QBufPktComputeTotalLenByType(quic, pkt_type, mss) - mss;
+    for (i = 0; i < num; i++) {
+        n = &node[i];
+
+        type = n->type;
+        if (type >= QUIC_FRAME_TYPE_MAX) {
+            QUIC_LOG("Unknown type(%lx)", type);
+            continue;
+        }
+        
+        builder = frame_handler[type].builder;
+        if (builder == NULL) {
+            continue;
+        }
+
+        data = node->data.data;
+        data_len = node->data.len;
+        offset = 0;
+        do {
+            if (QUIC_GT(head_tail_len, space)) {
+                space = mss;
+            }
+
+            if (qb == NULL) {
+                buf_len = space - head_tail_len;
+                if (QUIC_LE(buf_len, 0)) {
+                    if (space == mss) {
+                        QUIC_LOG("No more space\n");
+                        goto out;
+                    }
+
+                    space = mss;
+                    continue;
+                }
+                qb = QBuffNew(mss, pkt_type);
+                if (qb == NULL) {
+                    goto out;
+                }
+
+                blen = QUIC_GT(QBuffLen(qb), buf_len) ? buf_len : QBuffLen(qb);
+                WPacketStaticBufInit(&pkt, QBuffHead(qb), blen);
+            }
+
+            wlen = builder(quic, &pkt, data, offset, data_len);
+            if (wlen < 0) {
+                QUIC_LOG("Build failed\n");
+                goto out;
+            }
+
+            offset += wlen;
+            space -= QBufPktComputeTotalLen(quic, qb);
+            written = WPacket_get_written(&pkt);
+            if (written == 0) {
+                QUIC_LOG("No written\n");
+                goto out;
+            }
+            if (written == blen) {
+                if (QBuffSetDataLen(qb, written) < 0) {
+                    return -1;
+                }
+
+                QUIC_LOG("add pkt: %lu\n", written);
+                QuicAddQueue(quic, qb);
+                WPacketCleanup(&pkt);
+                qb = NULL;
+            }
+        } while (QUIC_LT(offset, data_len));
+    }
+
+    if (qb != NULL) {
+        if (QuicFrameAddQueue(quic, &pkt, qb) < 0) {
+            QUIC_LOG("Add frame queue failed\n");
+            goto out;
+        }
+        qb = NULL;
+    }
+
+    ret = 0;
+out:
+    WPacketCleanup(&pkt);
+    QBuffFree(qb);
+    return ret;
 }
 

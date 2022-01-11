@@ -93,6 +93,8 @@ int QuicInitialPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicHandshakePacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicAppDataPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicTlsFrameBuild(QUIC *quic, uint32_t);
+void QuicAddQueue(QUIC *quic, QBUFF *qb);
+int QuicStreamFrameBuild(QUIC *, uint8_t *, size_t);
 
 #ifdef QUIC_TEST
 extern void (*QuicEncryptPayloadHook)(QBUFF *qb);

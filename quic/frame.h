@@ -3,11 +3,13 @@
 
 #include <tbquic/types.h>
 
+#include "base.h"
 #include "packet_local.h"
     
 typedef int (*QuicFrameParser)(QUIC *, RPacket *);
+typedef int (*QuicFrameBuilder)(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 
-enum QuicFrameType {
+typedef enum {
     QUIC_FRAME_TYPE_PADDING = 0x00,
     QUIC_FRAME_TYPE_PING = 0x01,
     QUIC_FRAME_TYPE_ACK = 0x02,
@@ -37,19 +39,22 @@ enum QuicFrameType {
     QUIC_FRAME_TYPE_CONNECTION_CLOSE = 0x1c,
     QUIC_FRAME_TYPE_HANDSHAKE_DONE = 0x1e,
     QUIC_FRAME_TYPE_MAX,
-};
+} QuicFrameType;
 
 typedef struct {
     QuicFrameParser parser;
-    int (*builder)(QUIC*, WPacket *);
-    int (*compute_len)(uint64_t, size_t);
+    QuicFrameBuilder builder;
 } QuicFrameProcess;
+
+typedef struct {
+    QuicFrameType type;
+    QUIC_DATA data;
+} QuicFrameNode;
 
 int QuicFrameDoParser(QUIC *, RPacket *);
 int QuicFramePaddingBuild(WPacket *, size_t);
-int QuicFramePingBuild(QUIC *, WPacket *);
-int QuicFrameCryptoBuild(WPacket *, uint64_t, uint8_t *, size_t);
-int QuicFrameStreamBuild(WPacket *, uint64_t, uint8_t *, size_t);
+int QuicFramePingBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 int QuicFrameCryptoComputeLen(uint64_t, size_t);
+int QuicFrameBuild(QUIC *, uint32_t, QuicFrameNode *, size_t);
 
 #endif

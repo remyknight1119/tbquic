@@ -677,6 +677,22 @@ int WPacketSubAllocBytesU24(WPacket *pkt, size_t len, uint8_t **allocbytes)
     return WPacketSubAllocBytes(pkt, len, allocbytes, 3);
 }
 
+int WPacketFillData(WPacket *pkt, uint8_t *data, size_t len)
+{
+    int space = 0;
+
+    space = WPacket_get_space(pkt);
+    if (QUIC_GT(len, space)) {
+        len = space;
+    }
+
+    if (WPacketMemcpy(pkt, data, len) < 0) {
+        return -1;
+    }
+
+    return len;
+}
+
 void WPacketCleanup(WPacket *pkt)
 {
     WPACKET_SUB *sub = NULL;

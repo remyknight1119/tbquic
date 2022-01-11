@@ -464,6 +464,7 @@ static int QuicDecryptMessage(QuicPPCipher *cipher, uint8_t *out, size_t *outl,
         }
     }
 
+    QUIC_LOG("hhhhh = %x, header_len = %d\n", *head, header_len);
     if (QuicEvpCipherUpdate(c->ctx, NULL, outl, head, header_len) < 0) {
         QUIC_LOG("Cipher Update failed\n");
         return -1;
@@ -802,10 +803,12 @@ static int QuicSHeaderGen(QUIC *quic, uint8_t **first_byte, WPacket *pkt,
 {
     QuicPacketFlags flags;
 
-    flags.value = 0;
     flags.sh.fixed = 1;
     flags.sh.header_form = 0;
     flags.sh.packet_num_len = (pkt_num_len & 0x3) - 1;
+    flags.sh.key_phase = 0;
+    flags.sh.reserved = 0;
+    flags.sh.spin = 0;
 
     *first_byte = WPacket_get_curr(pkt);
 
@@ -814,7 +817,7 @@ static int QuicSHeaderGen(QUIC *quic, uint8_t **first_byte, WPacket *pkt,
         return -1;
     }
 
-    if (QuicCidPut(&quic->dcid, pkt) < 0) {
+    if (quic->dcid.len != 0 && QuicCidPut(&quic->dcid, pkt) < 0) {
         return -1;
     }
 
@@ -1033,9 +1036,8 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
 static int
 QuicSPacketBuild(QUIC *quic, QuicCrypto *c, WPacket *pkt, QBUFF *qb, bool end)
 {
-    uint8_t *first_byte = 0;
+    uint8_t *first_byte = NULL;
     size_t total_len = 0;
-    size_t padding_len = 0;
     uint8_t pkt_num_len = quic->pkt_num_len + 1;
 
     total_len = QuicSPacketGetTotalLen(quic, c, QBuffGetDataLen(qb));
@@ -1047,14 +1049,6 @@ QuicSPacketBuild(QUIC *quic, QuicCrypto *c, WPacket *pkt, QBUFF *qb, bool end)
     if (QuicSHeaderGen(quic, &first_byte, pkt, pkt_num_len) < 0) {
         QUIC_LOG("Long header generate failed\n");
         return -1;
-    }
-
-    if (end == true &&
-            QUIC_LT(total_len, QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN)) {
-        padding_len = QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN - total_len;
-        if (QuicFrameBufferAddPadding(quic, padding_len, qb) < 0) {
-            return -1;
-        }
     }
 
     return QuicPacketBuild(quic, &c->encrypt, first_byte, pkt_num_len, pkt, qb,
@@ -1110,150 +1104,25 @@ void QuicAddQueue(QUIC *quic, QBUFF *qb)
 int QuicTlsFrameBuild(QUIC *quic, uint32_t pkt_type)
 {
     QUIC_BUFFER *buf = QUIC_TLS_BUFFER(quic);
-    QBUFF *qb = NULL;
-    uint8_t *head = NULL;
-    WPacket pkt = {};
-    uint64_t offset = 0;
-    uint32_t mss = 0;
-    size_t data_len = 0;
-    size_t curr_total_len = 0;
-    size_t wlen = 0;
-    size_t head_tail_len = 0;
-    size_t frame_head_len = 0;
-    size_t remaining = 0;
-    size_t space = 0;
-    int frame_len = 0;
-    int ret = -1;
+    QuicFrameNode frame = {};
 
-    data_len = QuicBufGetDataLength(buf);
-    head = QUIC_BUFFER_HEAD(buf);
+    frame.type = QUIC_FRAME_TYPE_CRYPTO;
+    frame.data.data = QUIC_BUFFER_HEAD(buf);
+    frame.data.len = QuicBufGetDataLength(buf);
 
-    mss = quic->mss;
-    if (quic->send_head != NULL) {
-        curr_total_len = QBuffQueueComputePktTotalLen(quic, quic->send_head);
-        assert(QUIC_GE(mss, curr_total_len));
-    }
-
-    space = mss - curr_total_len;
-    while (QUIC_GT(data_len, offset)) {
-        remaining = data_len - offset;
-        frame_len = QuicFrameCryptoComputeLen(offset, remaining);
-        if (frame_len < 0) {
-            goto out;
-        }
-        head_tail_len = QBufPktComputeTotalLenByType(quic, pkt_type, frame_len)
-                        - frame_len;
-        QUIC_LOG("h = %lu\n", head_tail_len);
-        frame_head_len = frame_len - remaining;
-        wlen = space - head_tail_len - frame_head_len;
-        if (QUIC_LE(wlen, 0)) {
-            if (space == mss) {
-                goto out;
-            }
-            space = mss;
-            continue;
-        }
-
-        if (QUIC_GT(wlen, remaining)) {
-            wlen = remaining;
-        }
-
-    QUIC_LOG("wlen = %lu\n", wlen);
-        qb = QBuffNew(mss, pkt_type);
-        if (qb == NULL) {
-            goto out;
-        }
-
-        WPacketStaticBufInit(&pkt, QBuffHead(qb), QBuffLen(qb));
-        if (QuicFrameCryptoBuild(&pkt, offset, &head[offset], wlen) < 0) {
-            goto out;
-        }
-
-        if (QBuffSetDataLen(qb, WPacket_get_written(&pkt)) < 0) {
-            goto out;
-        }
-
-        QuicAddQueue(quic, qb);
-        space -= QBufPktComputeTotalLen(quic, qb);
-        offset += wlen;
-    }
-
-    ret = 0;
-out:
-    WPacketCleanup(&pkt);
-    return ret;
+    return QuicFrameBuild(quic, pkt_type, &frame, 1);
 }
 
-int QuicAppFrameBuild(QUIC *quic, uint32_t pkt_type, uint8_t *data, size_t len)
+int QuicStreamFrameBuild(QUIC *quic, uint8_t *data, size_t len)
 {
-    QBUFF *qb = NULL;
-    uint8_t *head = NULL;
-    WPacket pkt = {};
-    uint64_t offset = 0;
-    uint32_t mss = 0;
-    size_t data_len = 0;
-    size_t curr_total_len = 0;
-    size_t wlen = 0;
-    size_t head_tail_len = 0;
-    size_t frame_head_len = 0;
-    size_t remaining = 0;
-    size_t space = 0;
-    int frame_len = 0;
-    int ret = -1;
-
-    mss = quic->mss;
-    if (quic->send_head != NULL) {
-        curr_total_len = QBuffQueueComputePktTotalLen(quic, quic->send_head);
-        assert(QUIC_GE(mss, curr_total_len));
-    }
-
-    space = mss - curr_total_len;
-    while (QUIC_GT(data_len, offset)) {
-        remaining = data_len - offset;
-        frame_len = QuicFrameCryptoComputeLen(offset, remaining);
-        if (frame_len < 0) {
-            goto out;
+    QuicFrameNode frame = {
+        .type = QUIC_FRAME_TYPE_STREAM,
+        .data = {
+            .data = data,
+            .len = len,
         }
-        head_tail_len = QBufPktComputeTotalLenByType(quic, pkt_type, frame_len)
-                        - frame_len;
-        QUIC_LOG("h = %lu\n", head_tail_len);
-        frame_head_len = frame_len - remaining;
-        wlen = space - head_tail_len - frame_head_len;
-        if (QUIC_LE(wlen, 0)) {
-            if (space == mss) {
-                goto out;
-            }
-            space = mss;
-            continue;
-        }
+    };
 
-        if (QUIC_GT(wlen, remaining)) {
-            wlen = remaining;
-        }
-
-    QUIC_LOG("wlen = %lu\n", wlen);
-        qb = QBuffNew(mss, pkt_type);
-        if (qb == NULL) {
-            goto out;
-        }
-
-        WPacketStaticBufInit(&pkt, QBuffHead(qb), QBuffLen(qb));
-        if (QuicFrameCryptoBuild(&pkt, offset, &head[offset], wlen) < 0) {
-            goto out;
-        }
-
-        if (QBuffSetDataLen(qb, WPacket_get_written(&pkt)) < 0) {
-            goto out;
-        }
-
-        QuicAddQueue(quic, qb);
-        space -= QBufPktComputeTotalLen(quic, qb);
-        offset += wlen;
-    }
-
-    ret = 0;
-out:
-    WPacketCleanup(&pkt);
-    return ret;
+    return QuicFrameBuild(quic, QUIC_PKT_TYPE_1RTT, &frame, 1);
 }
 

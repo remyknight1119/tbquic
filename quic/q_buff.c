@@ -58,6 +58,10 @@ QBUFF *QBuffNew(size_t len, uint32_t pkt_type)
 
 void QBuffFree(QBUFF *qb)
 {
+    if (qb == NULL) {
+        return;
+    }
+
     QuicMemFree(qb->buff);
     QuicMemFree(qb);
 }

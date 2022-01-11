@@ -131,7 +131,7 @@ static QuicFlowReturn TlsClientHelloBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    return QUIC_FLOW_RET_STOP;
+    return QUIC_FLOW_RET_WANT_READ;
 }
 
 static QuicFlowReturn TlsServerHelloProc(TLS *tls, void *packet)
@@ -351,6 +351,7 @@ static QuicFlowReturn TlsCertVerifyProc(TLS *s, void *packet)
     }
 
     if (TlsDoCertVerify(s, data, len, pkey, md) < 0) {
+        QUIC_LOG("Verify Failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 

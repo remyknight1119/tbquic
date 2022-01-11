@@ -181,16 +181,12 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
             return ret;
         }
 
-        if (ret == QUIC_FLOW_RET_WANT_READ) {
-            return ret;
-        }
-
         if (p->post_work != NULL && p->post_work(tls) < 0) {
             return QUIC_FLOW_RET_ERROR;
         }
 
-        if (ret == QUIC_FLOW_RET_STOP) {
-            break;
+        if (ret == QUIC_FLOW_RET_WANT_READ || ret == QUIC_FLOW_RET_WANT_WRITE) {
+            return ret;
         }
         state = tls->handshake_state;
         assert(state >= 0 && state < num);
@@ -211,38 +207,44 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
     size_t wlen = 0;
     uint32_t pkt_type = 0;
 
-    /*
-     * Read buffer:
-     *                                       second
-     * |------------ first read -----------| read  |
-     * ---------------------------------------------
-     * | prev message | new message seg 1  | seg 2 |
-     * ---------------------------------------------
-     * |--- offset ---|
-     * |------------- total data len --------------|
-     *                |--- new message data len ---|
-     */
-    data_len = QuicBufGetDataLength(buffer) - QuicBufGetOffset(buffer);
-    assert(QUIC_GE(data_len, 0));
-    RPacketBufInit(&rpkt, QuicBufMsg(buffer), data_len);
-    WPacketBufInit(&wpkt, buffer->buf);
+    while (1) {
+        /*
+         * Read buffer:
+         *                                       second
+         * |------------ first read -----------| read  |
+         * ---------------------------------------------
+         * | prev message | new message seg 1  | seg 2 |
+         * ---------------------------------------------
+         * |--- offset ---|
+         * |------------- total data len --------------|
+         *                |--- new message data len ---|
+         */
+        data_len = QuicBufGetDataLength(buffer) - QuicBufGetOffset(buffer);
+        assert(QUIC_GE(data_len, 0));
+        RPacketBufInit(&rpkt, QuicBufMsg(buffer), data_len);
+        WPacketBufInit(&wpkt, buffer->buf);
 
-    ret = TlsHandshakeStatem(s, &rpkt, &wpkt, proc, num, &pkt_type);
-    if (ret == QUIC_FLOW_RET_WANT_READ && RPacketRemaining(&rpkt)) {
-        if (QuicBufAddOffset(buffer, RPacketReadLen(&rpkt)) < 0) {
+        ret = TlsHandshakeStatem(s, &rpkt, &wpkt, proc, num, &pkt_type);
+        if (ret == QUIC_FLOW_RET_WANT_READ && RPacketRemaining(&rpkt)) {
+            if (QuicBufAddOffset(buffer, RPacketReadLen(&rpkt)) < 0) {
+                return QUIC_FLOW_RET_ERROR;
+            }
+        } else {
+            QuicBufResetOffset(buffer);
+        }
+
+        wlen = WPacket_get_written(&wpkt);
+        WPacketCleanup(&wpkt);
+        QuicBufSetDataLength(buffer, wlen);
+
+        if (wlen != 0 && QuicTlsFrameBuild(QuicTlsTrans(s), pkt_type) < 0) {
+            QUIC_LOG("Initial frame build failed\n");
             return QUIC_FLOW_RET_ERROR;
         }
-    } else {
-        QuicBufResetOffset(buffer);
-    }
 
-    wlen = WPacket_get_written(&wpkt);
-    WPacketCleanup(&wpkt);
-    QuicBufSetDataLength(buffer, wlen);
-
-    if (wlen != 0 && QuicTlsFrameBuild(QuicTlsTrans(s), pkt_type) < 0) {
-        QUIC_LOG("Initial frame build failed\n");
-        return QUIC_FLOW_RET_ERROR;
+        if (ret != QUIC_FLOW_RET_WANT_WRITE) {
+            break;
+        }
     }
 
     return ret;
@@ -358,7 +360,15 @@ QuicFlowReturn TlsCertChainBuild(TLS *s, WPacket *pkt, QuicCertPkey *cpk,
         return QUIC_FLOW_RET_ERROR;
     }
 
-    QUIC_LOG("cpk = %p\n", cpk);
+    return QUIC_FLOW_RET_FINISH;
+}
+
+QuicFlowReturn TlsCertVerifyBuild(TLS *s, WPacket *pkt)
+{
+    if (TlsConstructCertVerify(s, pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     return QUIC_FLOW_RET_FINISH;
 }
 

@@ -168,8 +168,10 @@ int TlsHelloHeadParse(TLS *, RPacket *, uint8_t *, size_t);
 int TlsExtLenParse(RPacket *);
 int TlsPutCipherList(TLS *, WPacket *);
 int TlsPutCompressionMethod(WPacket *);
+int TlsConstructCertVerify(TLS *, WPacket *);
 QuicFlowReturn TlsCertChainBuild(TLS *s, WPacket *, QuicCertPkey *,
                                 TlsExtConstructor);
+QuicFlowReturn TlsCertVerifyBuild(TLS *s, WPacket *pkt);
 QuicFlowReturn TlsFinishedBuild(TLS *, void *);
 
 #endif

@@ -20,7 +20,9 @@
 static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
 static QuicFlowReturn TlsServerHelloBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *, void *);
-static QuicFlowReturn TlsSrvrCertBuild(TLS *, void *);
+static QuicFlowReturn TlsSrvrServerCertBuild(TLS *, void *);
+static QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *, void *);
+static QuicFlowReturn TlsSrvrFinishedBuild(TLS *, void *);
 static int TlsSrvrClientHelloPostWork(TLS *);
 static int TlsSrvrServerHelloPostWork(TLS *);
 
@@ -56,15 +58,21 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_SW_CERT_VERIFY,
         .msg_type = TLS_MT_CERTIFICATE,
-        .handler = TlsSrvrCertBuild,
+        .handler = TlsSrvrServerCertBuild,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_SW_CERT_VERIFY] = {
-        .flow_state = QUIC_FLOW_FINISHED,
-        //.flow_state = QUIC_FLOW_WRITING,
+        .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_SW_FINISHED,
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
-//        .handler = TlsSrvrCertVerifyBuild,
+        .handler = TlsSrvrCertVerifyBuild,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [TLS_ST_SW_FINISHED] = {
+        .flow_state = QUIC_FLOW_WRITING,
+        .next_state = TLS_ST_HANDSHAKE_DONE,
+        .msg_type = TLS_MT_FINISHED,
+        .handler = TlsSrvrFinishedBuild,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_HANDSHAKE_DONE] = {
@@ -183,7 +191,7 @@ static QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    return QUIC_FLOW_RET_STOP;
+    return QUIC_FLOW_RET_WANT_WRITE;
 }
 
 static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
@@ -197,7 +205,7 @@ static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
     return QUIC_FLOW_RET_FINISH;
 }
 
-static QuicFlowReturn TlsSrvrCertBuild(TLS *s, void *packet)
+static QuicFlowReturn TlsSrvrServerCertBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
     QuicCertPkey *cpk = s->tmp.cert;
@@ -208,6 +216,18 @@ static QuicFlowReturn TlsSrvrCertBuild(TLS *s, void *packet)
     }
 
     return TlsCertChainBuild(s, pkt, cpk, TlsSrvrConstructExtensions);
+}
+
+static QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *s, void *packet)
+{
+    QUIC_LOG("in\n");
+    return TlsCertVerifyBuild(s, packet);
+}
+
+static QuicFlowReturn TlsSrvrFinishedBuild(TLS *s, void *packet)
+{
+    QUIC_LOG("in\n");
+    return QUIC_FLOW_RET_FINISH;
 }
 
 static int TlsSrvrServerHelloPostWork(TLS *s)

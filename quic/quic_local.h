@@ -84,6 +84,7 @@ struct Quic {
     uint32_t verify_mode;
     uint64_t pkt_num_len:2;
     uint64_t cid_len:8;
+    uint64_t fd_mode:1;
     const QUIC_CTX *ctx;
     const QUIC_METHOD *method;
     BIO *rbio;

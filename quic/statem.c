@@ -65,47 +65,12 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
     return ret;
 }
 
-static int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
-{
-    QBuffQueueHead *send_queue = &quic->tx_queue;
-    QBUFF *head = NULL;
-    QBUFF *tail = NULL;
-    WPacket pkt = {};
-    int ret = 0;
-
-    WPacketStaticBufInit(&pkt, buffer->data, quic->mss);
-    tail = QBUF_LAST_NODE(send_queue);
-    QBUF_LIST_FOR_EACH(quic->send_head, send_queue) {
-        head = quic->send_head;
-        QUIC_LOG("last = %d, data len = %lu\n", head == tail, QBuffGetDataLen(head));
-        ret = QBuffBuildPkt(quic, &pkt, head, head == tail);
-        if (ret == 1) {
-            break;
-        }
-        if (ret < 0) {
-            return -1;
-        }
-
-        if (head == tail) {
-            quic->send_head = NULL;
-            break;
-        } 
-    }
-
-    buffer->len = WPacket_get_written(&pkt);
-    WPacketCleanup(&pkt);
-
-    return 0;
-}
-
 static QuicFlowReturn
 QuicWriteStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
     const QuicStatemFlow *sm = NULL;
     QUIC_STATEM *st = &quic->statem;
-    QuicStaticBuffer *buffer = NULL;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
-    int wlen = -1;
 
     while (ret != QUIC_FLOW_RET_FINISH) {
         assert(st->state >= 0 && st->state < num);
@@ -116,17 +81,6 @@ QuicWriteStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
         }
     }
 
-    buffer = QuicGetSendBuffer();
-    if (QuicWritePkt(quic, buffer) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    wlen = QuicDatagramSendBytes(quic, buffer->data, buffer->len);
-    if (wlen < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    buffer->len = 0;
     if (st->state == QUIC_STATEM_HANDSHAKE_DONE) {
         return QUIC_FLOW_RET_END;
     }
@@ -138,6 +92,16 @@ int
 QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
+
+    if (QuicWantWrite(quic)) {
+        if (QuicSendPacket(quic) < 0) {
+            return -1;
+        }
+
+        if (QuicWantWrite(quic)) {
+            return -1;
+        }
+    }
 
     while (QUIC_GET_FLOW_STATE(quic) != QUIC_FLOW_FINISHED) {
         switch (QUIC_GET_FLOW_STATE(quic)) {
@@ -157,6 +121,14 @@ QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
                 break;
             default:
                 return -1;
+        }
+
+        if (QuicSendPacket(quic) < 0) {
+            return -1;
+        }
+
+        if (QuicWantWrite(quic)) {
+            return -1;
         }
 
         if (ret == QUIC_FLOW_RET_ERROR) {

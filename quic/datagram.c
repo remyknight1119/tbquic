@@ -44,18 +44,15 @@ int QuicDatagramSendBytes(QUIC *quic, uint8_t *data, size_t len)
         return 0;
     }
 
-    quic->statem.rwstate = QUIC_NOTHING;
     if (quic->wbio == NULL) {
         return -1;
     }
 
-    quic->statem.rwstate = QUIC_WRITING;
     write_bytes = BIO_write(quic->wbio, data, len);
     if (write_bytes < 0 || write_bytes < len) {
         return -1;
     }
 
-    quic->statem.rwstate = QUIC_FINISHED;
     return 0;
 }
 

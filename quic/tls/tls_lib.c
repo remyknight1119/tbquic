@@ -1037,6 +1037,84 @@ err:
     return ret;
 }
 
+int TlsConstructCertVerify(TLS *s, WPacket *pkt)
+{
+    const SigAlgLookup *lu = s->tmp.sigalg;
+    EVP_PKEY *pkey = NULL;
+    const EVP_MD *md = NULL;
+    EVP_MD_CTX *mctx = NULL;
+    EVP_PKEY_CTX *pctx = NULL;
+    void *hdata = NULL;
+    uint8_t *sig = NULL;
+    uint8_t tbs[TLS_TBS_PREAMBLE_SIZE + EVP_MAX_MD_SIZE] = {};
+    size_t hdatalen = 0;
+    size_t siglen = 0;
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+
+    if (lu == NULL || s->tmp.cert == NULL) {
+        return -1;
+    }
+
+    pkey = s->tmp.cert->privatekey;
+    if (pkey == NULL) {
+        return -1;
+    }
+
+    md = TlsLookupMd(lu);
+    if (md == NULL) {
+        return -1;
+    }
+
+    mctx = EVP_MD_CTX_new();
+    if (mctx == NULL) {
+        return -1;
+    }
+
+    if (TlsGetCertVerifyData(s, tbs, &hdata, &hdatalen) < 0) {
+        goto err;
+    }
+
+    if (WPacketPut2(pkt, lu->sigalg) < 0) {
+        goto err;
+    }
+
+    siglen = EVP_PKEY_size(pkey);
+    sig = QuicMemMalloc(siglen);
+    if (sig == NULL) {
+        goto err;
+    }
+
+    if (EVP_DigestSignInit(mctx, &pctx, md, NULL, pkey) <= 0) {
+        goto err;
+    }
+
+    if (lu->sig == EVP_PKEY_RSA_PSS) {
+        if (EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING) <= 0) {
+            goto err;
+        }
+
+        if (EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx,
+                    RSA_PSS_SALTLEN_DIGEST) <= 0) {
+            goto err;
+        }
+    }
+
+    if (EVP_DigestSign(mctx, sig, &siglen, hdata, hdatalen) <= 0) {
+        goto err;
+    }
+
+    if (WPacketSubMemcpyU16(pkt, sig, siglen) < 0) {
+        goto err;
+    }
+
+    ret = 0;
+err:
+    QuicMemFree(sig);
+    EVP_MD_CTX_free(mctx);
+    return ret;
+}
+
+
 #ifdef QUIC_TEST
 void (*QuicTlsFinalFinishMacHashHook)(uint8_t *hash, size_t len);
 #endif

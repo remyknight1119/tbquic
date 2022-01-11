@@ -14,6 +14,7 @@
 #include "cipher.h"
 #include "tls_lib.h"
 #include "sig_alg.h"
+#include "datagram.h"
 #include "common.h"
 #include "format.h"
 
@@ -388,6 +389,7 @@ int QUIC_set_fd(QUIC *quic, int fd)
 
     BIO_set_fd(bio, fd, BIO_NOCLOSE);
     QUIC_set_bio(quic, bio, bio);
+    quic->fd_mode = 1;
     ret = 0;
 
 err:
@@ -419,6 +421,68 @@ int QUIC_get_error(QUIC *quic, int ret)
     }
 
     return QUIC_ERROR_QUIC;
+}
+
+static int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
+{
+    QBuffQueueHead *send_queue = &quic->tx_queue;
+    QBUFF *head = NULL;
+    QBUFF *tail = NULL;
+    WPacket pkt = {};
+    int ret = 0;
+
+    WPacketStaticBufInit(&pkt, buffer->data, quic->mss);
+    tail = QBUF_LAST_NODE(send_queue);
+    QBUF_LIST_FOR_EACH(quic->send_head, send_queue) {
+        head = quic->send_head;
+        QUIC_LOG("last = %d, data len = %lu\n", head == tail, QBuffGetDataLen(head));
+        ret = QBuffBuildPkt(quic, &pkt, head, head == tail);
+        if (ret == 1) {
+            break;
+        }
+        if (ret < 0) {
+            return -1;
+        }
+
+        if (head == tail) {
+            quic->send_head = NULL;
+            break;
+        } 
+    }
+
+    buffer->len = WPacket_get_written(&pkt);
+    WPacketCleanup(&pkt);
+
+    return 0;
+}
+
+int QuicSendPacket(QUIC *quic)
+{
+    QuicStaticBuffer *buffer = NULL;
+    int wlen = 0;
+
+    buffer = QuicGetSendBuffer();
+    while (quic->send_head != NULL) {
+        quic->statem.rwstate = QUIC_WRITING;
+        if (QuicWritePkt(quic, buffer) < 0) {
+            return -1;
+        }
+
+        wlen = QuicDatagramSendBytes(quic, buffer->data, buffer->len);
+        if (wlen < 0) {
+            return -1;
+        }
+
+        if (quic->send_head == NULL) {
+            quic->statem.rwstate = QUIC_FINISHED;
+        }
+
+        if (!quic->fd_mode) {
+            break;
+        }
+    }
+ 
+    return 0;
 }
 
 int QuicInit(void)

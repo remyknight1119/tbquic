@@ -1,6 +1,7 @@
 #ifndef TBQUIC_INCLUDE_TBQUIC_QUIC_H_
 #define TBQUIC_INCLUDE_TBQUIC_QUIC_H_
 
+#include <stdbool.h>
 #include <openssl/bio.h>
 #include <tbquic/types.h>
 #include <tbquic/ec.h>
@@ -69,6 +70,9 @@ extern int QUIC_CTX_set_alpn_protos(QUIC_CTX *ctx, const uint8_t *protos,
                                     size_t protos_len);
 extern int QUIC_set_alpn_protos(QUIC *quic, const uint8_t *protos,
                                     size_t protos_len);
+extern int QuicSendPacket(QUIC *quic);
+extern bool QuicWantRead(QUIC *quic);
+extern bool QuicWantWrite(QUIC *quic);
 
 extern QUIC_METHOD *QuicClientMethod(void);
 extern QUIC_METHOD *QuicServerMethod(void);

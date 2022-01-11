@@ -18,11 +18,22 @@ static int QuicFramePingParser(QUIC *quic, RPacket *pkt);
 static int QuicFrameAckParser(QUIC *quic, RPacket *pkt);
 static int QuicFrameStreamParser(QUIC *quic, RPacket *pkt);
 
-static QuicFrameParser frame_parser[QUIC_FRAME_TYPE_MAX] = {
-    [QUIC_FRAME_TYPE_CRYPTO] = QuicFrameCryptoParser,
-    [QUIC_FRAME_TYPE_PING] = QuicFramePingParser,
-    [QUIC_FRAME_TYPE_ACK] = QuicFrameAckParser,
-    [QUIC_FRAME_TYPE_STREAM] = QuicFrameStreamParser,
+static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
+    [QUIC_FRAME_TYPE_PING] = {
+        .parser = QuicFramePingParser,
+        .builder = QuicFramePingBuild,
+    },
+    [QUIC_FRAME_TYPE_CRYPTO] = {
+        .parser = QuicFrameCryptoParser,
+        //.build = ,
+        //.compute_len = ,
+    },
+    [QUIC_FRAME_TYPE_ACK] = {
+        .parser = QuicFrameAckParser,
+    },
+    [QUIC_FRAME_TYPE_STREAM] = {
+        .parser = QuicFrameStreamParser,
+    },
 };
 
 int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
@@ -35,7 +46,7 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
             QUIC_LOG("Unknown type(%lx)", type);
             return -1;
         }
-        parser = frame_parser[type];
+        parser = frame_handler[type].parser;
         if (parser == NULL) {
             continue;
         }
@@ -171,7 +182,7 @@ int QuicFramePaddingBuild(WPacket *pkt, size_t len)
     return WPacketMemset(pkt, 0, len);
 }
 
-int QuicFramePingBuild(WPacket *pkt)
+int QuicFramePingBuild(QUIC *, WPacket *pkt)
 {
     return WPacketPut1(pkt, QUIC_FRAME_TYPE_PING);
 }
@@ -207,6 +218,19 @@ int QuicFrameCryptoBuild(WPacket *pkt, uint64_t offset,
     }
 
     if (QuicVariableLengthWrite(pkt, len) < 0) {
+        return -1;
+    }
+
+    return WPacketMemcpy(pkt, data, len);
+}
+
+int QuicFrameStreamBuild(WPacket *pkt, uint64_t id, uint8_t *data, size_t len)
+{
+    if (WPacketPut1(pkt, QUIC_FRAME_TYPE_STREAM) < 0) {
+        return -1;
+    }
+
+    if (QuicVariableLengthWrite(pkt, id) < 0) {
         return -1;
     }
 

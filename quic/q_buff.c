@@ -20,6 +20,10 @@ static const QBuffPktMethod QuicBuffPktMethod[QUIC_PKT_TYPE_MAX] = {
         .build_pkt = QuicHandshakePacketBuild,
         .compute_totallen = QuicHandshakePacketGetTotalLen,
     },
+    [QUIC_PKT_TYPE_1RTT] = {
+        .build_pkt = QuicAppDataPacketBuild,
+        .compute_totallen = QuicAppDataPacketGetTotalLen,
+    },
 };
 
 void QBuffQueueHeadInit(QBuffQueueHead *h)

@@ -39,10 +39,17 @@ enum QuicFrameType {
     QUIC_FRAME_TYPE_MAX,
 };
 
+typedef struct {
+    QuicFrameParser parser;
+    int (*builder)(QUIC*, WPacket *);
+    int (*compute_len)(uint64_t, size_t);
+} QuicFrameProcess;
+
 int QuicFrameDoParser(QUIC *, RPacket *);
 int QuicFramePaddingBuild(WPacket *, size_t);
-int QuicFramePingBuild(WPacket *);
+int QuicFramePingBuild(QUIC *, WPacket *);
 int QuicFrameCryptoBuild(WPacket *, uint64_t, uint8_t *, size_t);
+int QuicFrameStreamBuild(WPacket *, uint64_t, uint8_t *, size_t);
 int QuicFrameCryptoComputeLen(uint64_t, size_t);
 
 #endif

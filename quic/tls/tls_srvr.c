@@ -22,9 +22,10 @@ static QuicFlowReturn TlsServerHelloBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrServerCertBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *, void *);
-static QuicFlowReturn TlsSrvrFinishedBuild(TLS *, void *);
+static QuicFlowReturn TlsSrvrFinishedProc(TLS *, void *);
 static int TlsSrvrClientHelloPostWork(TLS *);
 static int TlsSrvrServerHelloPostWork(TLS *);
+static int TlsServerPostFinishedWork(TLS *);
 
 static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
@@ -72,9 +73,18 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .flow_state = QUIC_FLOW_WRITING,
         .next_state = TLS_ST_HANDSHAKE_DONE,
         .msg_type = TLS_MT_FINISHED,
-        .handler = TlsSrvrFinishedBuild,
+        .handler = TlsFinishedBuild,
+        .post_work = TlsServerPostFinishedWork,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
+    [TLS_ST_SR_FINISHED] = {
+        .flow_state = QUIC_FLOW_READING,
+        .next_state = TLS_ST_HANDSHAKE_DONE,
+        .msg_type = TLS_MT_FINISHED,
+        .handler = TlsSrvrFinishedProc,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+
     [TLS_ST_HANDSHAKE_DONE] = {
         .flow_state = QUIC_FLOW_FINISHED,
         .next_state = TLS_ST_HANDSHAKE_DONE,
@@ -156,6 +166,11 @@ static QuicFlowReturn TlsClientHelloProc(TLS *s, void *packet)
     return QUIC_FLOW_RET_FINISH;
 }
 
+static QuicFlowReturn TlsSrvrFinishedProc(TLS *s, void *packet)
+{
+    return QUIC_FLOW_RET_FINISH;
+}
+
 static QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
@@ -224,12 +239,6 @@ static QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *s, void *packet)
     return TlsCertVerifyBuild(s, packet);
 }
 
-static QuicFlowReturn TlsSrvrFinishedBuild(TLS *s, void *packet)
-{
-    QUIC_LOG("in\n");
-    return QUIC_FLOW_RET_FINISH;
-}
-
 static int TlsSrvrServerHelloPostWork(TLS *s)
 {
     QUIC *quic = QuicTlsTrans(s);
@@ -264,4 +273,20 @@ static int TlsSrvrClientHelloPostWork(TLS *s)
     return 0;
 }
 
+static int TlsServerPostFinishedWork(TLS *s)
+{
+    QUIC *quic = QuicTlsTrans(s);
+    size_t secret_size = 0;
+
+    if (TlsGenerateMasterSecret(s, s->master_secret, s->handshake_secret,
+                                    &secret_size) < 0) {
+        return -1;
+    }
+
+    if (QuicCreateHandshakeClientDecoders(quic) < 0) {
+        return -1;
+    }
+
+    return QuicCreateAppDataServerEncoders(quic);
+}
 

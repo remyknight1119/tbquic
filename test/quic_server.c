@@ -16,7 +16,7 @@
 #include <tbquic/quic.h>
 
 #define TEST_EVENT_MAX_NUM   10
-#define QUIC_RECORD_MSS_LEN  1200
+#define QUIC_RECORD_MSS_LEN  1300
 
 static const char *program_version = "1.0.0";//PACKAGE_STRING;
 

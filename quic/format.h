@@ -88,8 +88,10 @@ int QuicOneRttParse(QUIC *, RPacket *);
 int QuicRetryPacketParse(QUIC *, RPacket *);
 size_t QuicInitialPacketGetTotalLen(QUIC *, size_t);
 size_t QuicHandshakePacketGetTotalLen(QUIC *, size_t);
+size_t QuicAppDataPacketGetTotalLen(QUIC *, size_t);
 int QuicInitialPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicHandshakePacketBuild(QUIC *, WPacket *, QBUFF *, bool);
+int QuicAppDataPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicTlsFrameBuild(QUIC *quic, uint32_t);
 
 #ifdef QUIC_TEST

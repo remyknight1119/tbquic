@@ -76,6 +76,7 @@ int QuicCreateHandshakeClientDecoders(QUIC *);
 int QuicCreateHandshakeServerEncoders(QUIC *);
 int QuicCreateHandshakeServerDecoders(QUIC *);
 int QuicCreateAppDataClientEncoders(QUIC *);
+int QuicCreateAppDataClientDecoders(QUIC *);
 int QuicCreateAppDataServerEncoders(QUIC *);
 int QuicCreateAppDataServerDecoders(QUIC *);
 void QuicCipherCtxFree(QUIC_CIPHERS *);

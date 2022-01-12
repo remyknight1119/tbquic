@@ -41,6 +41,8 @@ enum {
     QUIC_PKT_TYPE_MAX,
 };
 
+typedef int (*QuicPacketParse)(QUIC *quic, RPacket *pkt);
+
 typedef union {
     uint8_t value;
     struct {
@@ -81,6 +83,8 @@ uint32_t QuicPktNumberEncode(uint64_t, uint64_t, uint8_t);
 uint64_t QuicPktNumberDecode(uint64_t, uint32_t, uint8_t);
 int QuicLPacketHeaderParse(QUIC *, RPacket *);
 int QuicSPacketHeaderParse(QUIC *, RPacket *);
+int QuicPktHeaderParse(QUIC *, RPacket *, QuicPacketFlags, uint32_t *);
+int QuicHandshakeBodyParse(QUIC *, RPacket *, uint32_t);
 int QuicInitPacketParse(QUIC *, RPacket *);
 int Quic0RttPacketParse(QUIC *, RPacket *);
 int QuicHandshakePacketParse(QUIC *, RPacket *);

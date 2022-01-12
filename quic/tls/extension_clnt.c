@@ -133,8 +133,6 @@ static int TlsExtClntQtpCheckStatelessResetToken(TLS *,
                                 QuicTransParams *, size_t);
 static int TlsExtQtpConstructGrease(TLS *, QuicTransParams *,
                                             size_t, WPacket *);
-static int TlsExtQtpConstructSourceConnId(TLS *, QuicTransParams *,
-                                            size_t, WPacket *);
 static int TlsExtQtpCheckGoogleVersion(TLS *, QuicTransParams *,
                                             size_t);
 static int TlsExtQtpConstructGoogleVersion(TLS *, QuicTransParams *,
@@ -543,7 +541,6 @@ static int TlsExtClntParseAlpn(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
         return -1;
     }
 
-    QUIC_LOG("in\n");
     return 0;
 }
 
@@ -685,30 +682,6 @@ TlsExtQtpConstructGrease(TLS *tls, QuicTransParams *param,
     }
 
     return WPacketMemcpy(pkt, value, len);
-}
-
-int TlsExtQtpConstructCid(QUIC_DATA *cid, WPacket *pkt)
-{
-    if (QuicVariableLengthWrite(pkt, cid->len) < 0) {
-        return -1;
-    }
-
-    if (cid->len == 0) {
-        return 0;
-    }
-
-    return WPacketMemcpy(pkt, cid->data, cid->len);
-}
-
-static int
-TlsExtQtpConstructSourceConnId(TLS *tls, QuicTransParams *param,
-                                            size_t offset, WPacket *pkt)
-{
-    QUIC *quic = NULL;
-
-    quic = QuicTlsTrans(tls);
-
-    return TlsExtQtpConstructCid(&quic->scid, pkt);
 }
 
 static int

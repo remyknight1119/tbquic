@@ -5,6 +5,7 @@
 #include "extension.h"
 
 #include "format.h"
+#include "quic_local.h"
 #include "common.h"
 #include "log.h"
 
@@ -229,6 +230,30 @@ int TlsConstructQtpExtension(TLS *tls, WPacket *pkt,
     }
 
     return 0;
+}
+
+static int TlsExtQtpConstructCid(QUIC_DATA *cid, WPacket *pkt)
+{
+    if (QuicVariableLengthWrite(pkt, cid->len) < 0) {
+        return -1;
+    }
+
+    if (cid->len == 0) {
+        return 0;
+    }
+
+    return WPacketMemcpy(pkt, cid->data, cid->len);
+}
+
+int
+TlsExtQtpConstructSourceConnId(TLS *s, QuicTransParams *param, size_t offset,
+                                WPacket *pkt)
+{
+    QUIC *quic = NULL;
+
+    quic = QuicTlsTrans(s);
+
+    return TlsExtQtpConstructCid(&quic->scid, pkt);
 }
 
 int TlsParseQtpExtension(TLS *tls, QuicTransParams *param, RPacket *pkt,

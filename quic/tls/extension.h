@@ -104,6 +104,7 @@ int TlsParseQtpExtension(TLS *, QuicTransParams *, RPacket *,
                                 const TlsExtQtpDefinition *, size_t);
 int TlsClntConstructExtensions(TLS *, WPacket *, uint32_t, X509 *, size_t);
 int TlsSrvrConstructExtensions(TLS *, WPacket *, uint32_t, X509 *, size_t);
+int TlsExtQtpConstructSourceConnId(TLS *, QuicTransParams *, size_t, WPacket *);
 int TlsClntParseExtensions(TLS *, RPacket *, uint32_t, X509 *, size_t);
 int TlsSrvrParseExtensions(TLS *, RPacket *, uint32_t, X509 *, size_t);
 int TlsExtQtpCheckInteger(TLS *, QuicTransParams *, size_t);

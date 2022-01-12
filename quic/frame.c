@@ -44,6 +44,7 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
 {
     QuicFrameParser parser = NULL;
     uint64_t type = 0;
+    bool crypto_found = false;
 
     while (QuicVariableLengthDecode(pkt, &type) >= 0) {
         if (type >= QUIC_FRAME_TYPE_MAX) {
@@ -56,6 +57,17 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
         }
 
         if (parser(quic, pkt) < 0) {
+            return -1;
+        }
+
+        if (type == QUIC_FRAME_TYPE_CRYPTO) {
+            crypto_found = true;
+        }
+    }
+
+    if (crypto_found == true) {
+        if (TlsDoHandshake(&quic->tls) == QUIC_FLOW_RET_ERROR) {
+            QUIC_LOG("TLS Hadshake failed!\n");
             return -1;
         }
     }
@@ -93,9 +105,6 @@ static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt)
     if (data == NULL) {
         QUIC_LOG("Get buffer data failed!\n");
         return -1;
-    }
-
-    if (offset == 0) {
     }
 
     if (RPacketCopyBytes(pkt, &data[offset], length) < 0) {
@@ -157,6 +166,7 @@ static int QuicFrameAckParser(QUIC *quic, RPacket *pkt)
         }
     }
 
+    QUIC_LOG("in\n");
     return 0;
 }
 
@@ -327,7 +337,6 @@ QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
 
     if (quic->send_head != NULL) {
         total_len = QBuffQueueComputePktTotalLen(quic, quic->send_head);
-        QUIC_LOG("clen = %lu\n", total_len);
         if (QUIC_LT(mss, total_len)) {
             mss = total_len % mss;
         }

@@ -60,7 +60,8 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt)
     }
 
     if (type != p->msg_type) {
-        QUIC_LOG("type not match\n");
+        QUIC_LOG("type not match(%u : %u)\n", p->msg_type, type);
+        QuicPrint(RPacketData(pkt), RPacketRemaining(pkt));
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -310,7 +311,6 @@ static int TlsAddCertToWpacket(TLS *s, WPacket *pkt, X509 *x, int chain,
         return -1;
     }
 
-    QUIC_LOG("len = %d\n", len);
     return ext(s, pkt, TLSEXT_CERTIFICATE, x, chain);
 }
 
@@ -399,6 +399,22 @@ QuicFlowReturn TlsFinishedBuild(TLS *s, void *packet)
     }
 
     return QUIC_FLOW_RET_FINISH;
+}
+
+int TlsFinishedCheck(TLS *s, RPacket *pkt)
+{
+    size_t len = 0;
+
+    len = s->peer_finish_md_len;
+    if (RPacketRemaining(pkt) != len) {
+        return -1;
+    }
+
+    if (QuicMemCmp(RPacketData(pkt), s->peer_finish_md, len) != 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 int TlsInit(TLS *s, QUIC_CTX *ctx)

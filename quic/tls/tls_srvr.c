@@ -22,6 +22,7 @@ static QuicFlowReturn TlsServerHelloBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrServerCertBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *, void *);
+static QuicFlowReturn TlsSrvrFinishedBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrFinishedProc(TLS *, void *);
 static int TlsSrvrClientHelloPostWork(TLS *);
 static int TlsSrvrServerHelloPostWork(TLS *);
@@ -71,9 +72,9 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     },
     [TLS_ST_SW_FINISHED] = {
         .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_HANDSHAKE_DONE,
+        .next_state = TLS_ST_SR_FINISHED,
         .msg_type = TLS_MT_FINISHED,
-        .handler = TlsFinishedBuild,
+        .handler = TlsSrvrFinishedBuild,
         .post_work = TlsServerPostFinishedWork,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
@@ -168,6 +169,19 @@ static QuicFlowReturn TlsClientHelloProc(TLS *s, void *packet)
 
 static QuicFlowReturn TlsSrvrFinishedProc(TLS *s, void *packet)
 {
+    RPacket *pkt = packet;
+    QUIC *quic = QuicTlsTrans(s);
+
+    if (TlsFinishedCheck(s, pkt) < 0) {
+        QUIC_LOG("Finished check failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicCreateAppDataClientDecoders(quic) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    QUIC_LOG("Finished\n");
     return QUIC_FLOW_RET_FINISH;
 }
 
@@ -235,8 +249,16 @@ static QuicFlowReturn TlsSrvrServerCertBuild(TLS *s, void *packet)
 
 static QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *s, void *packet)
 {
-    QUIC_LOG("in\n");
     return TlsCertVerifyBuild(s, packet);
+}
+
+static QuicFlowReturn TlsSrvrFinishedBuild(TLS *s, void *packet)
+{
+    if (TlsFinishedBuild(s, packet) == QUIC_FLOW_RET_ERROR) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return QUIC_FLOW_RET_WANT_READ;
 }
 
 static int TlsSrvrServerHelloPostWork(TLS *s)

@@ -116,6 +116,10 @@ static int TlsExtQtpParseSourceConnId(TLS *tls, QuicTransParams *param, size_t o
 
 static TlsExtQtpDefinition server_transport_param[] = {
     {
+        .type = QUIC_TRANS_PARAM_ORIGINAL_DESTINATION_CONNECTION_ID,
+        .construct = TlsExtQtpConstructSourceConnId,
+    },
+    {
         .type = QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT,
         .parse = TlsExtQtpParseInteger,
         .check = TlsExtQtpCheckInteger,
@@ -166,7 +170,7 @@ static TlsExtQtpDefinition server_transport_param[] = {
     {
         .type = QUIC_TRANS_PARAM_INITIAL_SOURCE_CONNECTION_ID,
         .parse = TlsExtQtpParseSourceConnId,
-        //.construct = TlsExtQtpConstructSourceConnId,
+        .construct = TlsExtQtpConstructSourceConnId,
     },
     {
         .type = QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE,
@@ -271,9 +275,11 @@ static int TlsExtSrvrConstructAlpn(TLS *s, WPacket *pkt,
     return TlsExtConstructAlpn(alpn, pkt);
 }
 
-static int TlsExtSrvronstructQtp(TLS *, WPacket *, uint32_t, X509 *, size_t)
+static int TlsExtSrvronstructQtp(TLS *s, WPacket *pkt, uint32_t context,
+                                    X509 *x, size_t chainidx)
 {
-    return 0;
+    return TlsConstructQtpExtension(s, pkt, server_transport_param,
+                                    QUIC_SERVER_TRANS_PARAM_NUM);
 }
 
 static int TlsExtSrvrParseServerName(TLS *s, RPacket *pkt, uint32_t context,
@@ -492,6 +498,7 @@ static int TlsExtSrvrParseAlpn(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
     RPacket protocol_list = {};
     RPacket saved_protocol_list = {};
     RPacket protocol = {};
+    QUIC_DATA selected = {};
 
     if (RPacketGetLengthPrefixed2(pkt, &protocol_list) < 0) {
         return -1;
@@ -515,6 +522,19 @@ static int TlsExtSrvrParseAlpn(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
 
     if (PRacketMemDup(&saved_protocol_list, &s->alpn_proposed.ptr_u8,
                 &s->alpn_proposed.len) < 0) {
+        return -1;
+    }
+
+    /*
+     * if (s->ctx->ext.alpn_select_cb != NULL && s->s3->alpn_proposed != NULL) {
+     * int r = s->ctx->ext.alpn_select_cb(s, &selected, &selected_len,
+     *                      s->s3->alpn_proposed,
+     *                      (unsigned int)s->s3->alpn_proposed_len,
+     *                      s->ctx->ext.alpn_select_cb_arg);
+     */
+    selected.data = s->alpn_proposed.ptr_u8 + 1;
+    selected.len = s->alpn_proposed.len -1;
+    if (QuicDataDup(&s->alpn_selected, &selected) < 0) {
         return -1;
     }
 

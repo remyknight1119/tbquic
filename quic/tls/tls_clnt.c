@@ -362,15 +362,9 @@ static QuicFlowReturn TlsClientFinishedProc(TLS *s, void *packet)
 {
     RPacket *pkt = packet;
     QUIC *quic = QuicTlsTrans(s);
-    size_t len = 0;
     size_t secret_size = 0;
 
-    len = s->peer_finish_md_len;
-    if (RPacketRemaining(pkt) != len) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (QuicMemCmp(RPacketData(pkt), s->peer_finish_md, len) != 0) {
+    if (TlsFinishedCheck(s, pkt) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 

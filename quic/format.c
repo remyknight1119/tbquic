@@ -18,6 +18,41 @@
 #include "frame.h"
 #include "tls.h"
 
+static const uint32_t QuicPacketTypeMap[] = {
+    [QUIC_LPACKET_TYPE_INITIAL] = QUIC_PKT_TYPE_INITIAL,
+    [QUIC_LPACKET_TYPE_0RTT] = QUIC_PKT_TYPE_0RTT,
+    [QUIC_LPACKET_TYPE_HANDSHAKE] = QUIC_PKT_TYPE_HANDSHAKE,
+    [QUIC_LPACKET_TYPE_RETRY] = QUIC_PKT_TYPE_RETRY,
+};
+
+static QuicPacketParse QuicHandshakePktParser[QUIC_PKT_TYPE_MAX] = {
+    [QUIC_PKT_TYPE_INITIAL] = QuicInitPacketParse,
+    [QUIC_PKT_TYPE_HANDSHAKE] = QuicHandshakePacketParse,
+    [QUIC_PKT_TYPE_1RTT] = QuicOneRttParse,
+};
+
+static int QuicPktBodyParse(QUIC *quic, RPacket *pkt, uint32_t type,
+                            QuicPacketParse *p)
+{
+    QuicPacketParse parser = NULL;
+
+    if (QUIC_GE(type, QUIC_PKT_TYPE_MAX)) {
+        return -1;
+    }
+
+    parser = p[type];
+    if (parser == NULL) {
+        return -1;
+    }
+
+    return parser(quic, pkt);
+}
+
+int QuicHandshakeBodyParse(QUIC *quic, RPacket *pkt, uint32_t type)
+{
+    return QuicPktBodyParse(quic, pkt, type, QuicHandshakePktParser);
+}
+
 static int QuicVersionSelect(QUIC *quic, uint32_t version)
 {
     return -1;
@@ -114,6 +149,30 @@ int QuicSPacketHeaderParse(QUIC *quic, RPacket *pkt)
  
     RPacketForward(pkt, len);
 
+    return 0;
+}
+
+int QuicPktHeaderParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags,
+                        uint32_t *type)
+{
+    if (QUIC_PACKET_IS_LONG_PACKET(flags)) {
+        QUIC_LOG("Long pkt\n");
+        if (QuicLPacketHeaderParse(quic, pkt) < 0) {
+            QUIC_LOG("Long Header Parse failed\n");
+            return -1;
+        }
+
+        *type = QuicPacketTypeMap[flags.lh.lpacket_type];
+        return 0;
+    }
+
+        QUIC_LOG("Short pkt\n");
+    if (QuicSPacketHeaderParse(quic, pkt) < 0) {
+        QUIC_LOG("Short Header Parse failed\n");
+        return -1;
+    }
+
+    *type = QUIC_PKT_TYPE_1RTT;
     return 0;
 }
 
@@ -464,7 +523,6 @@ static int QuicDecryptMessage(QuicPPCipher *cipher, uint8_t *out, size_t *outl,
         }
     }
 
-    QUIC_LOG("hhhhh = %x, header_len = %d\n", *head, header_len);
     if (QuicEvpCipherUpdate(c->ctx, NULL, outl, head, header_len) < 0) {
         QUIC_LOG("Cipher Update failed\n");
         return -1;
@@ -611,17 +669,7 @@ static int QuicFrameParse(QUIC *quic, QuicStaticBuffer *buffer)
     RPacket frame = {};
 
     RPacketBufInit(&frame, buffer->data, buffer->len);
-    if (QuicFrameDoParser(quic, &frame) < 0) {
-        QUIC_LOG("Do parser failed!\n");
-        return -1;
-    }
-
-    if (TlsDoHandshake(&quic->tls) == QUIC_FLOW_RET_ERROR) {
-        QUIC_LOG("TLS Hadshake failed!\n");
-        return -1;
-    }
-
-    return 0;
+    return QuicFrameDoParser(quic, &frame);
 }
 
 int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
@@ -695,6 +743,7 @@ int QuicOneRttParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
+    RPacketForward(pkt, RPacketRemaining(pkt));
     return QuicFrameParse(quic, buffer);
 }
 
@@ -801,6 +850,7 @@ static int QuicLHeaderGen(QUIC *quic, uint8_t **first_byte, WPacket *pkt,
 static int QuicSHeaderGen(QUIC *quic, uint8_t **first_byte, WPacket *pkt,
                             uint8_t pkt_num_len)
 {
+    QUIC_DATA *dcid = NULL;
     QuicPacketFlags flags;
 
     flags.sh.fixed = 1;
@@ -817,7 +867,8 @@ static int QuicSHeaderGen(QUIC *quic, uint8_t **first_byte, WPacket *pkt,
         return -1;
     }
 
-    if (quic->dcid.len != 0 && QuicCidPut(&quic->dcid, pkt) < 0) {
+    dcid = &quic->dcid;
+    if (dcid->len != 0 && WPacketMemcpy(pkt, dcid->data, dcid->len) < 0) {
         return -1;
     }
 

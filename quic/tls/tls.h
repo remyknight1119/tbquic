@@ -170,6 +170,7 @@ int TlsExtLenParse(RPacket *);
 int TlsPutCipherList(TLS *, WPacket *);
 int TlsPutCompressionMethod(WPacket *);
 int TlsConstructCertVerify(TLS *, WPacket *);
+int TlsFinishedCheck(TLS *, RPacket *);
 QuicFlowReturn TlsCertChainBuild(TLS *s, WPacket *, QuicCertPkey *,
                                 TlsExtConstructor);
 QuicFlowReturn TlsCertVerifyBuild(TLS *s, WPacket *pkt);

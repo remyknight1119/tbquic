@@ -570,6 +570,11 @@ int QuicCreateAppDataClientEncoders(QUIC *quic)
     return QuicCreateAppDataClientEncryptorDecryptor(quic, QUIC_EVP_ENCRYPT);
 }
 
+int QuicCreateAppDataClientDecoders(QUIC *quic)
+{
+    return QuicCreateAppDataClientEncryptorDecryptor(quic, QUIC_EVP_DECRYPT);
+}
+
 int QuicCreateAppDataServerEncoders(QUIC *quic)
 {
     return QuicCreateAppDataServerEncryptorDecryptor(quic, QUIC_EVP_ENCRYPT);

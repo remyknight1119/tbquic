@@ -16,7 +16,7 @@
 #include <tbquic/quic.h>
 
 #define TEST_EVENT_MAX_NUM   10
-#define QUIC_RECORD_MSS_LEN  1300
+#define QUIC_RECORD_MSS_LEN  1250
 
 static const char *program_version = "1.0.0";//PACKAGE_STRING;
 
@@ -35,6 +35,48 @@ static const char *options[] = {
     "--certificate  		-c	certificate file\n",	
     "--key      		    -k	key file\n",	
     "--help         		-H	Print help information\n",	
+};
+
+static TlsTestParam test_param[] = {
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_UNI,
+        .value = 0x600000,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE,
+        .value = 0x600000,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_UNI,
+        .value = 103,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_DATA,
+        .value = 15728640,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT,
+        .value = 600000,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_MAX_UDP_PAYLOAD_SIZE,
+        .value = 1472,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE,
+        .value = 65536,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_BIDI,
+        .value = 100,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL,
+        .value = 6291456,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_SOURCE_CONNECTION_ID,
+    },
 };
 
 static void help(void)
@@ -80,6 +122,30 @@ static int QuicDataSend(int fd, BIO *wbio, char *data, size_t size,
     return 0;
 }
 
+static int QuicCtxServerExtensionSet(QUIC_CTX *ctx)
+{
+    TlsTestParam *p = NULL;
+    const uint8_t alpn[] = "h3";
+    size_t i = 0;
+    int ret = -1;
+
+    for (i = 0; i < ARRAY_SIZE(test_param); i++) {
+        p = &test_param[i];
+        if (p->value == 0) {
+            continue;
+        }
+        QUIC_CTX_set_transport_parameter(ctx, p->type, &p->value, 0);
+    }
+
+    if (QUIC_CTX_set_alpn_protos(ctx, alpn, sizeof(alpn) - 1) < 0) {
+        goto out;
+    }
+
+    ret = 0;
+out:
+    return ret;
+}
+ 
 static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
 {
     QUIC_CTX *ctx = NULL;
@@ -141,6 +207,11 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    if (QuicCtxServerExtensionSet(ctx) < 0) {
+        printf("Set Extension failed\n");
+        goto out;
+    }
+
     while (1) {
         nfds = epoll_wait(epfd, events, TEST_EVENT_MAX_NUM, -1);
         for (i = 0; i < nfds; i++) {
@@ -196,11 +267,9 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                                 if (err == QUIC_ERROR_WANT_WRITE) {
                                     continue;
                                 }
-                            }
-
-                            if (err != QUIC_ERROR_WANT_READ) {
+                            } else if (err != QUIC_ERROR_WANT_READ) {
                                 wbio = NULL;
-                                goto next;
+                                goto out;
                             }
 
                             break;
@@ -210,10 +279,10 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                     }
 
                     printf("conn found, sport = %d\n", ntohs(udp_key.addr4.sin_port));
+
                     if (QuicDataSend(efd, wbio, quic_data, sizeof(quic_data),
                                 (void *)&udp_key, addrlen) < 0) {
-                        wbio = NULL;
-                        goto out;
+                        continue;
                     }
                     //bzero(buf, sizeof(buf));
                     /* 接收客户端的消息 */

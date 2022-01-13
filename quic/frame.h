@@ -6,6 +6,10 @@
 #include "base.h"
 #include "packet_local.h"
     
+#define QUIC_FRAME_STREAM_BIT_FIN       0x01
+#define QUIC_FRAME_STREAM_BIT_LEN       0x02
+#define QUIC_FRAME_STREAM_BIT_OFF       0x04
+
 typedef int (*QuicFrameParser)(QUIC *, RPacket *);
 typedef int (*QuicFrameBuilder)(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 

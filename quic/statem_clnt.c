@@ -29,6 +29,10 @@ static QuicStatemFlow client_statem[QUIC_STATEM_MAX] = {
         .recv = QuicHandshakeRecv,
         .send = QuicClientHandshakeSend,
     },
+    [QUIC_STATEM_HANDSHAKE_DONE] = {
+        .recv = QuicHandshakeRecv,
+        .send = QuicClientHandshakeSend,
+    },
 };
 
 static QuicFlowReturn QuicClientInitialSend(QUIC *quic)

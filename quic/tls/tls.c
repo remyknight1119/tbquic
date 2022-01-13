@@ -194,6 +194,10 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
         p = &proc[state];
     }
 
+    if (QUIC_FLOW_STATEM_FINISHED(p->flow_state)) {
+        return QUIC_FLOW_RET_END;
+    }
+
     return QUIC_FLOW_RET_FINISH;
 }
 

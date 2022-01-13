@@ -275,6 +275,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                             break;
                         } else {
                             handshake_done = 1;
+                            printf("handshake done!\n");
                         }
                     }
 

@@ -15,14 +15,18 @@
 #include "buffer.h"
 
 
-static int QuicFrameCryptoParser(QUIC *, RPacket *);
+static int QuicFramePaddingParser(QUIC *, RPacket *);
 static int QuicFramePingParser(QUIC *, RPacket *);
+static int QuicFrameCryptoParser(QUIC *, RPacket *);
 static int QuicFrameAckParser(QUIC *, RPacket *);
 static int QuicFrameStreamParser(QUIC *, RPacket *);
 static int QuicFrameCryptoBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 static int QuicFrameStreamBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 
 static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
+    [QUIC_FRAME_TYPE_PADDING] = {
+        .parser = QuicFramePaddingParser,
+    },
     [QUIC_FRAME_TYPE_PING] = {
         .parser = QuicFramePingParser,
         .builder = QuicFramePingBuild,
@@ -43,6 +47,7 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
 int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
 {
     QuicFrameParser parser = NULL;
+    QuicFlowReturn ret;
     uint64_t type = 0;
     bool crypto_found = false;
 
@@ -53,7 +58,8 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
         }
         parser = frame_handler[type].parser;
         if (parser == NULL) {
-            continue;
+            QUIC_LOG("No parser for type(%lx)", type);
+            return -1;
         }
 
         if (parser(quic, pkt) < 0) {
@@ -66,9 +72,14 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt)
     }
 
     if (crypto_found == true) {
-        if (TlsDoHandshake(&quic->tls) == QUIC_FLOW_RET_ERROR) {
+        ret = TlsDoHandshake(&quic->tls);
+        if (ret == QUIC_FLOW_RET_ERROR) {
             QUIC_LOG("TLS Hadshake failed!\n");
             return -1;
+        }
+
+        if (ret == QUIC_FLOW_RET_END) {
+            quic->statem.state = QUIC_STATEM_HANDSHAKE_DONE;
         }
     }
 
@@ -119,6 +130,11 @@ static int QuicFrameCryptoParser(QUIC *quic, RPacket *pkt)
     return 0;
 }
 
+static int QuicFramePaddingParser(QUIC *quic, RPacket *pkt)
+{
+    return 0;
+}
+
 static int QuicFramePingParser(QUIC *quic, RPacket *pkt)
 {
     return 0;
@@ -134,34 +150,35 @@ static int QuicFrameAckParser(QUIC *quic, RPacket *pkt)
     uint64_t ack_range_len = 0;
     uint64_t i = 0;
 
+    QuicPrint(RPacketData(pkt), RPacketRemaining(pkt));
     if (QuicVariableLengthDecode(pkt, &largest_acked) < 0) {
-        QUIC_LOG("Offset decode failed!\n");
+        QUIC_LOG("Largest acked decode failed!\n");
         return -1;
     }
 
     if (QuicVariableLengthDecode(pkt, &ack_delay) < 0) {
-        QUIC_LOG("Offset decode failed!\n");
+        QUIC_LOG("Ack delay decode failed!\n");
         return -1;
     }
 
     if (QuicVariableLengthDecode(pkt, &range_count) < 0) {
-        QUIC_LOG("Offset decode failed!\n");
+        QUIC_LOG("Range count decode failed!\n");
         return -1;
     }
 
     if (QuicVariableLengthDecode(pkt, &first_ack_range) < 0) {
-        QUIC_LOG("Offset decode failed!\n");
+        QUIC_LOG("First ack range decode failed!\n");
         return -1;
     }
 
     for (i = 0; i < range_count; i++) {
         if (QuicVariableLengthDecode(pkt, &gap) < 0) {
-            QUIC_LOG("Offset decode failed!\n");
+            QUIC_LOG("Gap decode failed!\n");
             return -1;
         }
 
         if (QuicVariableLengthDecode(pkt, &ack_range_len) < 0) {
-            QUIC_LOG("Offset decode failed!\n");
+            QUIC_LOG("ACK range len decode failed!\n");
             return -1;
         }
     }

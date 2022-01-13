@@ -26,7 +26,8 @@ static QuicFlowReturn TlsSrvrFinishedBuild(TLS *, void *);
 static QuicFlowReturn TlsSrvrFinishedProc(TLS *, void *);
 static int TlsSrvrClientHelloPostWork(TLS *);
 static int TlsSrvrServerHelloPostWork(TLS *);
-static int TlsServerPostFinishedWork(TLS *);
+static int TlsServerPostWriteFinishedWork(TLS *);
+static int TlsServerPostReadFinishedWork(TLS *);
 
 static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
@@ -75,7 +76,7 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .next_state = TLS_ST_SR_FINISHED,
         .msg_type = TLS_MT_FINISHED,
         .handler = TlsSrvrFinishedBuild,
-        .post_work = TlsServerPostFinishedWork,
+        .post_work = TlsServerPostWriteFinishedWork,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_SR_FINISHED] = {
@@ -83,6 +84,7 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .next_state = TLS_ST_HANDSHAKE_DONE,
         .msg_type = TLS_MT_FINISHED,
         .handler = TlsSrvrFinishedProc,
+        .post_work = TlsServerPostReadFinishedWork,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
 
@@ -295,7 +297,7 @@ static int TlsSrvrClientHelloPostWork(TLS *s)
     return 0;
 }
 
-static int TlsServerPostFinishedWork(TLS *s)
+static int TlsServerPostWriteFinishedWork(TLS *s)
 {
     QUIC *quic = QuicTlsTrans(s);
     size_t secret_size = 0;
@@ -310,5 +312,10 @@ static int TlsServerPostFinishedWork(TLS *s)
     }
 
     return QuicCreateAppDataServerEncoders(quic);
+}
+
+static int TlsServerPostReadFinishedWork(TLS *s)
+{
+    return 0;
 }
 

@@ -25,6 +25,7 @@ static QuicFlowReturn TlsEncExtProc(TLS *, void *);
 static QuicFlowReturn TlsServerCertProc(TLS *, void *);
 static QuicFlowReturn TlsCertVerifyProc(TLS *, void *);
 static QuicFlowReturn TlsClientFinishedProc(TLS *, void *);
+static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *, void *);
 static int TlsClientPostFinishedWork(TLS *);
 
 static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
@@ -83,7 +84,11 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_HANDSHAKE_DONE] = {
-        .flow_state = QUIC_FLOW_FINISHED,
+        .flow_state = QUIC_FLOW_READING,
+        .next_state = TLS_ST_HANDSHAKE_DONE,
+        .msg_type = TLS_MT_NEW_SESSION_TICKET,
+        .handler = TlsClntNewSessionTicketProc,
+        .pkt_type = QUIC_PKT_TYPE_1RTT,
     },
 };
 
@@ -381,6 +386,11 @@ static QuicFlowReturn TlsClientFinishedProc(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    return QUIC_FLOW_RET_FINISH;
+}
+
+static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *s, void *packet)
+{
     return QUIC_FLOW_RET_FINISH;
 }
 

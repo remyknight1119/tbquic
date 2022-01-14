@@ -10,6 +10,9 @@
 #define QUIC_FRAME_STREAM_BIT_LEN       0x02
 #define QUIC_FRAME_STREAM_BIT_OFF       0x04
 
+/* type + offset + length */
+#define QUIC_FRAME_HEADER_MAX_LEN   (3*sizeof(uint32_t))
+
 typedef int (*QuicFrameParser)(QUIC *, RPacket *);
 typedef int (*QuicFrameBuilder)(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 
@@ -46,12 +49,16 @@ typedef enum {
 } QuicFrameType;
 
 typedef struct {
+#define QUIC_FRAME_FLAGS_NO_BODY        0x0001
+#define QUIC_FRAME_FLAGS_SPLIT_ENABLE   0x0002
+#define QUIC_FRAME_FLAGS_SKIP           0x0004
+    uint64_t flags;
     QuicFrameParser parser;
     QuicFrameBuilder builder;
 } QuicFrameProcess;
 
 typedef struct {
-    QuicFrameType type;
+    uint64_t type;
     QUIC_DATA data;
 } QuicFrameNode;
 

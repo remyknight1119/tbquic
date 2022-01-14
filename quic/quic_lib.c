@@ -427,20 +427,33 @@ static int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
 {
     QBuffQueueHead *send_queue = &quic->tx_queue;
     QBUFF *head = NULL;
+    QBUFF *next = NULL;
     QBUFF *tail = NULL;
     WPacket pkt = {};
+    size_t total_len = 0;
+    bool end = false;
     int ret = 0;
 
     WPacketStaticBufInit(&pkt, buffer->data, quic->mss);
     tail = QBUF_LAST_NODE(send_queue);
-    QBUF_LIST_FOR_EACH(quic->send_head, send_queue) {
+    QBUF_LIST_FOR_EACH(quic->send_head, next, send_queue) {
         head = quic->send_head;
-        QUIC_LOG("last = %d, data len = %lu\n", head == tail, QBuffGetDataLen(head));
-        ret = QBuffBuildPkt(quic, &pkt, head, head == tail);
-        if (ret == 1) {
+        if (end) {
             break;
         }
+        end = head == tail;
+        if (!end) {
+            total_len = QBufPktComputeTotalLen(quic, head) + 
+                            QBufPktComputeTotalLen(quic, next);
+            if (QUIC_GT(total_len, WPacket_get_space(&pkt))) {
+                end = true;
+            }
+        }
+
+        QUIC_LOG("last = %d, data len = %lu\n", end, QBuffGetDataLen(head));
+        ret = QBuffBuildPkt(quic, &pkt, head, end);
         if (ret < 0) {
+            QUIC_LOG("Build pkt failed\n");
             return -1;
         }
 

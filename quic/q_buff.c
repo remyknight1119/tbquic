@@ -31,7 +31,7 @@ void QBuffQueueHeadInit(QBuffQueueHead *h)
     INIT_LIST_HEAD(&h->queue);
 }
 
-QBUFF *QBuffNew(size_t len, uint32_t pkt_type)
+QBUFF *QBuffNew(uint32_t pkt_type, size_t len)
 {
     QBUFF *qb = NULL;
 
@@ -132,22 +132,6 @@ size_t QBufPktComputeTotalLen(QUIC *quic, QBUFF *qb)
 void QBuffQueueAdd(QBuffQueueHead *h, QBUFF *qb)
 {
     list_add_tail(&qb->node, &h->queue);
-}
-
-size_t QBuffQueueComputePktTotalLen(QUIC *quic, QBUFF *first)
-{
-    QBUFF *qb = first;
-    size_t total_len = 0;
-
-    if (first == NULL) {
-        return 0;
-    }
-
-    QBUF_LIST_FOR_EACH(qb, &quic->tx_queue) {
-        total_len += QBufPktComputeTotalLen(quic, qb);
-    }
-
-    return total_len;
 }
 
 void QBuffQueueDestroy(QBuffQueueHead *h)

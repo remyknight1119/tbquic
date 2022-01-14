@@ -767,6 +767,63 @@ int QuicVariableLengthWrite(WPacket *pkt, uint64_t len)
     return WPacketMemcpy(pkt, &var_len, wlen);
 }
 
+static int QuicVariableLenWPacketClose(WPacket *pkt, uint64_t v)
+{
+    WPACKET_SUB *sub = NULL;
+
+    sub = pkt->subs;
+    if (sub == NULL) {
+        return -1;
+    }
+
+    QuicMemcpy(sub->value, &v, sub->val_len);
+    
+    pkt->subs = sub->parent;
+    QuicMemFree(sub);
+
+    return 0;
+}
+
+int QuicWPacketSubMemcpyVar(WPacket *pkt, const void *src, size_t len)
+{
+    size_t space = WPacket_get_space(pkt);
+    size_t data_len = 0;
+    uint64_t v = 0;
+    int wlen = 0;
+
+    data_len = len;
+    wlen = QuicVariableLengthEncode((uint8_t *)&v, sizeof(v), data_len);
+    if (wlen <= 0) {
+        return -1;
+    }
+
+    if (QUIC_LT(space, data_len + wlen)) {
+        if (QUIC_LE(space, wlen)) {
+            return -1;
+        }
+
+        data_len = space - wlen;
+        wlen = QuicVariableLengthEncode((uint8_t *)&v, sizeof(v), data_len);
+        if (wlen <= 0) {
+            return -1;
+        }
+    }
+
+    if (WPacketStartSubBytes(pkt, wlen) < 0) {
+        return -1;
+    }
+    
+    if (WPacketMemcpy(pkt, src, data_len) < 0) {
+        return -1;
+    }
+
+    if (QuicVariableLenWPacketClose(pkt, v) < 0) {
+        return -1;
+    }
+
+    return data_len;
+}
+
 int QuicVariableLengthValueWrite(WPacket *pkt, uint64_t value)
 {
     uint64_t var = 0;
@@ -785,7 +842,6 @@ int QuicVariableLengthValueWrite(WPacket *pkt, uint64_t value)
 
     return WPacketMemcpy(pkt, &var, wlen);
 }
-
 
 static int QuicCidPut(QUIC_DATA *cid, WPacket *pkt)
 {
@@ -1009,23 +1065,26 @@ int QuicPacketBuild(QUIC *quic, QuicCipherSpace *cs, uint8_t *first_byte,
     pp_cipher = &cs->ciphers.pp_cipher;
     cipher_len = QuicGetEncryptedPayloadLen(pp_cipher, QBuffGetDataLen(qb));
     if (cipher_len == 0) {
+        QUIC_LOG("Get cipher len failed\n");
         return -1;
     }
 
     if (mask == QUIC_LPACKET_TYPE_RESV_MASK) {
         len = cipher_len + pkt_num_len;
-
         if (QuicVariableLengthWrite(pkt, len) < 0) {
+            QUIC_LOG("Write variable length failed\n");
             return -1;
         }
     }
 
     pkt_num_start = WPacket_get_curr(pkt);
     if (WPacketPutBytes(pkt, pkt_num, pkt_num_len) < 0) {
+        QUIC_LOG("Put bytes failed\n");
         return -1;
     }
 
     if (WPacketAllocateBytes(pkt, cipher_len, &dest) < 0) {
+        QUIC_LOG("Alloc bytes failed\n");
         return -1;
     }
 
@@ -1034,6 +1093,7 @@ int QuicPacketBuild(QUIC *quic, QuicCipherSpace *cs, uint8_t *first_byte,
 
     if (QuicEncryptPayload(quic, pp_cipher, first_byte, offset, dest, cipher_len,
                             pkt_num, pkt_num_len, qb) < 0) {
+        QUIC_LOG("Encrypt Payload failed\n");
         return -1;
     }
 
@@ -1057,10 +1117,6 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
 #endif
     total_len = QuicLPacketGetTotalLen(quic, c, type, QBuffGetDataLen(qb));
     total_len += WPacket_get_written(pkt);
-    if (QUIC_GT(total_len, WPacket_get_maxsize(pkt))) {
-        return 1;
-    }
-
     if (QuicLHeaderGen(quic, &first_byte, pkt, type, pkt_num_len) < 0) {
         QUIC_LOG("Long header generate failed\n");
         return -1;
@@ -1076,6 +1132,7 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
             QUIC_LT(total_len, QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN)) {
         padding_len = QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN - total_len;
         if (QuicFrameBufferAddPadding(quic, padding_len, qb) < 0) {
+            QUIC_LOG("Add padding failed\n");
             return -1;
         }
     }
@@ -1088,14 +1145,7 @@ static int
 QuicSPacketBuild(QUIC *quic, QuicCrypto *c, WPacket *pkt, QBUFF *qb, bool end)
 {
     uint8_t *first_byte = NULL;
-    size_t total_len = 0;
     uint8_t pkt_num_len = quic->pkt_num_len + 1;
-
-    total_len = QuicSPacketGetTotalLen(quic, c, QBuffGetDataLen(qb));
-    total_len += WPacket_get_written(pkt);
-    if (QUIC_GT(total_len, WPacket_get_maxsize(pkt))) {
-        return 1;
-    }
 
     if (QuicSHeaderGen(quic, &first_byte, pkt, pkt_num_len) < 0) {
         QUIC_LOG("Long header generate failed\n");

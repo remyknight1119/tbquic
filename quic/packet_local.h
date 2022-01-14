@@ -76,6 +76,7 @@ int WPacketBufPull(WPacket *, size_t);
 int WPacketMemcpy(WPacket *, const void *, size_t);
 int WPacketMemmove(WPacket *, const void *, size_t);
 int WPacketMemset(WPacket *, int, size_t);
+int WPacketStartSubBytes(WPacket *, size_t);
 int WPacketStartSubU8(WPacket *);
 int WPacketStartSubU16(WPacket *);
 int WPacketStartSubU24(WPacket *);

@@ -25,7 +25,6 @@ int QuicDatagramRecvBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
         return -1;
     }
 
-            QUIC_LOG("rlen = %d\n", read_bytes);
     QuicBufSetDataLength(qbuf, read_bytes);
     quic->statem.rwstate = QUIC_FINISHED;
 

@@ -7,10 +7,12 @@
 #include <tbquic/quic.h>
 
 #include <stdio.h>
+#include <string.h>
 #include <arpa/inet.h>
 
 #include "format.h"
 #include "packet_local.h"
+#include "common.h"
 
 int QuicVariableLengthDecodeTest(void)
 {
@@ -85,3 +87,52 @@ int QuicPktNumberDecodeTest(void)
 
     return 1;
 }
+
+static int QuicVerifyVarData(uint8_t *data, size_t total_len, int wlen)
+{
+    RPacket pkt = {};
+    uint64_t len = 0;
+
+    RPacketBufInit(&pkt, data, total_len);
+    if (QuicVariableLengthDecode(&pkt, &len) < 0) {
+        return -1;
+    }
+
+    if (len != RPacketRemaining(&pkt)) {
+        printf("len not match(%lu, %lu)\n", len, RPacketRemaining(&pkt));
+        return -1;
+    }
+
+    if (len != wlen) {
+        printf("wlen not match(%lu, %d)\n", len, wlen);
+        return -1;
+    }
+
+    return 0;
+}
+
+#define SUB_MEMCPY_VAR_BUF_LEN  65535
+int QuicWPacketSubMemcpyVarTest(void)
+{
+    WPacket pkt = {};
+    size_t size = 0;
+    static uint8_t buf[SUB_MEMCPY_VAR_BUF_LEN] = {};
+    static uint8_t data[SUB_MEMCPY_VAR_BUF_LEN + 5] = {};
+    int wlen = 0;
+
+    memset(data, 0x1, sizeof(data));
+
+    size = sizeof(buf);
+    WPacketStaticBufInit(&pkt, buf, size);
+    wlen = QuicWPacketSubMemcpyVar(&pkt, data, sizeof(data));
+    if (wlen < 0) {
+        return -1;
+    }
+
+    if (QuicVerifyVarData(buf, WPacket_get_written(&pkt), wlen) < 0) {
+        return -1;
+    }
+
+    return 1;
+}
+

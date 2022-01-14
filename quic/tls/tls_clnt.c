@@ -84,7 +84,8 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_HANDSHAKE_DONE] = {
-        .flow_state = QUIC_FLOW_READING,
+        //.flow_state = QUIC_FLOW_READING,
+        .flow_state = QUIC_FLOW_FINISHED,
         .next_state = TLS_ST_HANDSHAKE_DONE,
         .msg_type = TLS_MT_NEW_SESSION_TICKET,
         .handler = TlsClntNewSessionTicketProc,

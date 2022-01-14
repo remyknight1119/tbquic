@@ -561,7 +561,7 @@ int WPacketPut4(WPacket *pkt, uint32_t val)
     return WPacketPutBytes(pkt, val, 4);
 }
 
-static int WPacketStartSubBytes(WPacket *pkt, size_t len)
+int WPacketStartSubBytes(WPacket *pkt, size_t len)
 {
     WPACKET_SUB *sub = NULL;
 

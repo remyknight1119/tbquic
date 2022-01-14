@@ -22,6 +22,9 @@
 #define QUIC_LE(a, b) ((int)((a) - (b)) <= 0)
 #define QUIC_GE(a, b) ((int)((a) - (b)) >= 0)
 
+#define QUIC_MIN(a, b) (QUIC_GT(a, b) ? b : a)
+#define QUIC_MAX(a, b) (QUIC_GT(a, b) ? a : b)
+
 #define QuicPrint(data, len) \
     do { \
         QuicPrintData(data, len, __FILE__, __LINE__, __FUNCTION__); \

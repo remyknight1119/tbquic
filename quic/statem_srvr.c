@@ -41,6 +41,7 @@ QuicServerInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
     QuicFlowReturn ret;
     ret = QuicInitialRecv(quic, pkt, flags); 
 
+
     if (quic->tls.handshake_state == TLS_ST_SR_FINISHED ||
             quic->tls.handshake_state == TLS_ST_HANDSHAKE_DONE) {
             QUIC_LOG("Build Stream frame\n");

@@ -53,6 +53,10 @@ static QuicFuncTest test_funcs[] = {
         .err_msg = "PKT Number Encode",
     },
     {
+        .test = QuicWPacketSubMemcpyVarTest,
+        .err_msg = "WPacket Sub Memcopy Vaar",
+    },
+    {
         .test = TlsCipherListTest,
         .err_msg = "TLS Cipher List",
     },

@@ -7,8 +7,8 @@
 #include "list.h"
 #include "packet_local.h"
 
-#define QBUF_LIST_FOR_EACH(qb, head) \
-    list_for_each_entry_start(qb, &(head)->queue, node)
+#define QBUF_LIST_FOR_EACH(qb, next, head) \
+    list_for_each_entry_send(qb, next, &(head)->queue, node)
 
 #define QBUF_LAST_NODE(head) \
     ({ \
@@ -40,7 +40,7 @@ struct QBuff {
 };
 
 void QBuffQueueHeadInit(QBuffQueueHead *);
-QBUFF *QBuffNew(size_t, uint32_t);
+QBUFF *QBuffNew(uint32_t, size_t);
 void QBuffFree(QBUFF *);
 void *QBuffHead(QBUFF *);
 void *QBuffTail(QBUFF *);
@@ -52,7 +52,6 @@ int QBuffAddDataLen(QBUFF *, size_t);
 int QBuffBuildPkt(QUIC *, WPacket *, QBUFF *, bool);
 size_t QBufPktComputeTotalLenByType(QUIC *, uint32_t, size_t);
 size_t QBufPktComputeTotalLen(QUIC *, QBUFF *);
-size_t QBuffQueueComputePktTotalLen(QUIC *, QBUFF *);
 void QBuffQueueAdd(QBuffQueueHead *, QBUFF *);
 void QBuffQueueDestroy(QBuffQueueHead *);
 

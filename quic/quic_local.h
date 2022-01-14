@@ -61,10 +61,10 @@ typedef struct {
     bool cipher_inited;
 } QuicCipherSpace;
 
-typedef struct {
+struct QuicCrypto {
     QuicCipherSpace decrypt;
     QuicCipherSpace encrypt;
-} QuicCrypto;
+};
 
 typedef struct {
     QuicStatem state;
@@ -95,10 +95,10 @@ struct Quic {
     QUIC_DATA dcid;
     QUIC_DATA scid;
     QUIC_DATA token;
-    QuicCrypto initial;
-    QuicCrypto handshake;
-    QuicCrypto zero_rtt;
-    QuicCrypto one_rtt;
+    QUIC_CRYPTO initial;
+    QUIC_CRYPTO handshake;
+    QUIC_CRYPTO zero_rtt;
+    QUIC_CRYPTO one_rtt;
     QBUFF *send_head;
     QBuffQueueHead tx_queue;
 };
@@ -110,7 +110,11 @@ static inline QUIC *QuicTlsTrans(TLS *s)
 
 int QUIC_set_handshake_hp_cipher(QUIC *, uint32_t);
 int QUIC_set_pp_cipher_space_alg(QuicCipherSpace *, uint32_t);
-int QUIC_set_hp_cipher(QuicCrypto *, uint32_t);
+int QUIC_set_hp_cipher(QUIC_CRYPTO *, uint32_t);
 int QUIC_set_hp_cipher_space_alg(QuicCipherSpace *, uint32_t);
+QUIC_CRYPTO *QuicGetInitialCrypto(QUIC *);
+QUIC_CRYPTO *QuicGetHandshakeCrypto(QUIC *);
+QUIC_CRYPTO *QuicGetOneRttCrypto(QUIC *);
+
 
 #endif

@@ -314,7 +314,7 @@ int QuicCiphersPrepare(QUIC_CIPHERS *ciphers, const EVP_MD *md,
     return QuicPPCipherPrepare(&ciphers->pp_cipher, md, secret, enc);
 }
 
-static int QuicPrepareEncoderDecoders(QuicCrypto *c, const EVP_MD *md,
+static int QuicPrepareEncoderDecoders(QUIC_CRYPTO *c, const EVP_MD *md,
                                 uint8_t *dec_secret, 
                                 uint8_t *enc_secret)
 {
@@ -336,7 +336,7 @@ static int QuicPrepareEncoderDecoders(QuicCrypto *c, const EVP_MD *md,
 
 int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
 {
-    QuicCrypto *init = NULL;
+    QUIC_CRYPTO *init = NULL;
     QUIC_DATA *cid = NULL;
     uint8_t *decrypt_secret = NULL;
     uint8_t *encrypt_secret = NULL;
@@ -425,7 +425,7 @@ static int QuicInstallEncryptorDecryptor(TLS *s, const EVP_MD *md,
 }
 
 static int
-QuicCreateEncryptorDecryptor(TLS *s, QuicCrypto *c, uint8_t *in_secret,
+QuicCreateEncryptorDecryptor(TLS *s, QUIC_CRYPTO *c, uint8_t *in_secret,
                             uint8_t *out_secret, uint8_t *hash, size_t hsize,
                             const uint8_t *label, size_t label_len,
                             uint8_t *finsecret, const char *log_label,

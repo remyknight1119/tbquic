@@ -24,6 +24,7 @@ typedef size_t (*QBuffPktGetTotalLen)(QUIC *, size_t);
 typedef struct {
     QBuffPktBuilder build_pkt;
     QBuffPktGetTotalLen compute_totallen;
+    QUIC_CRYPTO *(*get_crypto)(QUIC *);
 } QBuffPktMethod;
 
 typedef struct {
@@ -47,6 +48,7 @@ void *QBuffTail(QBUFF *);
 size_t QBuffLen(QBUFF *);
 size_t QBuffSpace(QBUFF *);
 size_t QBuffGetDataLen(QBUFF *);
+QUIC_CRYPTO *QBuffCrypto(QUIC *, QBUFF *);
 int QBuffSetDataLen(QBUFF *, size_t);
 int QBuffAddDataLen(QBUFF *, size_t);
 int QBuffBuildPkt(QUIC *, WPacket *, QBUFF *, bool);

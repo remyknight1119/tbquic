@@ -7,6 +7,7 @@ typedef struct Quic QUIC;
 typedef struct QuicBuffer QUIC_BUFFER;
 typedef struct QuicCipher QUIC_CIPHER;
 typedef struct QuicCiphers QUIC_CIPHERS;
+typedef struct QuicCrypto  QUIC_CRYPTO;
 typedef enum QuicAlgId QUIC_ALG_ID;
 
 #endif

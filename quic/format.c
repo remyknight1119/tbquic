@@ -664,12 +664,12 @@ QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QuicStaticBuffer *buffer,
                 h_pkt_num, pkt_num_len, pkt);
 }
 
-static int QuicFrameParse(QUIC *quic, QuicStaticBuffer *buffer)
+static int QuicFrameParse(QUIC *quic, QuicStaticBuffer *buffer, QUIC_CRYPTO *c)
 {
     RPacket frame = {};
 
     RPacketBufInit(&frame, buffer->data, buffer->len);
-    return QuicFrameDoParser(quic, &frame);
+    return QuicFrameDoParser(quic, &frame, c);
 }
 
 int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
@@ -679,7 +679,7 @@ int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
 
 int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 {
-    QuicCipherSpace *initial = NULL;
+    QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
     RPacket message = {};
     uint64_t token_len = 0;
@@ -705,18 +705,19 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    initial = &quic->initial.decrypt;
-    if (QuicDecryptPacket(initial, &message, buffer,
+    c = &quic->initial;
+    if (QuicDecryptPacket(&c->decrypt, &message, buffer,
                 QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
 
-    return QuicFrameParse(quic, buffer);
+    return QuicFrameParse(quic, buffer, c);
 }
 
 int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
 {
+    QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
     RPacket message = {};
 
@@ -724,27 +725,30 @@ int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    if (QuicDecryptPacket(&quic->handshake.decrypt, &message, buffer,
+    c = &quic->handshake;
+    if (QuicDecryptPacket(&c->decrypt, &message, buffer,
                 QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
 
-    return QuicFrameParse(quic, buffer);
+    return QuicFrameParse(quic, buffer, c);
 }
 
 int QuicOneRttParse(QUIC *quic, RPacket *pkt)
 {
+    QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
 
-    if (QuicDecryptPacket(&quic->one_rtt.decrypt, pkt, buffer,
+    c = &quic->one_rtt;
+    if (QuicDecryptPacket(&c->decrypt, pkt, buffer,
                 QUIC_SPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
 
     RPacketForward(pkt, RPacketRemaining(pkt));
-    return QuicFrameParse(quic, buffer);
+    return QuicFrameParse(quic, buffer, c);
 }
 
 int QuicRetryPacketParse(QUIC *quic, RPacket *pkt)
@@ -1007,7 +1011,7 @@ static size_t QuicSPacketGetHeaderLen(QUIC *quic)
     return 1 + QuicCidWriteLen(&quic->dcid);
 }
 
-static size_t QuicLPacketGetTotalLen(QUIC *quic, QuicCrypto *c, uint8_t type,
+static size_t QuicLPacketGetTotalLen(QUIC *quic, QUIC_CRYPTO *c, uint8_t type,
                                 size_t data_len)
 {
     size_t hlen = 0;
@@ -1032,7 +1036,7 @@ static size_t QuicLPacketGetTotalLen(QUIC *quic, QuicCrypto *c, uint8_t type,
     return total_len + len + wlen;
 }
 
-static size_t QuicSPacketGetTotalLen(QUIC *quic, QuicCrypto *c, size_t data_len)
+static size_t QuicSPacketGetTotalLen(QUIC *quic, QUIC_CRYPTO *c, size_t data_len)
 {
     size_t total_len = 0;
     size_t cipher_len = 0;
@@ -1102,7 +1106,7 @@ int QuicPacketBuild(QUIC *quic, QuicCipherSpace *cs, uint8_t *first_byte,
                             mask);
 }
 
-int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
+int QuicLPacketBuild(QUIC *quic, QUIC_CRYPTO *c, uint8_t type, WPacket *pkt,
                         QBUFF *qb, bool end)
 {
     uint8_t *first_byte = 0;
@@ -1142,7 +1146,7 @@ int QuicLPacketBuild(QUIC *quic, QuicCrypto *c, uint8_t type, WPacket *pkt,
 }
 
 static int
-QuicSPacketBuild(QUIC *quic, QuicCrypto *c, WPacket *pkt, QBUFF *qb, bool end)
+QuicSPacketBuild(QUIC *quic, QUIC_CRYPTO *c, WPacket *pkt, QBUFF *qb, bool end)
 {
     uint8_t *first_byte = NULL;
     uint8_t pkt_num_len = quic->pkt_num_len + 1;
@@ -1158,39 +1162,36 @@ QuicSPacketBuild(QUIC *quic, QuicCrypto *c, WPacket *pkt, QBUFF *qb, bool end)
 
 size_t QuicInitialPacketGetTotalLen(QUIC *quic, size_t data_len)
 {
-    QuicCrypto *c = &quic->initial;
-    return QuicLPacketGetTotalLen(quic, c, QUIC_LPACKET_TYPE_INITIAL, data_len);
+    return QuicLPacketGetTotalLen(quic, QuicGetInitialCrypto(quic),
+                            QUIC_LPACKET_TYPE_INITIAL, data_len);
 }
 
 size_t QuicHandshakePacketGetTotalLen(QUIC *quic, size_t data_len)
 {
-    QuicCrypto *c = &quic->handshake;
-    return QuicLPacketGetTotalLen(quic, c, QUIC_LPACKET_TYPE_HANDSHAKE,
-                                    data_len);
+    return QuicLPacketGetTotalLen(quic, QuicGetHandshakeCrypto(quic),
+                            QUIC_LPACKET_TYPE_HANDSHAKE, data_len);
 }
 
 size_t QuicAppDataPacketGetTotalLen(QUIC *quic, size_t data_len)
 {
-    QuicCrypto *c = &quic->handshake;
-    return QuicSPacketGetTotalLen(quic, c, data_len);
+    return QuicSPacketGetTotalLen(quic, QuicGetOneRttCrypto(quic), data_len);
 }
 
 int QuicInitialPacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool end)
 {
-    QuicCrypto *c = &quic->initial;
-    return QuicLPacketBuild(quic, c, QUIC_LPACKET_TYPE_INITIAL, pkt, qb, end);
+    return QuicLPacketBuild(quic, QuicGetInitialCrypto(quic),
+                    QUIC_LPACKET_TYPE_INITIAL, pkt, qb, end);
 }
 
 int QuicHandshakePacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool end)
 {
-    QuicCrypto *c = &quic->handshake;
-    return QuicLPacketBuild(quic, c, QUIC_LPACKET_TYPE_HANDSHAKE, pkt, qb, end);
+    return QuicLPacketBuild(quic, QuicGetHandshakeCrypto(quic),
+                    QUIC_LPACKET_TYPE_HANDSHAKE, pkt, qb, end);
 }
 
 int QuicAppDataPacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool end)
 {
-    QuicCrypto *c = &quic->one_rtt;
-    return QuicSPacketBuild(quic, c, pkt, qb, end);
+    return QuicSPacketBuild(quic, QuicGetOneRttCrypto(quic), pkt, qb, end);
 }
 
 void QuicAddQueue(QUIC *quic, QBUFF *qb)

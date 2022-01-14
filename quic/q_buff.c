@@ -15,14 +15,17 @@ static const QBuffPktMethod QuicBuffPktMethod[QUIC_PKT_TYPE_MAX] = {
     [QUIC_PKT_TYPE_INITIAL] = {
         .build_pkt = QuicInitialPacketBuild,
         .compute_totallen = QuicInitialPacketGetTotalLen,
+        .get_crypto = QuicGetInitialCrypto,
     },
     [QUIC_PKT_TYPE_HANDSHAKE] = {
         .build_pkt = QuicHandshakePacketBuild,
         .compute_totallen = QuicHandshakePacketGetTotalLen,
+        .get_crypto = QuicGetHandshakeCrypto,
     },
     [QUIC_PKT_TYPE_1RTT] = {
         .build_pkt = QuicAppDataPacketBuild,
         .compute_totallen = QuicAppDataPacketGetTotalLen,
+        .get_crypto = QuicGetOneRttCrypto,
     },
 };
 
@@ -84,6 +87,11 @@ size_t QBuffLen(QBUFF *qb)
 size_t QBuffGetDataLen(QBUFF *qb)
 {
     return qb->data_len;
+}
+
+QUIC_CRYPTO *QBuffCrypto(QUIC *quic, QBUFF *qb)
+{
+    return qb->method->get_crypto(quic);
 }
 
 size_t QBuffSpace(QBUFF *qb)

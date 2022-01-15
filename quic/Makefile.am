@@ -1,6 +1,6 @@
 lib_LTLIBRARIES = libtbquic.la
 libtbquic_la_SOURCES = quic_lib.c mem.c statem_clnt.c statem_srvr.c  q_buff.c \
-						methods.c statem.c datagram.c packet.c cert.c \
+						methods.c statem.c datagram.c packet.c cert.c stream.c \
 						format.c cipher.c crypto.c evp.c frame.c base.c \
 						buffer.c cert_and_key.c tls/tls.c tls/tls_clnt.c \
 						tls/tls_srvr.c rand_lib.c tls/tls_cipher.c \

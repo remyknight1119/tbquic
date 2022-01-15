@@ -18,8 +18,19 @@
 
 #define QUIC_VERSION_1      0x01
 
+#define QUIC_STREAM_GET_RECV_STATE(q) (q)->stream_state.recv_state
+#define QUIC_STREAM_GET_SEND_STATE(q) (q)->stream_state.send_state
+#define QUIC_STREAM_SET_RECV_STATE(q, s) \
+    do { \
+        (q)->stream_state.recv_state = s; \
+    } while (0)
+
+#define QUIC_STREAM_SET_SEND_STATE(q, s) \
+    do { \
+        (q)->stream_state.send_state = s; \
+    } while (0)
+
 #define QUIC_BUFFER_HEAD(buffer) (uint8_t *)((buffer)->buf->data)
-#define QUIC_R_BUFFER_HEAD(quic) QUIC_BUFFER_HEAD(&quic->rbuffer)
 
 #define QUIC_READ_BUFFER(quic) (&quic->rbuffer)
 #define QUIC_TLS_BUFFER(quic) (&quic->tls.buffer)

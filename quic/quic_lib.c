@@ -184,7 +184,6 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         return NULL;
     }
 
-    quic->stream_state = QUIC_STREAM_STATE_READY;
     quic->statem.state = QUIC_STATEM_INITIAL;
     quic->statem.rwstate = QUIC_NOTHING; 
     quic->statem.read_state = QUIC_WANT_DATA; 
@@ -197,6 +196,10 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->ctx = ctx;
 
     if (TlsInit(&quic->tls, ctx) < 0) {
+        goto out;
+    }
+
+    if (QuicStreamInit(quic) < 0) {
         goto out;
     }
 

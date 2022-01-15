@@ -18,6 +18,8 @@
 static int QuicFramePingParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameCryptoParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameAckParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+static int QuicFrameResetStreamParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *);
 static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameCryptoBuild(QUIC *, WPacket *, uint8_t *, uint64_t,
                                     size_t, QUIC_CRYPTO *);
@@ -31,6 +33,9 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_PING] = {
         .flags = QUIC_FRAME_FLAGS_NO_BODY,
         .parser = QuicFramePingParser,
+    },
+    [QUIC_FRAME_TYPE_RESET_STREAM] = {
+        .parser = QuicFrameResetStreamParser,
     },
     [QUIC_FRAME_TYPE_CRYPTO] = {
         .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
@@ -170,6 +175,33 @@ QuicFramePingParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
     return 0;
 }
 
+static int QuicFrameResetStreamParser(QUIC *quic, RPacket *pkt, uint64_t type,
+                                        QUIC_CRYPTO *c)
+{
+    uint64_t stream_id = 0;
+    uint64_t error_code = 0;
+    uint64_t final_size = 0;
+
+    if (QuicVariableLengthDecode(pkt, &stream_id) < 0) {
+        QUIC_LOG("Stream ID decode failed!\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &error_code) < 0) {
+        QUIC_LOG("Application error code decode failed!\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &final_size) < 0) {
+        QUIC_LOG("Final size decode failed!\n");
+        return -1;
+    }
+
+    QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_RESET_RECVD);
+
+    return 0;
+}
+
 static int
 QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 {
@@ -251,11 +283,18 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 
     if (type & QUIC_FRAME_STREAM_BIT_FIN) {
         QUIC_LOG("Stream FIN\n");
+        if (QUIC_STREAM_GET_RECV_STATE(quic) == QUIC_STREAM_STATE_RECV) {
+            QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_SIZE_KNOWN);
+        }
     }
 
     if (RPacketGetBytes(pkt, &data, len) < 0) {
         QUIC_LOG("Peek stream data failed!\n");
         return -1;
+    }
+
+    if (QUIC_STREAM_GET_RECV_STATE(quic) == QUIC_STREAM_STATE_START) {
+        QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_RECV);
     }
 
     QuicPrint(data, len);

@@ -220,7 +220,9 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     QuicCryptoCipherInit(&quic->zero_rtt);
     QuicCryptoCipherInit(&quic->one_rtt);
 
+    QBuffQueueHeadInit(&quic->rx_queue);
     QBuffQueueHeadInit(&quic->tx_queue);
+    INIT_LIST_HEAD(&quic->node);
 
     return quic;
 out:
@@ -325,6 +327,8 @@ void QuicCryptoFree(QUIC_CRYPTO *c)
 
 void QuicFree(QUIC *quic)
 {
+    list_del(&quic->node);
+
     QuicDataFree(&quic->dcid);
     QuicDataFree(&quic->scid);
 
@@ -332,6 +336,7 @@ void QuicFree(QUIC *quic)
     BIO_free_all(quic->wbio);
 
     QBuffQueueDestroy(&quic->tx_queue);
+    QBuffQueueDestroy(&quic->rx_queue);
 
     QuicCryptoFree(&quic->one_rtt);
     QuicCryptoFree(&quic->handshake);

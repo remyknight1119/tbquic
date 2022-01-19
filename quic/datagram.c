@@ -7,8 +7,9 @@
 #include "quic_local.h"
 #include "buffer.h"
 #include "format.h"
-#include "log.h"
+#include "address.h"
 #include "common.h"
+#include "log.h"
 
 int QuicDatagramRecvBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
 {
@@ -53,6 +54,22 @@ int QuicDatagramSendBytes(QUIC *quic, uint8_t *data, size_t len)
         return -1;
     }
 
+    return 0;
+}
+
+int
+QuicDatagramRecvfrom(int fd, void *buf, size_t len, int flags, Address *addr)
+{
+    return recvfrom(fd, buf, len, flags, &addr->addr, &addr->addrlen);
+}
+
+int QuicDatagramSendto(int fd, void *buf, size_t len, int flags, Address *addr)
+{
+    return sendto(fd, buf, len, flags, &addr->addr, addr->addrlen);
+}
+
+int QuicDatagramSendEarlyData(QUIC *quic, uint8_t *data, size_t len)
+{
     return 0;
 }
 

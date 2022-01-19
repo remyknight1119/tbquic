@@ -16,12 +16,25 @@
 #include "common.h"
 #include "log.h"
 
+int QuicStatemReadBytes(QUIC *quic, RPacket *pkt)
+{
+    QUIC_BUFFER *qbuf = QUIC_READ_BUFFER(quic);
+    int rlen = 0;
+
+    rlen = QuicDatagramRecvBuffer(quic, qbuf);
+    if (rlen < 0) {
+        return -1;
+    }
+
+    RPacketBufInit(pkt, QuicBufData(qbuf), QuicBufGetDataLength(qbuf));
+    return 0;
+}
+
 static QuicFlowReturn
 QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
     const QuicStatemFlow *sm = NULL;
     QUIC_STATEM *st = &quic->statem;
-    QUIC_BUFFER *qbuf = QUIC_READ_BUFFER(quic);
     RPacket pkt = {};
     uint32_t flag = 0;
     QuicPacketFlags flags;
@@ -31,12 +44,11 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
     st->read_state = QUIC_WANT_DATA;
     while (ret != QUIC_FLOW_RET_FINISH || RPacketRemaining(&pkt)) {
         if (st->read_state == QUIC_WANT_DATA && !RPacketRemaining(&pkt)) {
-            rlen = QuicDatagramRecvBuffer(quic, qbuf);
+            rlen = quic->method->read_bytes(quic, &pkt);
             if (rlen < 0) {
                 return QUIC_FLOW_RET_ERROR;
             }
 
-            RPacketBufInit(&pkt, QuicBufData(qbuf), QuicBufGetDataLength(qbuf));
             st->read_state = QUIC_DATA_READY;
         } else {
             RPacketUpdate(&pkt);
@@ -207,7 +219,7 @@ QuicFlowReturn QuicInitialSend(QUIC *quic)
 }
 
 QuicFlowReturn
-QuicHandshakeRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
+QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
     uint32_t type = 0;
 

@@ -76,6 +76,7 @@ extern bool QuicWantWrite(QUIC *quic);
 
 extern QUIC_METHOD *QuicClientMethod(void);
 extern QUIC_METHOD *QuicServerMethod(void);
+extern QUIC_METHOD *QuicDispenserMethod(void);
 extern QUIC *QuicNew(QUIC_CTX *ctx);
 extern void QuicFree(QUIC *quic);
 extern void QUIC_set_accept_state(QUIC *quic);

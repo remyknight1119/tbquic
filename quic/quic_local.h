@@ -14,7 +14,10 @@
 #include "buffer.h"
 #include "tls.h"
 #include "cert.h"
+#include "list.h"
 #include "q_buff.h"
+#include "address.h"
+#include "packet_local.h"
 
 #define QUIC_VERSION_1      0x01
 
@@ -49,6 +52,7 @@ struct QuicMethod {
     uint32_t version;
     int (*quic_connect)(QUIC *);
     int (*quic_accept)(QUIC *);
+    int (*read_bytes)(QUIC *, RPacket *);
     const TlsMethod *tls_method;
 };
 
@@ -90,6 +94,7 @@ struct Quic {
 #define quic_server tls.server
     QuicStreamState stream_state;
     QUIC_STATEM statem;
+    struct list_head node; 
     uint32_t version;
     uint32_t mss;
     uint32_t verify_mode;
@@ -100,7 +105,10 @@ struct Quic {
     const QUIC_METHOD *method;
     BIO *rbio;
     BIO *wbio;
+    void *dispenser_buf;
     int (*do_handshake)(QUIC *);
+    Address source;
+    Address dest;
     /* Read Buffer */
     QUIC_BUFFER rbuffer;
     QUIC_DATA dcid;
@@ -111,6 +119,7 @@ struct Quic {
     QUIC_CRYPTO zero_rtt;
     QUIC_CRYPTO one_rtt;
     QBUFF *send_head;
+    QBuffQueueHead rx_queue;
     QBuffQueueHead tx_queue;
 };
 

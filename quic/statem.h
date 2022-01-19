@@ -62,11 +62,12 @@ typedef struct {
 
 QuicFlowReturn QuicInitialRecv(QUIC *, RPacket *, QuicPacketFlags);
 QuicFlowReturn QuicInitialSend(QUIC *);
-QuicFlowReturn QuicHandshakeRecv(QUIC *, RPacket *, QuicPacketFlags);
+QuicFlowReturn QuicPacketRead(QUIC *, RPacket *, QuicPacketFlags);
 int QuicStateMachineAct(QUIC *, const QuicStatemFlow *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
 int QuicStateMachine(QUIC *);
 int QuicCidGen(QUIC_DATA *, size_t);
+int QuicStatemReadBytes(QUIC *, RPacket *);
 
 #endif

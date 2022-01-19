@@ -7,10 +7,10 @@
 
 typedef struct {
     union {
-        struct sockaddr 		addr;
-        struct sockaddr_in  	addr4;
-        struct sockaddr_in6  	addr6;
-    };
+        struct sockaddr 		in;
+        struct sockaddr_in  	in4;
+        struct sockaddr_in6  	in6;
+    } addr;
     socklen_t addrlen;
 } Address;
 

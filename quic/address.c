@@ -12,6 +12,6 @@ bool AddressEqual(const Address *s1, const Address *s2)
         return false; 
     }
 
-    return (QuicMemCmp(&s1->addr, &s2->addr, s1->addrlen) == 0);
+    return (QuicMemCmp(&s1->addr.in, &s2->addr.in, s1->addrlen) == 0);
 }
 

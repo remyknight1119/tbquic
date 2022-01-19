@@ -2,6 +2,7 @@
 #define TBQUIC_QUIC_LOG_H_
 
 #include <stdio.h>
+#include <errno.h>
 
 #define QUIC_DEBUG 1
 

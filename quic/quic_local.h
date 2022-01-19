@@ -42,17 +42,12 @@
 #define QUIC_IS_READING(q) QUIC_STATEM_READING(q->rwstate)
 #define QUIC_IS_WRITNG(q) QUIC_STATEM_WRITNG(q->rwstate)
 
-#define QUIC_GET_FLOW_STATE(q) ((q)->statem.flow_state)
-#define QUIC_SET_FLOW_STATE(q, v) \
-    do { \
-        (q)->statem.flow_state = v; \
-    } while (0)
-
 struct QuicMethod {
     uint32_t version;
     int (*quic_connect)(QUIC *);
     int (*quic_accept)(QUIC *);
     int (*read_bytes)(QUIC *, RPacket *);
+    int (*write_bytes)(QUIC *, uint8_t *, size_t);
     const TlsMethod *tls_method;
 };
 
@@ -85,7 +80,6 @@ typedef struct {
     QuicStatem state;
     QuicReadState read_state;
     QuicReadWriteState rwstate;
-    QuicFlowState flow_state; 
 } QUIC_STATEM;
 
 struct Quic {
@@ -105,7 +99,7 @@ struct Quic {
     const QUIC_METHOD *method;
     BIO *rbio;
     BIO *wbio;
-    void *dispenser_buf;
+    void *dispense_arg;
     int (*do_handshake)(QUIC *);
     Address source;
     Address dest;

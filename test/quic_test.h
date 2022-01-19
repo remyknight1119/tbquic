@@ -23,6 +23,10 @@ typedef struct {
     uint64_t value;
 } TlsTestParam;
 
+typedef struct {
+    void *data;
+    size_t len;
+} QuicTestData;
 
 static inline uint8_t char2hex(char c)
 {

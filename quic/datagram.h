@@ -9,10 +9,8 @@
 
 int QuicDatagramSendBytes(QUIC *, uint8_t *, size_t);
 int QuicDatagramRecvBuffer(QUIC *, QUIC_BUFFER *);
-int QuicDatagramRecv(QUIC *);
 int QuicDatagramRecvfrom(int, void *, size_t, int, Address *);
 int QuicDatagramSendto(int, void *, size_t, int, Address *);
-int QuicDatagramSendEarlyData(QUIC *, uint8_t *, size_t);
 
 
 #endif

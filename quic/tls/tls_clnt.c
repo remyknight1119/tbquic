@@ -20,6 +20,7 @@
 #include "log.h"
 
 static QuicFlowReturn TlsClientHelloBuild(TLS *, void *);
+static QuicFlowReturn TlsClntFinishedBuild(TLS *, void *);
 static QuicFlowReturn TlsServerHelloProc(TLS *, void *);
 static QuicFlowReturn TlsEncExtProc(TLS *, void *);
 static QuicFlowReturn TlsServerCertProc(TLS *, void *);
@@ -77,19 +78,22 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     },
     [TLS_ST_CW_FINISHED] = {
         .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_HANDSHAKE_DONE,
+        .next_state = TLS_ST_CR_NEW_SESSION_TICKET,
         .msg_type = TLS_MT_FINISHED,
-        .handler = TlsFinishedBuild,
+        .handler = TlsClntFinishedBuild,
         .post_work = TlsClientPostFinishedWork,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
-    [TLS_ST_HANDSHAKE_DONE] = {
-        //.flow_state = QUIC_FLOW_READING,
-        .flow_state = QUIC_FLOW_FINISHED,
+    [TLS_ST_CR_NEW_SESSION_TICKET] = {
+        .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_HANDSHAKE_DONE,
         .msg_type = TLS_MT_NEW_SESSION_TICKET,
         .handler = TlsClntNewSessionTicketProc,
         .pkt_type = QUIC_PKT_TYPE_1RTT,
+    },
+    [TLS_ST_HANDSHAKE_DONE] = {
+        .flow_state = QUIC_FLOW_FINISHED,
+        .next_state = TLS_ST_HANDSHAKE_DONE,
     },
 };
 
@@ -135,6 +139,18 @@ static QuicFlowReturn TlsClientHelloBuild(TLS *s, void *packet)
     if (TlsClntConstructExtensions(s, pkt, TLSEXT_CLIENT_HELLO, NULL, 0) < 0) {
         QUIC_LOG("Construct extension failed\n");
         return QUIC_FLOW_RET_ERROR;
+    }
+
+    return QUIC_FLOW_RET_WANT_READ;
+}
+
+static QuicFlowReturn TlsClntFinishedBuild(TLS *s, void *packet)
+{
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+
+    ret = TlsFinishedBuild(s, packet);
+    if (ret == QUIC_FLOW_RET_ERROR) {
+        return ret;
     }
 
     return QUIC_FLOW_RET_WANT_READ;
@@ -199,7 +215,7 @@ static QuicFlowReturn TlsServerHelloProc(TLS *tls, void *packet)
     }
 
     tls->handshake_msg_len = 0;
-    QuicBufClear(QUIC_TLS_BUFFER(quic));
+    QuicBufClear(&tls->buffer);
     return QUIC_FLOW_RET_FINISH;
 }
 

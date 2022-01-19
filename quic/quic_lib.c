@@ -235,14 +235,12 @@ void QUIC_set_accept_state(QUIC *quic)
 {
     quic->quic_server = 1;
     quic->do_handshake = quic->method->quic_accept;
-    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_READING);
 }
 
 void QUIC_set_connect_state(QUIC *quic)
 {
     quic->quic_server = 0;
     quic->do_handshake = quic->method->quic_connect;
-    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_WRITING);
 }
 
 int QuicCtrl(QUIC *quic, uint32_t cmd, void *parg, long larg)
@@ -504,8 +502,9 @@ int QuicSendPacket(QUIC *quic)
             return -1;
         }
 
-        wlen = QuicDatagramSendBytes(quic, buffer->data, buffer->len);
+        wlen = quic->method->write_bytes(quic, buffer->data, buffer->len);
         if (wlen < 0) {
+            QUIC_LOG("errno = %s\n", strerror(errno));
             return -1;
         }
 

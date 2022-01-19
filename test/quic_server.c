@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 
 #include <tbquic/quic.h>
+#include <tbquic/dispenser.h>
 
 #define TEST_EVENT_MAX_NUM   10
 #define QUIC_RECORD_MSS_LEN  1250
@@ -36,6 +37,20 @@ static const char *options[] = {
     "--key      		    -k	key file\n",	
     "--help         		-H	Print help information\n",	
 };
+
+static uint8_t h3[] =
+    "\x00\x04\x19\x01\x80\x01\x00\x00\x06\x80\x00\x40\x00\x07\x40\x64"
+    "\xc0\x00\x00\x04\xd7\x92\xfe\xec\xb6\x99\xd0\x12\xc0\x00\x00\x0d"
+    "\xcc\xa6\x0b\x11\x00";
+
+static QuicTestData stream_data[] = {
+    {
+        .data = h3,
+        .len = sizeof(h3) - 1,
+    },
+};
+
+#define STREAM_DATA_NUM ARRAY_SIZE(stream_data)
 
 static TlsTestParam test_param[] = {
     {
@@ -100,28 +115,6 @@ static void AddEpollEvent(int epfd, struct epoll_event *ev, int fd)
     epoll_ctl(epfd, EPOLL_CTL_ADD, fd, ev);
 }
 
-static int QuicDataSend(int fd, BIO *wbio, char *data, size_t size,
-                    const struct sockaddr *addr, socklen_t addrlen)
-{
-    ssize_t rlen = 0;
-	ssize_t wlen = 0;
-
-    rlen = BIO_read(wbio, data, size);
-    printf("rlen = %d\n", (int)rlen);
-    if (rlen < 0) {
-        return -1;
-    }
-
-    wlen = sendto(fd, data, rlen, 0, (const struct sockaddr *)addr, addrlen);
-    if (wlen <= 0) {
-        printf("Send failed\n");
-        return -1;
-    }
-    printf("wlen = %d\n", (int)wlen);
-
-    return 0;
-}
-
 static int QuicCtxServerExtensionSet(QUIC_CTX *ctx)
 {
     TlsTestParam *p = NULL;
@@ -150,22 +143,21 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
-    BIO *rbio = NULL;
-    BIO *wbio = NULL;
-    QuicUdpConnKey udp_key = {};
+    QUIC_DISPENSER *dis = NULL;
+    QuicTestData *data = stream_data;
     struct epoll_event ev = {};
     struct epoll_event events[TEST_EVENT_MAX_NUM] = {};
     char quic_data[QUIC_RECORD_MSS_LEN] = {};
-    socklen_t addrlen = sizeof(udp_key);
-	ssize_t rlen = 0;
+    bool new = false;
     uint32_t mss = QUIC_RECORD_MSS_LEN;
     int sockfd = 0;
     int reuse = 1;
     int epfd = 0;
     int nfds = 0;
     int efd = 0;
-    int handshake_done = 0;
     int i = 0;
+    int index = 0;
+    int rlen = 0;
     int err = 0;
     int ret = 0;
 
@@ -188,7 +180,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     }
     AddEpollEvent(epfd, &ev, sockfd);
 
-    ctx = QuicCtxNew(QuicServerMethod());
+    ctx = QuicCtxNew(QuicDispenserMethod());
     if (ctx == NULL) {
         goto out;
     }
@@ -212,6 +204,12 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    dis = QuicCreateDispenser(sockfd);
+    if (dis == NULL) {
+        printf("Create dispenser failed\n");
+        goto out;
+    }
+
     while (1) {
         nfds = epoll_wait(epfd, events, TEST_EVENT_MAX_NUM, -1);
         for (i = 0; i < nfds; i++) {
@@ -220,70 +218,35 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                     continue;
                 }
 
-                memset(&udp_key, 0, sizeof(udp_key));
                 if (efd == sockfd) {
-                    fprintf(stdout, "UDP msg!\n");
-                    rlen = recvfrom(efd, quic_data, sizeof(quic_data), 0, 
-                            (struct sockaddr *)&udp_key, &addrlen);
-                    fprintf(stdout, "rlen = %d, addr len = %d!\n", (int)rlen, (int)addrlen);
-                    if (rlen <= 0) {
+                    quic = QuicDoDispense(dis, ctx, &new);
+                    if (quic == NULL) {
                         goto next;
                     }
 
-                    if (quic == NULL) {
-                        quic = QuicNew(ctx);
-                        if (quic == NULL) {
-                            goto out;
-                        }
-
-                        QUIC_set_accept_state(quic);
-                        rbio = BIO_new(BIO_s_mem());
-                        if (rbio == NULL) {
-                            goto out;
-                        }
-
-                        wbio = BIO_new(BIO_s_mem());
-                        if (wbio == NULL) {
-                            goto out;
-                        }
-                        QUIC_set_bio(quic, rbio, wbio);
-                    } else {
-                        rbio = QUIC_get_rbio(quic);
-                        wbio = QUIC_get_wbio(quic);
-                    }
-
-                    BIO_write(rbio, quic_data, rlen);
-                    rbio = NULL;
-                    while (handshake_done == 0) {
-                        ret = QuicDoHandshake(quic);
+                    if (new) {
+                        index = 0;
+                        printf("new QUIC\n");
+                        data = &data[index]; 
+                        ret = QuicDatagramSendEarlyData(quic, data->data,
+                                data->len);
                         if (ret < 0) {
                             err = QUIC_get_error(quic, ret);
-                            if (err == QUIC_ERROR_WANT_WRITE) {
-                                if (QuicDataSend(efd, wbio, quic_data, sizeof(quic_data),
-                                            (void *)&udp_key, addrlen) < 0) {
-                                    wbio = NULL;
-                                    goto out;
-                                }
-                                if (err == QUIC_ERROR_WANT_WRITE) {
-                                    continue;
-                                }
-                            } else if (err != QUIC_ERROR_WANT_READ) {
-                                wbio = NULL;
+                            if (err != QUIC_ERROR_WANT_READ) {
                                 goto out;
                             }
 
-                            break;
-                        } else {
-                            handshake_done = 1;
-                            printf("handshake done!\n");
+                            continue;
                         }
+                        goto next;
                     }
-
-                    printf("conn found, sport = %d\n", ntohs(udp_key.addr4.sin_port));
-
-                    if (QuicDataSend(efd, wbio, quic_data, sizeof(quic_data),
-                                (void *)&udp_key, addrlen) < 0) {
-                        continue;
+                    printf("old QUIC\n");
+                    rlen = QuicDatagramRecv(quic, quic_data, sizeof(quic_data));
+                    if (rlen < 0) {
+                        err = QUIC_get_error(quic, ret);
+                        if (err != QUIC_ERROR_WANT_READ) {
+                            goto out;
+                        }
                     }
                     //bzero(buf, sizeof(buf));
                     /* 接收客户端的消息 */
@@ -297,9 +260,8 @@ next:
     }
 
 out:
-    BIO_free(rbio);
-    BIO_free(wbio);
     QuicFree(quic);
+    QuicDestroyDispenser(dis);
     QuicCtxFree(ctx);
     close(epfd);
     close(sockfd);

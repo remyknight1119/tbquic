@@ -113,12 +113,17 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
     }
 
     if (crypto_found == true) {
-        ret = TlsDoHandshake(&quic->tls);
-        if (ret == QUIC_FLOW_RET_ERROR) {
-            QUIC_LOG("TLS Hadshake failed!\n");
-            return -1;
+        if (quic->tls.handshake_state != TLS_ST_HANDSHAKE_DONE) {
+            ret = TlsDoHandshake(&quic->tls);
+            if (ret == QUIC_FLOW_RET_ERROR) {
+                QUIC_LOG("TLS Hadshake failed!\n");
+                return -1;
+            }
         }
-        //quic->statem.state = QUIC_STATEM_HANDSHAKE_DONE;
+
+        if (quic->tls.handshake_state == TLS_ST_HANDSHAKE_DONE) {
+            quic->statem.state = QUIC_STATEM_HANDSHAKE_DONE;
+        }
     }
 
     return 0;

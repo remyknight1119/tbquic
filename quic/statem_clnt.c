@@ -17,32 +17,29 @@
 
 static QuicFlowReturn QuicClientInitialRecv(QUIC *, RPacket *,
                                             QuicPacketFlags);
-static QuicFlowReturn QuicClientInitialSend(QUIC *);
-static QuicFlowReturn QuicClientHandshakeSend(QUIC *);
+static int QuicClientInitialSend(QUIC *);
 
 static QuicStatemFlow client_statem[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_INITIAL] = {
+        .pre_work = QuicClientInitialSend,
         .recv = QuicClientInitialRecv,
-        .send = QuicClientInitialSend,
     },
     [QUIC_STATEM_HANDSHAKE] = {
         .recv = QuicPacketRead,
-        .send = QuicClientHandshakeSend,
     },
     [QUIC_STATEM_HANDSHAKE_DONE] = {
         .recv = QuicPacketRead,
-        .send = QuicClientHandshakeSend,
     },
 };
 
-static QuicFlowReturn QuicClientInitialSend(QUIC *quic)
+static int QuicClientInitialSend(QUIC *quic)
 {
     QUIC_DATA *cid = NULL;
-    QuicFlowReturn ret;
+    int ret = 0;
 
     cid = &quic->dcid;
     if (cid->data == NULL && QuicCidGen(cid, quic->cid_len) < 0) {
-        return QUIC_FLOW_RET_ERROR;
+        return -1;
     }
     ret = QuicInitialSend(quic);
     QuicBufReserve(QUIC_TLS_BUFFER(quic));
@@ -62,11 +59,6 @@ QuicClientInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
     quic->statem.state = QUIC_STATEM_HANDSHAKE;
 
     return QUIC_FLOW_RET_WANT_READ;
-}
-
-static QuicFlowReturn QuicClientHandshakeSend(QUIC *quic)
-{
-    return QUIC_FLOW_RET_FINISH;
 }
 
 int QuicConnect(QUIC *quic)

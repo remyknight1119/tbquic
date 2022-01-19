@@ -10,6 +10,7 @@
 #include "mem.h"
 #include "address.h"
 #include "datagram.h"
+#include "log.h"
 
 QUIC_DISPENSER *QuicCreateDispenser(int fd)
 {
@@ -20,7 +21,7 @@ QUIC_DISPENSER *QuicCreateDispenser(int fd)
         return NULL;
     }
 
-    if (getsockname(fd, &dis->dest.addr, &dis->dest.addrlen) != 0) {
+    if (getsockname(fd, &dis->dest.addr.in, &dis->dest.addrlen) != 0) {
         goto err;
     }
 
@@ -37,10 +38,11 @@ static QUIC *QuicDispenserFind(const QUIC_DISPENSER *dis, const Address *src)
     QUIC *quic = NULL;
     QUIC *pos = NULL;
 
-    list_for_each_entry(quic, &dis->head, node) {
-        if (AddressEqual(src, &quic->source) &&
-                AddressEqual(&dis->dest, &quic->dest)) {
+    list_for_each_entry(pos, &dis->head, node) {
+        if (AddressEqual(src, &pos->source) &&
+                AddressEqual(&dis->dest, &pos->dest)) {
             quic = pos;
+            QUIC_LOG("found\n");
             break;
         }
     }
@@ -50,25 +52,42 @@ static QUIC *QuicDispenserFind(const QUIC_DISPENSER *dis, const Address *src)
 
 int QuicDispenserReadBytes(QUIC *quic, RPacket *pkt)
 {
-    QuicStaticBuffer *buf = quic->dispenser_buf;
+    QUIC_DISPENSER *dis = quic->dispense_arg;
+    QuicStaticBuffer *buf = NULL; 
 
-    if (buf == NULL) {
+    if (dis == NULL || dis->read) {
         return -1;
     }
 
+    buf = &dis->buf;
     RPacketBufInit(pkt, buf->data, buf->len);
+    dis->read = true;
     return 0;
+}
+
+int QuicDispenserWriteBytes(QUIC *quic, uint8_t *data, size_t len)
+{
+    QUIC_DISPENSER *dis = quic->dispense_arg;
+
+    if (dis == NULL) {
+        return -1;
+    }
+
+    return QuicDatagramSendto(dis->sock_fd, data, len, 0, &quic->source);
 }
 
 QUIC *QuicDoDispense(QUIC_DISPENSER *dis, QUIC_CTX *ctx, bool *new)
 {
     QUIC *quic = NULL;
     QuicStaticBuffer *buf = &dis->buf;
-    Address source;
+    Address source = {
+        .addrlen = sizeof(source.addr),
+    };
     int fd = dis->sock_fd;
     int rlen = 0;
 
     rlen = QuicDatagramRecvfrom(fd, buf->data, sizeof(buf->data), 0, &source);
+    QUIC_LOG("rlen = %d\n", rlen);
     if (rlen <= 0) {
         buf->len = 0;
         return NULL;
@@ -78,6 +97,7 @@ QUIC *QuicDoDispense(QUIC_DISPENSER *dis, QUIC_CTX *ctx, bool *new)
     quic = QuicDispenserFind(dis, &source);
     if (quic != NULL) {
         *new = false;
+        dis->read = false;
         return quic;
     }
 
@@ -90,10 +110,12 @@ QUIC *QuicDoDispense(QUIC_DISPENSER *dis, QUIC_CTX *ctx, bool *new)
         goto err;
     }
 
+    QUIC_set_accept_state(quic);
     *new = true;
     quic->source = source;
     quic->dest = dis->dest;
-    quic->dispenser_buf = &dis->buf;
+    dis->read = false;
+    quic->dispense_arg = dis;
     list_add_tail(&quic->node, &dis->head);
 
     return quic;

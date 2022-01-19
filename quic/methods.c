@@ -6,6 +6,7 @@
 
 #include "statem.h"
 #include "tls.h"
+#include "datagram.h"
 #include "dispenser.h"
 
 static const TlsMethod QuicTlsClientMeth = {
@@ -20,6 +21,7 @@ static QUIC_METHOD QuicClientMeth = {
     .version = QUIC_VERSION_1,
     .quic_connect = QuicConnect,
     .read_bytes = QuicStatemReadBytes,
+    .write_bytes = QuicDatagramSendBytes,
     .tls_method = &QuicTlsClientMeth,
 }; 
 
@@ -27,6 +29,7 @@ static QUIC_METHOD QuicServerMeth = {
     .version = QUIC_VERSION_1,
     .quic_accept = QuicAccept,
     .read_bytes = QuicStatemReadBytes,
+    .write_bytes = QuicDatagramSendBytes,
     .tls_method = &QuicTlsServerMeth,
 }; 
 
@@ -34,6 +37,7 @@ static QUIC_METHOD QuicDispenserMeth = {
     .version = QUIC_VERSION_1,
     .quic_accept = QuicAccept,
     .read_bytes = QuicDispenserReadBytes,
+    .write_bytes = QuicDispenserWriteBytes,
     .tls_method = &QuicTlsServerMeth,
 }; 
 

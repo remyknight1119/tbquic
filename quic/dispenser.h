@@ -9,11 +9,13 @@
 
 struct QuicDispenser {
     int sock_fd;
+    bool read;
     QuicStaticBuffer buf;
     struct list_head head; 
     Address dest;
 };
 
 int QuicDispenserReadBytes(QUIC *, RPacket *);
+int QuicDispenserWriteBytes(QUIC *, uint8_t *, size_t);
 
 #endif

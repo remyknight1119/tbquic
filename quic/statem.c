@@ -30,7 +30,7 @@ int QuicStatemReadBytes(QUIC *quic, RPacket *pkt)
     return 0;
 }
 
-static QuicFlowReturn
+static int
 QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
     const QuicStatemFlow *sm = NULL;
@@ -46,7 +46,7 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
         if (st->read_state == QUIC_WANT_DATA && !RPacketRemaining(&pkt)) {
             rlen = quic->method->read_bytes(quic, &pkt);
             if (rlen < 0) {
-                return QUIC_FLOW_RET_ERROR;
+                return -1;
             }
 
             st->read_state = QUIC_DATA_READY;
@@ -58,7 +58,7 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
         sm = &statem[st->state];
 
         if (RPacketGet1(&pkt, &flag) < 0) {
-            return QUIC_FLOW_RET_ERROR;
+            return -1;
         }
 
         flags.value = flag;
@@ -70,69 +70,24 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
             case QUIC_FLOW_RET_FINISH:
                 break;
             default:
-                return QUIC_FLOW_RET_ERROR;
+                return -1;
         }
     }
 
-    return ret;
-}
-
-static QuicFlowReturn
-QuicWriteStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
-{
-    const QuicStatemFlow *sm = NULL;
-    QUIC_STATEM *st = &quic->statem;
-    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
-
-    while (ret != QUIC_FLOW_RET_FINISH) {
-        assert(st->state >= 0 && st->state < num);
-        sm = &statem[st->state];
-        ret = sm->send(quic);
-        if (ret == QUIC_FLOW_RET_ERROR) {
-            return QUIC_FLOW_RET_ERROR;
-        }
-    }
-
-    if (st->state == QUIC_STATEM_HANDSHAKE_DONE) {
-        return QUIC_FLOW_RET_END;
-    }
-
-    return ret;
+    return 0;
 }
 
 int
 QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
 {
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
+    const QuicStatemFlow *sm = NULL;
+    QUIC_STATEM *st = &quic->statem;
+    int ret = 0;
 
-    if (QuicWantWrite(quic)) {
-        if (QuicSendPacket(quic) < 0) {
-            return -1;
-        }
-
-        if (QuicWantWrite(quic)) {
-            return -1;
-        }
-    }
-
-    while (QUIC_GET_FLOW_STATE(quic) != QUIC_FLOW_FINISHED) {
-        switch (QUIC_GET_FLOW_STATE(quic)) {
-            case QUIC_FLOW_READING:
-                ret = QuicReadStateMachine(quic, statem, num);
-                if (ret == QUIC_FLOW_RET_FINISH) {
-                    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_WRITING);
-                }
-                break;
-            case QUIC_FLOW_WRITING:
-                ret = QuicWriteStateMachine(quic, statem, num);
-                if (ret == QUIC_FLOW_RET_FINISH) {
-                    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_READING);
-                } else if (ret == QUIC_FLOW_RET_END) {
-                    QUIC_SET_FLOW_STATE(quic, QUIC_FLOW_FINISHED);
-                }
-                break;
-            default:
-                return -1;
+    do {
+        sm = &statem[st->state];
+        if (sm->pre_work != NULL) {
+            ret = sm->pre_work(quic);
         }
 
         if (QuicSendPacket(quic) < 0) {
@@ -143,10 +98,23 @@ QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
             return -1;
         }
 
-        if (ret == QUIC_FLOW_RET_ERROR) {
+        if (ret < 0) {
             return -1;
         }
-    }
+
+        ret = QuicReadStateMachine(quic, statem, num);
+        if (QuicSendPacket(quic) < 0) {
+            return -1;
+        }
+
+        if (QuicWantWrite(quic)) {
+            return -1;
+        }
+
+        if (ret < 0) {
+            return -1;
+        }
+    } while (st->state != QUIC_STATEM_HANDSHAKE_DONE);
 
     return 0;
 }
@@ -201,21 +169,21 @@ QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
     return QUIC_FLOW_RET_FINISH;
 }
 
-QuicFlowReturn QuicInitialSend(QUIC *quic)
+int QuicInitialSend(QUIC *quic)
 {
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH; 
 
     if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
-        return QUIC_FLOW_RET_ERROR;
+        return -1;
     }
 
     ret = TlsDoHandshake(&quic->tls);
     if (ret == QUIC_FLOW_RET_ERROR) {
         QUIC_LOG("TLS handshake failed\n");
-        return ret;
+        return -1;
     }
 
-    return QUIC_FLOW_RET_FINISH;
+    return 0;
 }
 
 QuicFlowReturn

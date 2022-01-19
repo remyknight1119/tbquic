@@ -23,7 +23,7 @@ typedef enum {
 } QuicFlowReturn;
 
 typedef QuicFlowReturn (*QuicStatemRead)(QUIC *, RPacket *, QuicPacketFlags);
-typedef QuicFlowReturn (*QuicStatemWrite)(QUIC *);
+typedef int (*QuicStatemPreWork)(QUIC *);
 
 typedef enum {
 	QUIC_STATEM_INITIAL = 0,
@@ -56,17 +56,16 @@ typedef enum {
 } QuicFlowState;
 
 typedef struct {
+    QuicStatemPreWork pre_work;
     QuicStatemRead recv;
-    QuicStatemWrite send;
 } QuicStatemFlow;
 
 QuicFlowReturn QuicInitialRecv(QUIC *, RPacket *, QuicPacketFlags);
-QuicFlowReturn QuicInitialSend(QUIC *);
+int QuicInitialSend(QUIC *);
 QuicFlowReturn QuicPacketRead(QUIC *, RPacket *, QuicPacketFlags);
 int QuicStateMachineAct(QUIC *, const QuicStatemFlow *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
-int QuicStateMachine(QUIC *);
 int QuicCidGen(QUIC_DATA *, size_t);
 int QuicStatemReadBytes(QUIC *, RPacket *);
 

@@ -212,17 +212,16 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
 
     while (1) {
         ret = QuicDoHandshake(quic);
+        if (ret == 0) {
+            break;
+        }
         err = QUIC_get_error(quic, ret);
         if (err != QUIC_ERROR_WANT_READ) {
             goto out;
         }
     }
-    quic->dcid.data = NULL;
-    quic->dcid.len = 0;
-    if (ret < 0) {
-        printf("Do Client Handshake failed\n");
-        goto out;
-    }
+
+    printf("Handshake done\n");
 
 out:
     QuicFree(quic);

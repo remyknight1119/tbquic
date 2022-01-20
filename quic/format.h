@@ -98,7 +98,7 @@ int QuicHandshakePacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicAppDataPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicTlsFrameBuild(QUIC *quic, uint32_t);
 void QuicAddQueue(QUIC *quic, QBUFF *qb);
-int QuicStreamFrameBuild(QUIC *, uint8_t *, size_t);
+int QuicStreamFrameBuild(QUIC_STREAM_HANDLE, uint8_t *, size_t);
 int QuicWPacketSubMemcpyVar(WPacket *, const void *, size_t);
 
 #ifdef QUIC_TEST

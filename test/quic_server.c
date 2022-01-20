@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 
 #include <tbquic/quic.h>
+#include <tbquic/stream.h>
 #include <tbquic/dispenser.h>
 
 #define TEST_EVENT_MAX_NUM   10
@@ -144,6 +145,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
     QUIC_DISPENSER *dis = NULL;
+    QUIC_STREAM_HANDLE h = NULL;
     QuicTestData *data = stream_data;
     struct epoll_event ev = {};
     struct epoll_event events[TEST_EVENT_MAX_NUM] = {};
@@ -228,8 +230,12 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                         index = 0;
                         printf("new QUIC\n");
                         data = &data[index]; 
-                        ret = QuicDatagramSendEarlyData(quic, data->data,
-                                data->len);
+                        h = QuicStreamCreate(quic);
+                        if (h == NULL) {
+                            goto out;
+                        }
+
+                        ret = QuicStreamSendEarlyData(h, data->data, data->len);
                         if (ret < 0) {
                             err = QUIC_get_error(quic, ret);
                             if (err != QUIC_ERROR_WANT_READ) {
@@ -241,7 +247,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                         goto next;
                     }
                     printf("old QUIC\n");
-                    rlen = QuicDatagramRecv(quic, quic_data, sizeof(quic_data));
+                    rlen = QuicStreamRecv(quic, quic_data, sizeof(quic_data));
                     if (rlen < 0) {
                         err = QUIC_get_error(quic, ret);
                         if (err != QUIC_ERROR_WANT_READ) {

@@ -79,6 +79,23 @@ int QuicDataCopyU16(QUIC_DATA *dst, const uint8_t *data, size_t len)
     return QuicDataCopyBytes(dst, data, len, 2);
 }
 
+int QuicDataParse(QUIC_DATA *data, RPacket *pkt, size_t len)
+{
+    QuicDataFree(data);
+
+    data->data = QuicMemMalloc(len);
+    if (data->data == NULL) {
+        return -1;
+    }
+
+    if (RPacketCopyBytes(pkt, data->data, len) < 0) {
+        return -1;
+    }
+
+    data->len = len;
+    return 0;
+}
+
 void QuicDataFree(QUIC_DATA *data)
 {
     QuicMemFree(data->data);

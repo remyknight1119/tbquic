@@ -13,9 +13,9 @@
 /* type + offset + length */
 #define QUIC_FRAME_HEADER_MAX_LEN   (3*sizeof(uint32_t))
 
-typedef int (*QuicFrameParser)(QUIC *, RPacket *, uint64_t type, QUIC_CRYPTO *);
-typedef int (*QuicFrameBuilder)(QUIC *, WPacket *, uint8_t *, uint64_t,
-                                size_t, QUIC_CRYPTO *);
+typedef int (*QuicFrameParser)(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+typedef int (*QuicFrameBuilder)(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
+                                    void *, long);
 
 typedef enum {
     QUIC_FRAME_TYPE_PADDING = 0x00,
@@ -59,8 +59,20 @@ typedef struct {
 } QuicFrameProcess;
 
 typedef struct {
+    void *data;
+    size_t len;
+} QuicFrameCryptoArg;
+
+typedef struct {
+    uint64_t id;
+    void *data;
+    size_t len;
+} QuicFrameStreamArg;
+
+typedef struct {
     uint64_t type;
-    QUIC_DATA data;
+    void *arg;
+    long larg;
 } QuicFrameNode;
 
 int QuicFrameDoParser(QUIC *, RPacket *, QUIC_CRYPTO *);

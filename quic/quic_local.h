@@ -18,20 +18,9 @@
 #include "q_buff.h"
 #include "address.h"
 #include "packet_local.h"
+#include "connection.h"
 
 #define QUIC_VERSION_1      0x01
-
-#define QUIC_STREAM_GET_RECV_STATE(q) (q)->stream_state.recv_state
-#define QUIC_STREAM_GET_SEND_STATE(q) (q)->stream_state.send_state
-#define QUIC_STREAM_SET_RECV_STATE(q, s) \
-    do { \
-        (q)->stream_state.recv_state = s; \
-    } while (0)
-
-#define QUIC_STREAM_SET_SEND_STATE(q, s) \
-    do { \
-        (q)->stream_state.send_state = s; \
-    } while (0)
 
 #define QUIC_BUFFER_HEAD(buffer) (uint8_t *)((buffer)->buf->data)
 
@@ -86,7 +75,7 @@ struct Quic {
     /* This member must be first */
     TLS tls;
 #define quic_server tls.server
-    QuicStreamState stream_state;
+    QuicStreamConf stream;
     QUIC_STATEM statem;
     struct list_head node; 
     uint32_t version;
@@ -105,6 +94,7 @@ struct Quic {
     Address dest;
     /* Read Buffer */
     QUIC_BUFFER rbuffer;
+    QuicConn conn;
     QUIC_DATA dcid;
     QUIC_DATA scid;
     QUIC_DATA token;

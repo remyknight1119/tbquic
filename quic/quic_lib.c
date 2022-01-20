@@ -199,10 +199,6 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         goto out;
     }
 
-    if (QuicStreamInit(quic) < 0) {
-        goto out;
-    }
-
     if (QuicBufInit(&quic->rbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
         goto out;
     }
@@ -215,6 +211,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         goto out;
     }
 
+    QuicStreamConfInit(quic);
     QuicCryptoCipherInit(&quic->initial);
     QuicCryptoCipherInit(&quic->handshake);
     QuicCryptoCipherInit(&quic->zero_rtt);
@@ -325,8 +322,10 @@ void QuicCryptoFree(QUIC_CRYPTO *c)
 
 void QuicFree(QUIC *quic)
 {
+    QuicStreamQueueDestroy(&quic->stream);
     list_del(&quic->node);
 
+    QuicDataFree(&quic->token);
     QuicDataFree(&quic->dcid);
     QuicDataFree(&quic->scid);
 
@@ -345,6 +344,7 @@ void QuicFree(QUIC *quic)
 
     TlsFree(&quic->tls);
 
+    QuicConnFree(&quic->conn);
     QuicMemFree(quic);
 }
 

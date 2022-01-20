@@ -86,7 +86,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     },
     [TLS_ST_CR_NEW_SESSION_TICKET] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_HANDSHAKE_DONE,
+        .next_state = TLS_ST_CR_NEW_SESSION_TICKET,
         .msg_type = TLS_MT_NEW_SESSION_TICKET,
         .handler = TlsClntNewSessionTicketProc,
         .pkt_type = QUIC_PKT_TYPE_1RTT,
@@ -408,6 +408,7 @@ static QuicFlowReturn TlsClientFinishedProc(TLS *s, void *packet)
 
 static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *s, void *packet)
 {
+    QUIC_LOG("innn\n");
     return QUIC_FLOW_RET_FINISH;
 }
 

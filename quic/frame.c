@@ -17,14 +17,18 @@
 
 static int QuicFramePingParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameCryptoParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+static int QuicFrameNewTokenParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameAckParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameResetStreamParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *);
+static int QuicFrameNewConnIdParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+static int QuicFrameHandshakeDoneParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *);
 static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
-static int QuicFrameCryptoBuild(QUIC *, WPacket *, uint8_t *, uint64_t,
-                                    size_t, QUIC_CRYPTO *);
-static int QuicFrameStreamBuild(QUIC *, WPacket *, uint8_t *, uint64_t,
-                                    size_t, QUIC_CRYPTO *);
+static int QuicFrameCryptoBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
+                                        void *, long);
+static int QuicFrameStreamBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
+                                        void *, long);
 
 static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_PADDING] = {
@@ -41,6 +45,9 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
         .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameCryptoParser,
         .builder = QuicFrameCryptoBuild,
+    },
+    [QUIC_FRAME_TYPE_NEW_TOKEN] = {
+        .parser = QuicFrameNewTokenParser,
     },
     [QUIC_FRAME_TYPE_ACK] = {
         .parser = QuicFrameAckParser,
@@ -76,6 +83,13 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_STREAM_OFF_LEN_FIN] = {
         .parser = QuicFrameStreamParser,
         .builder = QuicFrameStreamBuild,
+    },
+    [QUIC_FRAME_TYPE_NEW_CONNECTION_ID] = {
+        .parser = QuicFrameNewConnIdParser,
+    },
+    [QUIC_FRAME_TYPE_HANDSHAKE_DONE] = {
+        .flags = QUIC_FRAME_FLAGS_NO_BODY,
+        .parser = QuicFrameHandshakeDoneParser,
     },
 };
 
@@ -122,6 +136,7 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
         }
 
         if (quic->tls.handshake_state == TLS_ST_HANDSHAKE_DONE) {
+            QUIC_LOG("TLS handshake done\n");
             quic->statem.state = QUIC_STATEM_HANDSHAKE_DONE;
         }
     }
@@ -175,6 +190,24 @@ QuicFrameCryptoParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 }
 
 static int
+QuicFrameNewTokenParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
+{
+    uint64_t length = 0;
+
+    if (quic->quic_server) {
+        //error PROTOCOL_VIOLATION
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &length) < 0) {
+        QUIC_LOG("Length decode failed!\n");
+        return -1;
+    }
+
+    return QuicDataParse(&quic->token, pkt, length);
+}
+
+static int
 QuicFramePingParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 {
     return 0;
@@ -202,7 +235,7 @@ static int QuicFrameResetStreamParser(QUIC *quic, RPacket *pkt, uint64_t type,
         return -1;
     }
 
-    QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_RESET_RECVD);
+    //QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_RESET_RECVD);
 
     return 0;
 }
@@ -288,9 +321,11 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 
     if (type & QUIC_FRAME_STREAM_BIT_FIN) {
         QUIC_LOG("Stream FIN\n");
+#if 0
         if (QUIC_STREAM_GET_RECV_STATE(quic) == QUIC_STREAM_STATE_RECV) {
             QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_SIZE_KNOWN);
         }
+#endif
     }
 
     if (RPacketGetBytes(pkt, &data, len) < 0) {
@@ -298,11 +333,58 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
         return -1;
     }
 
+#if 0
     if (QUIC_STREAM_GET_RECV_STATE(quic) == QUIC_STREAM_STATE_START) {
         QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_RECV);
     }
+#endif
 
     QuicPrint(data, len);
+    return 0;
+}
+
+static int QuicFrameNewConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
+                                        QUIC_CRYPTO *c)
+{
+    QuicConn *conn = &quic->conn;
+    uint64_t seq = 0;
+    uint64_t retire_prior_to = 0;
+    uint64_t len = 0;
+
+    QUIC_LOG("in\n");
+
+    if (QuicVariableLengthDecode(pkt, &seq) < 0) {
+        QUIC_LOG("Seq decode failed!\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &retire_prior_to) < 0) {
+        QUIC_LOG("'Retire Prior To' decode failed!\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &len) < 0) {
+        QUIC_LOG("Length decode failed!\n");
+        return -1;
+    }
+
+    if (QuicDataParse(&conn->id, pkt, len) < 0) {
+        QUIC_LOG("Connection ID parse failed!\n");
+        return -1;
+    }
+
+    return RPacketCopyBytes(pkt, conn->stateless_reset_token,
+            sizeof(conn->stateless_reset_token));
+}
+
+static int QuicFrameHandshakeDoneParser(QUIC *quic, RPacket *pkt, uint64_t type,
+                                        QUIC_CRYPTO *c)
+{
+    QUIC_LOG("handshake done\n");
+    if (!quic->quic_server) {
+        quic->statem.state = QUIC_STATEM_HANDSHAKE_DONE;
+    }
+
     return 0;
 }
 
@@ -311,15 +393,12 @@ int QuicFramePaddingBuild(WPacket *pkt, size_t len)
     return WPacketMemset(pkt, 0, len);
 }
 
-int QuicFramePingBuild(QUIC *quic, WPacket *pkt, uint8_t *data, uint64_t offset,
-                            size_t len)
+static int QuicFrameCryptoBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
+                                uint64_t offset, void *arg, long larg)
 {
-    return WPacketPut1(pkt, QUIC_FRAME_TYPE_PING);
-}
-
-static int QuicFrameCryptoBuild(QUIC *quic, WPacket *pkt, uint8_t *data,
-                            uint64_t offset, size_t len, QUIC_CRYPTO *c)
-{
+    QuicFrameCryptoArg *ca = arg;
+    uint8_t *data = ca->data;
+    size_t len = ca->len;
     int data_len = len - offset;
 
     assert(data_len > 0);
@@ -332,10 +411,13 @@ static int QuicFrameCryptoBuild(QUIC *quic, WPacket *pkt, uint8_t *data,
 }
 
 int
-QuicFrameStreamBuild(QUIC *quic, WPacket *pkt, uint8_t *data, uint64_t offset,
-                        size_t len, QUIC_CRYPTO *c)
+QuicFrameStreamBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c, uint64_t offset,
+                            void *arg, long larg)
 {
-    uint64_t id = 3;
+    QuicFrameStreamArg *sa = arg;
+    uint8_t *data = sa->data;
+    size_t len = sa->len;
+    uint64_t id = sa->id;
 
     if (QuicVariableLengthWrite(pkt, id) < 0) {
         return -1;
@@ -391,12 +473,12 @@ static QBUFF *QuicBuffQueueAndNext(QUIC *quic, uint32_t pkt_type, WPacket *pkt,
 
 static QBUFF *
 QuicFrameSplit(QUIC *quic, uint32_t pkt_type, uint64_t type, WPacket *pkt,
-                            QBUFF *qb, size_t buf_len, uint8_t *data,
-                            size_t len)
+                QBUFF *qb, size_t buf_len, void *arg, long larg)
 {
     QUIC_CRYPTO *c = NULL;
     QuicFrameBuilder builder = NULL;
     uint64_t offset = 0;
+    size_t len = larg;
     int wlen = 0;
 
     if (QUIC_LE(WPacket_get_space(pkt), QUIC_FRAME_HEADER_MAX_LEN)) {
@@ -416,7 +498,7 @@ QuicFrameSplit(QUIC *quic, uint32_t pkt_type, uint64_t type, WPacket *pkt,
             goto err;
         }
 
-        wlen = builder(quic, pkt, data, offset, len, c);
+        wlen = builder(quic, pkt, c, offset, arg, larg);
         if (wlen <= 0) {
             QUIC_LOG("Build failed\n");
             goto err;
@@ -454,11 +536,9 @@ QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
     QUIC_CRYPTO *c = NULL;
     QuicFrameNode *n = NULL;
     QBUFF *qb = NULL;
-    uint8_t *data = NULL;
     WPacket pkt = {};
     size_t i = 0;
     size_t buf_len = 0;
-    size_t data_len = 0;
     size_t head_tail_len = 0;
     uint64_t type = 0;
     uint64_t flags = 0;
@@ -483,12 +563,10 @@ QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
             continue;
         }
         
-        data = node->data.data;
-        data_len = node->data.len;
         flags = frame_handler[type].flags;
         if (flags & QUIC_FRAME_FLAGS_SPLIT_ENABLE) {
-            qb = QuicFrameSplit(quic, pkt_type, type, &pkt, qb, buf_len, data,
-                                    data_len);
+            qb = QuicFrameSplit(quic, pkt_type, type, &pkt, qb, buf_len,
+                                node->arg, node->larg);
             if (qb == NULL) {
                 goto out;
             }
@@ -506,7 +584,7 @@ QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
         c = QBuffCrypto(quic, qb);
         builder = frame_handler[type].builder;
         assert(builder != NULL);
-        if (builder(quic, &pkt, data, 0, data_len, c) < 0) {
+        if (builder(quic, &pkt, c, 0, node->arg, node->larg) < 0) {
             QUIC_LOG("Build %lu failed\n", type);
             goto out;
         }

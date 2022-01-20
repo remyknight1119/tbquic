@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "packet_local.h"
+
 typedef struct {
     union {
         void *data;
@@ -21,5 +23,6 @@ int QuicDataDup(QUIC_DATA *, const QUIC_DATA *);
 int QuicDataDupU16(QUIC_DATA *, const QUIC_DATA *);
 int QuicDataCopy(QUIC_DATA *, const uint8_t *, size_t);
 void QuicDataFree(QUIC_DATA *);
+int QuicDataParse(QUIC_DATA *, RPacket *, size_t);
 
 #endif

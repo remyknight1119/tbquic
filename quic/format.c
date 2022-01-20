@@ -1206,25 +1206,31 @@ void QuicAddQueue(QUIC *quic, QBUFF *qb)
 int QuicTlsFrameBuild(QUIC *quic, uint32_t pkt_type)
 {
     QUIC_BUFFER *buf = QUIC_TLS_BUFFER(quic);
+    QuicFrameCryptoArg arg = {};
     QuicFrameNode frame = {};
 
     frame.type = QUIC_FRAME_TYPE_CRYPTO;
-    frame.data.data = QUIC_BUFFER_HEAD(buf);
-    frame.data.len = QuicBufGetDataLength(buf);
+    arg.data = QUIC_BUFFER_HEAD(buf);
+    arg.len = QuicBufGetDataLength(buf);
+    frame.arg = &arg;
+    frame.larg = arg.len;
 
     return QuicFrameBuild(quic, pkt_type, &frame, 1);
 }
 
-int QuicStreamFrameBuild(QUIC *quic, uint8_t *data, size_t len)
+int QuicStreamFrameBuild(QUIC_STREAM_HANDLE h, uint8_t *data, size_t len)
 {
-    QuicFrameNode frame = {
-        .type = QUIC_FRAME_TYPE_STREAM,
-        .data = {
-            .data = data,
-            .len = len,
-        }
+    QuicFrameNode frame = {};
+    QuicFrameStreamArg arg = {
+        .id = h->id,
+        .data = data,
+        .len = len,
     };
 
-    return QuicFrameBuild(quic, QUIC_PKT_TYPE_1RTT, &frame, 1);
+    frame.type = QUIC_FRAME_TYPE_STREAM;
+    frame.arg = &arg;
+    frame.larg = arg.len;
+
+    return QuicFrameBuild(h->quic, QUIC_PKT_TYPE_1RTT, &frame, 1);
 }
 

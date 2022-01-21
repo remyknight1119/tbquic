@@ -24,7 +24,6 @@
 
 #define QUIC_BUFFER_HEAD(buffer) (uint8_t *)((buffer)->buf->data)
 
-#define QUIC_READ_BUFFER(quic) (&quic->rbuffer)
 #define QUIC_TLS_BUFFER(quic) (&quic->tls.buffer)
 
 #define QUIC_IS_SERVER(q) (q->quic_server)
@@ -33,6 +32,7 @@
 
 struct QuicMethod {
     uint32_t version;
+    bool alloc_rbuf;
     int (*quic_connect)(QUIC *);
     int (*quic_accept)(QUIC *);
     int (*read_bytes)(QUIC *, RPacket *);
@@ -55,12 +55,16 @@ struct QuicCtx {
 
 typedef struct {
     QUIC_CIPHERS ciphers;
-    uint64_t pkt_num;
-    uint64_t pkt_acked;
     bool cipher_inited;
 } QuicCipherSpace;
 
 struct QuicCrypto {
+    uint64_t pkt_num;
+    uint64_t largest_pn;
+    uint64_t largest_acked;
+    uint64_t largest_ack;
+    uint64_t arriv_time;
+    uint64_t first_ack_range;
     QuicCipherSpace decrypt;
     QuicCipherSpace encrypt;
 };
@@ -78,6 +82,7 @@ struct Quic {
     QuicStreamConf stream;
     QUIC_STATEM statem;
     struct list_head node; 
+    int send_fd;
     uint32_t version;
     uint32_t mss;
     uint32_t verify_mode;
@@ -88,20 +93,17 @@ struct Quic {
     const QUIC_METHOD *method;
     BIO *rbio;
     BIO *wbio;
-    void *dispense_arg;
+    QUIC_DATA *read_buf;
     int (*do_handshake)(QUIC *);
     Address source;
     Address dest;
-    /* Read Buffer */
-    QUIC_BUFFER rbuffer;
     QuicConn conn;
     QUIC_DATA dcid;
     QUIC_DATA scid;
     QUIC_DATA token;
     QUIC_CRYPTO initial;
     QUIC_CRYPTO handshake;
-    QUIC_CRYPTO zero_rtt;
-    QUIC_CRYPTO one_rtt;
+    QUIC_CRYPTO application;
     QBUFF *send_head;
     QBuffQueueHead rx_queue;
     QBuffQueueHead tx_queue;
@@ -116,6 +118,7 @@ int QUIC_set_handshake_hp_cipher(QUIC *, uint32_t);
 int QUIC_set_pp_cipher_space_alg(QuicCipherSpace *, uint32_t);
 int QUIC_set_hp_cipher(QUIC_CRYPTO *, uint32_t);
 int QUIC_set_hp_cipher_space_alg(QuicCipherSpace *, uint32_t);
+QUIC_CRYPTO *QuicCryptoGet(QUIC *, uint32_t);
 QUIC_CRYPTO *QuicGetInitialCrypto(QUIC *);
 QUIC_CRYPTO *QuicGetHandshakeCrypto(QUIC *);
 QUIC_CRYPTO *QuicGetOneRttCrypto(QUIC *);

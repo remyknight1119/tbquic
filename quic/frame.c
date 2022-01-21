@@ -13,7 +13,7 @@
 #include "quic_local.h"
 #include "q_buff.h"
 #include "buffer.h"
-
+#include "time.h"
 
 static int QuicFramePingParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameCryptoParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
@@ -26,6 +26,8 @@ static int QuicFrameHandshakeDoneParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *);
 static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameCryptoBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
+                                        void *, long);
+static int QuicFrameAckBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
                                         void *, long);
 static int QuicFrameStreamBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
                                         void *, long);
@@ -51,6 +53,7 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     },
     [QUIC_FRAME_TYPE_ACK] = {
         .parser = QuicFrameAckParser,
+        .builder = QuicFrameAckBuild,
     },
     [QUIC_FRAME_TYPE_STREAM] = {
         .parser = QuicFrameStreamParser,
@@ -256,6 +259,10 @@ QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
         return -1;
     }
 
+    if (QUIC_GE(largest_acked, c->largest_acked)) {
+        c->largest_acked = largest_acked;
+    }
+
     if (QuicVariableLengthDecode(pkt, &ack_delay) < 0) {
         QUIC_LOG("Ack delay decode failed!\n");
         return -1;
@@ -410,6 +417,51 @@ static int QuicFrameCryptoBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
     return QuicWPacketSubMemcpyVar(pkt, &data[offset], data_len);
 }
 
+static int QuicFrameAckBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
+                                uint64_t offset, void *arg, long larg)
+{
+    uint64_t largest_ack = c->largest_pn;
+    uint64_t curr_time = 0;
+    uint64_t delay = 0;
+    uint64_t range_count = 0;
+
+    if (QuicVariableLengthWrite(pkt, largest_ack) < 0) {
+        return -1;
+    }
+
+    curr_time = QuicGetTimeUs();
+    delay = curr_time - c->arriv_time;
+    assert(QUIC_GE(delay, 0));
+
+    if (QuicVariableLengthWrite(pkt, delay) < 0) {
+        return -1;
+    }
+
+    if (QuicVariableLengthWrite(pkt, range_count) < 0) {
+        return -1;
+    }
+
+    if (QuicVariableLengthWrite(pkt, c->first_ack_range) < 0) {
+        return -1;
+    }
+
+    c->largest_ack = largest_ack;
+    return 0;
+}
+
+int QuicFrameAckSendCheck(QUIC_CRYPTO *c)
+{
+    if (!c->encrypt.cipher_inited) {
+        return -1;
+    }
+
+    if (c->largest_ack == c->largest_pn) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int
 QuicFrameStreamBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c, uint64_t offset,
                             void *arg, long larg)
@@ -491,7 +543,7 @@ QuicFrameSplit(QUIC *quic, uint32_t pkt_type, uint64_t type, WPacket *pkt,
     builder = frame_handler[type].builder;
     assert(builder != NULL);
 
-    c = QBuffCrypto(quic, qb);
+    c = QuicCryptoGet(quic, pkt_type);
     offset = 0;
     while (1) {
         if (QuicVariableLengthWrite(pkt, type) < 0) {
@@ -581,7 +633,7 @@ QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
             continue;
         }
 
-        c = QBuffCrypto(quic, qb);
+        c = QuicCryptoGet(quic, pkt_type);
         builder = frame_handler[type].builder;
         assert(builder != NULL);
         if (builder(quic, &pkt, c, 0, node->arg, node->larg) < 0) {

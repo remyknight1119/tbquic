@@ -421,7 +421,13 @@ static int QuicInstallEncryptorDecryptor(TLS *s, const EVP_MD *md,
         }
     }
 
-    return QuicCiphersPrepare(&cs->ciphers, md, sec, enc);
+    if (QuicCiphersPrepare(&cs->ciphers, md, sec, enc) < 0) {
+        QUIC_LOG("Cipher prepare failed\n");
+        return -1;
+    }
+
+    cs->cipher_inited = true;
+    return 0;
 }
 
 static int
@@ -522,7 +528,7 @@ int QuicCreateAppDataClientEncryptorDecryptor(QUIC *quic, int enc)
     TLS *s = &quic->tls;
     static const uint8_t client_application_traffic[] = "c ap traffic";
     
-    return QuicCreateEncryptorDecryptor(s, &quic->one_rtt, s->master_secret,
+    return QuicCreateEncryptorDecryptor(s, &quic->application, s->master_secret,
                             s->client_app_traffic_secret,
                             s->server_finished_hash,
                             sizeof(s->server_finished_hash),
@@ -536,7 +542,7 @@ static int QuicCreateAppDataServerEncryptorDecryptor(QUIC *quic, int enc)
     TLS *s = &quic->tls;
     static const uint8_t server_application_traffic[] = "s ap traffic";
     
-    return QuicCreateEncryptorDecryptor(s, &quic->one_rtt, s->master_secret,
+    return QuicCreateEncryptorDecryptor(s, &quic->application, s->master_secret,
                             s->server_app_traffic_secret,
                             s->server_finished_hash,
                             sizeof(s->server_finished_hash),

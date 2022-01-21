@@ -13,7 +13,7 @@
 #include "common.h"
 #include "log.h"
 
-int QuicDatagramRecvBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
+int QuicDatagramRecv(QUIC *quic, uint8_t *buf, size_t len)
 {
     int read_bytes = 0;
 
@@ -23,15 +23,14 @@ int QuicDatagramRecvBuffer(QUIC *quic, QUIC_BUFFER *qbuf)
     }
 
     quic->statem.rwstate = QUIC_READING;
-    read_bytes = BIO_read(quic->rbio, QuicBufData(qbuf), QuicBufLength(qbuf));
+    read_bytes = BIO_read(quic->rbio, buf, len);
     if (read_bytes < 0) {
         return -1;
     }
 
-    QuicBufSetDataLength(qbuf, read_bytes);
     quic->statem.rwstate = QUIC_FINISHED;
 
-    return 0;
+    return read_bytes;
 }
 
 int QuicDatagramSendBytes(QUIC *quic, uint8_t *data, size_t len)

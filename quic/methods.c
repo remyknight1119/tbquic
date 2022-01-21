@@ -19,6 +19,7 @@ static const TlsMethod QuicTlsServerMeth = {
 
 static QUIC_METHOD QuicClientMeth = {
     .version = QUIC_VERSION_1,
+    .alloc_rbuf = true,
     .quic_connect = QuicConnect,
     .read_bytes = QuicStatemReadBytes,
     .write_bytes = QuicDatagramSendBytes,
@@ -27,6 +28,7 @@ static QUIC_METHOD QuicClientMeth = {
 
 static QUIC_METHOD QuicServerMeth = {
     .version = QUIC_VERSION_1,
+    .alloc_rbuf = true,
     .quic_accept = QuicAccept,
     .read_bytes = QuicStatemReadBytes,
     .write_bytes = QuicDatagramSendBytes,
@@ -35,6 +37,7 @@ static QUIC_METHOD QuicServerMeth = {
 
 static QUIC_METHOD QuicDispenserMeth = {
     .version = QUIC_VERSION_1,
+    .alloc_rbuf = false,
     .quic_accept = QuicAccept,
     .read_bytes = QuicDispenserReadBytes,
     .write_bytes = QuicDispenserWriteBytes,

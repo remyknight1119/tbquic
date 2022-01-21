@@ -18,15 +18,16 @@
 
 int QuicStatemReadBytes(QUIC *quic, RPacket *pkt)
 {
-    QUIC_BUFFER *qbuf = QUIC_READ_BUFFER(quic);
+    QUIC_DATA *buf = quic->read_buf;
     int rlen = 0;
 
-    rlen = QuicDatagramRecvBuffer(quic, qbuf);
+    assert(buf != NULL);
+    rlen = QuicDatagramRecv(quic, buf->data, buf->len);
     if (rlen < 0) {
         return -1;
     }
 
-    RPacketBufInit(pkt, QuicBufData(qbuf), QuicBufGetDataLength(qbuf));
+    RPacketBufInit(pkt, buf->data, rlen);
     return 0;
 }
 
@@ -201,6 +202,7 @@ QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    QuicAckFrameBuild(quic, type);
     return QUIC_FLOW_RET_FINISH;
 }
 

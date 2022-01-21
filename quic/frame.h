@@ -79,5 +79,6 @@ int QuicFrameDoParser(QUIC *, RPacket *, QUIC_CRYPTO *);
 int QuicFramePaddingBuild(WPacket *, size_t);
 int QuicFramePingBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 int QuicFrameBuild(QUIC *, uint32_t, QuicFrameNode *, size_t);
+int QuicFrameAckSendCheck(QUIC_CRYPTO *c);
 
 #endif

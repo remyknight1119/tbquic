@@ -90,7 +90,5 @@ extern void QUIC_set_wbio(QUIC *quic, BIO *wbio);
 extern void QUIC_set_bio(QUIC *quic, BIO *rbio, BIO *wbio);
 extern int QUIC_set_fd(QUIC *quic, int fd);
 extern int QUIC_get_error(QUIC *quic, int ret);
-extern int QuicDatagramSendEarlyData(QUIC *quic, void *data, size_t len);
-extern int QuicDatagramRecv(QUIC *quic, void *data, size_t len);
 
 #endif

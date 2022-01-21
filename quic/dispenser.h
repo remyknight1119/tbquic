@@ -10,7 +10,6 @@
 struct QuicDispenser {
     int sock_fd;
     bool read;
-    QuicStaticBuffer buf;
     struct list_head head; 
     Address dest;
 };

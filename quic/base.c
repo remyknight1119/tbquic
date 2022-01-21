@@ -96,10 +96,39 @@ int QuicDataParse(QUIC_DATA *data, RPacket *pkt, size_t len)
     return 0;
 }
 
+QUIC_DATA *QuicDataCreate(size_t len)
+{
+    QUIC_DATA *data = NULL;
+
+    data = QuicMemMalloc(sizeof(*data));
+    if (data == NULL) {
+        return NULL;
+    }
+
+    data->data = QuicMemMalloc(len);
+    if (data->data == NULL) {
+        QuicDataDestroy(data);
+        return NULL;
+    }
+
+    data->len = len;
+    return data;
+}
+
 void QuicDataFree(QUIC_DATA *data)
 {
+    if (data == NULL) {
+        return;
+    }
+
     QuicMemFree(data->data);
     data->data = NULL;
     data->len = 0;
+}
+
+void QuicDataDestroy(QUIC_DATA *data)
+{
+    QuicDataFree(data);
+    QuicMemFree(data);
 }
 

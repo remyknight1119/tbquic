@@ -192,6 +192,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->verify_mode = ctx->verify_mode;
     quic->cid_len = QUIC_MIN_CID_LENGTH;
     quic->version = ctx->method->version;
+    quic->send_fd = -1;
     quic->tls.ext.trans_param = ctx->ext.trans_param;
     quic->ctx = ctx;
 
@@ -199,8 +200,11 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         goto out;
     }
 
-    if (QuicBufInit(&quic->rbuffer, QUIC_DATAGRAM_SIZE_MAX_DEF) < 0) {
-        goto out;
+    if (quic->method->alloc_rbuf) {
+        quic->read_buf = QuicDataCreate(quic->mss);
+        if (quic->read_buf == NULL) {
+            goto out;
+        }
     }
 
     if (QUIC_set_initial_hp_cipher(quic, QUIC_ALG_AES_128_ECB) < 0) {
@@ -214,8 +218,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     QuicStreamConfInit(quic);
     QuicCryptoCipherInit(&quic->initial);
     QuicCryptoCipherInit(&quic->handshake);
-    QuicCryptoCipherInit(&quic->zero_rtt);
-    QuicCryptoCipherInit(&quic->one_rtt);
+    QuicCryptoCipherInit(&quic->application);
 
     QBuffQueueHeadInit(&quic->rx_queue);
     QBuffQueueHeadInit(&quic->tx_queue);
@@ -294,21 +297,6 @@ int QuicDoHandshake(QUIC *quic)
     return quic->do_handshake(quic);
 }
 
-QUIC_CRYPTO *QuicGetInitialCrypto(QUIC *quic)
-{
-    return &quic->initial;
-}
-
-QUIC_CRYPTO *QuicGetHandshakeCrypto(QUIC *quic)
-{
-    return &quic->handshake;
-}
-
-QUIC_CRYPTO *QuicGetOneRttCrypto(QUIC *quic)
-{
-    return &quic->one_rtt;
-}
-
 void QuicCryptoCipherFree(QuicCipherSpace *cs)
 {
     QuicCipherCtxFree(&cs->ciphers);
@@ -335,13 +323,11 @@ void QuicFree(QUIC *quic)
     QBuffQueueDestroy(&quic->tx_queue);
     QBuffQueueDestroy(&quic->rx_queue);
 
-    QuicCryptoFree(&quic->one_rtt);
+    QuicCryptoFree(&quic->application);
     QuicCryptoFree(&quic->handshake);
-    QuicCryptoFree(&quic->zero_rtt);
     QuicCryptoFree(&quic->initial);
 
-    QuicBufFree(&quic->rbuffer);
-
+    QuicDataDestroy(quic->read_buf);
     TlsFree(&quic->tls);
 
     QuicConnFree(&quic->conn);

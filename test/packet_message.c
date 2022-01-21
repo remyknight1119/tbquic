@@ -167,7 +167,7 @@ int QuicPktFormatTestClient(void)
 
     quic->dcid.data = cid;
     quic->dcid.len = sizeof(cid) - 1;
-    quic->initial.encrypt.pkt_num = 1;
+    quic->initial.pkt_num = 1;
 
     QuicEncryptPayloadHook = QuicPktPayloadInject;
 
@@ -267,6 +267,7 @@ int QuicPktFormatTestServer(void)
     }
     QUIC_set_bio(quic, rbio, wbio);
 
+    quic->initial.pkt_num = 1;
     BIO_write(rbio, client_init_packet, sizeof(client_init_packet) - 1);
     rbio = NULL;
     wbio = NULL;
@@ -294,8 +295,8 @@ int QuicPktFormatTestServer(void)
         goto out;
     }
 
-    if (quic->initial.decrypt.pkt_num != 2) {
-        printf("PKT number incorrect, %lu\n", quic->initial.decrypt.pkt_num);
+    if (quic->initial.pkt_num != 2) {
+        printf("PKT number incorrect, %lu\n", quic->initial.pkt_num);
         goto out;
     }
 

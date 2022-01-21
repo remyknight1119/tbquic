@@ -17,6 +17,7 @@
 #include "log.h"
 #include "frame.h"
 #include "tls.h"
+#include "time.h"
 
 static const uint32_t QuicPacketTypeMap[] = {
     [QUIC_LPACKET_TYPE_INITIAL] = QUIC_PKT_TYPE_INITIAL,
@@ -631,14 +632,16 @@ static int QuicLengthParse(RPacket *msg, RPacket *pkt)
 }
  
 static int
-QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QuicStaticBuffer *buffer,
+QuicDecryptPacket(QUIC_CRYPTO *c, RPacket *pkt, QuicStaticBuffer *buffer,
                     uint8_t bit_mask)
 {
+    QuicCipherSpace *cs = &c->decrypt;
     QUIC_CIPHERS *cipher = NULL;
     uint64_t pkt_num = 0;
     uint32_t h_pkt_num = 0;
     uint8_t pkt_num_len;
 
+    c->arriv_time = QuicGetTimeUs();
     cipher = &cs->ciphers;
     if (QuicDecryptHeader(&cipher->hp_cipher, &h_pkt_num,
                 &pkt_num_len, pkt, bit_mask) < 0) {
@@ -646,18 +649,18 @@ QuicDecryptPacket(QuicCipherSpace *cs, RPacket *pkt, QuicStaticBuffer *buffer,
         return -1;
     }
 
-    pkt_num = QuicPktNumberDecode(cs->pkt_num, h_pkt_num, pkt_num_len*8);
-    if (QUIC_GT(cs->pkt_num, pkt_num)) {
+    pkt_num = QuicPktNumberDecode(c->largest_pn, h_pkt_num, pkt_num_len*8);
+    if (QUIC_GT(c->largest_pn, pkt_num)) {
         QUIC_LOG("PKT number invalid!\n");
         return -1;
     }
 
-    if (cs->pkt_num == pkt_num && pkt_num != 0) {
+    if (c->largest_pn == pkt_num && pkt_num != 0) {
         QUIC_LOG("PKT number invalid!\n");
         return -1;
     }
 
-    cs->pkt_num = pkt_num;
+    c->largest_pn = pkt_num;
 
     return QuicDecryptMessage(&cipher->pp_cipher, buffer->data,
                 &buffer->len, sizeof(buffer->data),
@@ -681,7 +684,7 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 {
     QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
-    RPacket message = {};
+    RPacket msg = {};
     uint64_t token_len = 0;
 
     if (QuicVariableLengthDecode(pkt, &token_len) < 0) {
@@ -696,7 +699,7 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
 
     RPacketForward(pkt, token_len);
 
-    if (QuicLengthParse(&message, pkt) < 0) {
+    if (QuicLengthParse(&msg, pkt) < 0) {
         return -1;
     }
 
@@ -706,8 +709,7 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
     }
 
     c = &quic->initial;
-    if (QuicDecryptPacket(&c->decrypt, &message, buffer,
-                QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
+    if (QuicDecryptPacket(c, &msg, buffer, QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
@@ -719,15 +721,14 @@ int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
 {
     QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
-    RPacket message = {};
+    RPacket msg = {};
 
-    if (QuicLengthParse(&message, pkt) < 0) {
+    if (QuicLengthParse(&msg, pkt) < 0) {
         return -1;
     }
 
     c = &quic->handshake;
-    if (QuicDecryptPacket(&c->decrypt, &message, buffer,
-                QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
+    if (QuicDecryptPacket(c, &msg, buffer, QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
@@ -740,9 +741,8 @@ int QuicOneRttParse(QUIC *quic, RPacket *pkt)
     QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
 
-    c = &quic->one_rtt;
-    if (QuicDecryptPacket(&c->decrypt, pkt, buffer,
-                QUIC_SPACKET_TYPE_RESV_MASK) < 0) {
+    c = &quic->application;
+    if (QuicDecryptPacket(c, pkt, buffer, QUIC_SPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
@@ -1049,10 +1049,11 @@ static size_t QuicSPacketGetTotalLen(QUIC *quic, QUIC_CRYPTO *c, size_t data_len
     return total_len + cipher_len + pkt_num_len;
 }
 
-int QuicPacketBuild(QUIC *quic, QuicCipherSpace *cs, uint8_t *first_byte,
+int QuicPacketBuild(QUIC *quic, QUIC_CRYPTO *c, uint8_t *first_byte,
                     uint8_t pkt_num_len, WPacket *pkt, QBUFF *qb,
                     uint8_t mask)
 {
+    QuicCipherSpace *cs = &c->encrypt;
     QuicPPCipher *pp_cipher = NULL;
     uint8_t *pkt_num_start = NULL;
     uint8_t *dest = NULL;
@@ -1061,10 +1062,15 @@ int QuicPacketBuild(QUIC *quic, QuicCipherSpace *cs, uint8_t *first_byte,
     uint32_t pkt_num = 0;
     int offset = 0;
 
-    cs->pkt_num++;
+    if (!cs->cipher_inited) {
+        QUIC_LOG("Cipher not initialized!\n");
+        return -1;
+    }
 
-    qb->pkt_num = cs->pkt_num;
-    pkt_num = QuicPktNumberEncode(cs->pkt_num, cs->pkt_acked, pkt_num_len*8);
+    c->pkt_num++;
+
+    qb->pkt_num = c->pkt_num;
+    pkt_num = QuicPktNumberEncode(c->pkt_num, c->largest_acked, pkt_num_len*8);
 
     pp_cipher = &cs->ciphers.pp_cipher;
     cipher_len = QuicGetEncryptedPayloadLen(pp_cipher, QBuffGetDataLen(qb));
@@ -1141,7 +1147,7 @@ int QuicLPacketBuild(QUIC *quic, QUIC_CRYPTO *c, uint8_t type, WPacket *pkt,
         }
     }
 
-    return QuicPacketBuild(quic, &c->encrypt, first_byte, pkt_num_len, pkt, qb,
+    return QuicPacketBuild(quic, c, first_byte, pkt_num_len, pkt, qb,
                             QUIC_LPACKET_TYPE_RESV_MASK);
 }
 
@@ -1156,7 +1162,7 @@ QuicSPacketBuild(QUIC *quic, QUIC_CRYPTO *c, WPacket *pkt, QBUFF *qb, bool end)
         return -1;
     }
 
-    return QuicPacketBuild(quic, &c->encrypt, first_byte, pkt_num_len, pkt, qb,
+    return QuicPacketBuild(quic, c, first_byte, pkt_num_len, pkt, qb,
                             QUIC_SPACKET_TYPE_RESV_MASK);
 }
 
@@ -1233,4 +1239,24 @@ int QuicStreamFrameBuild(QUIC_STREAM_HANDLE h, uint8_t *data, size_t len)
 
     return QuicFrameBuild(h->quic, QUIC_PKT_TYPE_1RTT, &frame, 1);
 }
+
+int QuicAckFrameBuild(QUIC *quic, uint32_t pkt_type)
+{
+    QUIC_CRYPTO *c = NULL;
+    QuicFrameNode frame = {};
+
+    c = QuicCryptoGet(quic, pkt_type);
+    if (c == NULL) {
+        return -1;
+    }
+
+    if (QuicFrameAckSendCheck(c) < 0) {
+        return -1;
+    }
+
+    frame.type = QUIC_FRAME_TYPE_ACK;
+
+    return QuicFrameBuild(quic, pkt_type, &frame, 1);
+}
+
 

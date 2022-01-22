@@ -19,6 +19,11 @@
 #include "tls.h"
 #include "time.h"
 
+static int Quic0RttPacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);
+static int QuicHandshakePacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);
+static int QuicOneRttParse(QUIC *, RPacket *, QUIC_CRYPTO *);
+static int QuicRetryPacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);
+
 static const uint32_t QuicPacketTypeMap[] = {
     [QUIC_LPACKET_TYPE_INITIAL] = QUIC_PKT_TYPE_INITIAL,
     [QUIC_LPACKET_TYPE_0RTT] = QUIC_PKT_TYPE_0RTT,
@@ -26,32 +31,34 @@ static const uint32_t QuicPacketTypeMap[] = {
     [QUIC_LPACKET_TYPE_RETRY] = QUIC_PKT_TYPE_RETRY,
 };
 
-static QuicPacketParse QuicHandshakePktParser[QUIC_PKT_TYPE_MAX] = {
+static QuicPacketParse QuicPacketsParser[QUIC_PKT_TYPE_MAX] = {
     [QUIC_PKT_TYPE_INITIAL] = QuicInitPacketParse,
+    [QUIC_PKT_TYPE_0RTT] = Quic0RttPacketParse,
     [QUIC_PKT_TYPE_HANDSHAKE] = QuicHandshakePacketParse,
+    [QUIC_PKT_TYPE_RETRY] = QuicRetryPacketParse,
     [QUIC_PKT_TYPE_1RTT] = QuicOneRttParse,
 };
 
-static int QuicPktBodyParse(QUIC *quic, RPacket *pkt, uint32_t type,
-                            QuicPacketParse *p)
+int QuicPktBodyParse(QUIC *quic, RPacket *pkt, uint32_t type)
 {
+    QUIC_CRYPTO *c = NULL;
     QuicPacketParse parser = NULL;
 
     if (QUIC_GE(type, QUIC_PKT_TYPE_MAX)) {
         return -1;
     }
 
-    parser = p[type];
+    parser = QuicPacketsParser[type];
     if (parser == NULL) {
         return -1;
     }
 
-    return parser(quic, pkt);
-}
+    c = QuicCryptoGet(quic, type);
+    if (c == NULL) {
+        return -1;
+    }
 
-int QuicHandshakeBodyParse(QUIC *quic, RPacket *pkt, uint32_t type)
-{
-    return QuicPktBodyParse(quic, pkt, type, QuicHandshakePktParser);
+    return parser(quic, pkt, c);
 }
 
 static int QuicVersionSelect(QUIC *quic, uint32_t version)
@@ -667,22 +674,22 @@ QuicDecryptPacket(QUIC_CRYPTO *c, RPacket *pkt, QuicStaticBuffer *buffer,
                 h_pkt_num, pkt_num_len, pkt);
 }
 
-static int QuicFrameParse(QUIC *quic, QuicStaticBuffer *buffer, QUIC_CRYPTO *c)
+static int QuicFrameParse(QUIC *quic, QuicStaticBuffer *buffer, QUIC_CRYPTO *c,
+                            uint32_t pkt_type)
 {
     RPacket frame = {};
 
     RPacketBufInit(&frame, buffer->data, buffer->len);
-    return QuicFrameDoParser(quic, &frame, c);
+    return QuicFrameDoParser(quic, &frame, c, pkt_type);
 }
 
-int Quic0RttPacketParse(QUIC *quic, RPacket *pkt)
+static int Quic0RttPacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
 {
     return 0;
 }
 
-int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
+int QuicInitPacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
 {
-    QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
     RPacket msg = {};
     uint64_t token_len = 0;
@@ -708,18 +715,16 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    c = &quic->initial;
     if (QuicDecryptPacket(c, &msg, buffer, QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
 
-    return QuicFrameParse(quic, buffer, c);
+    return QuicFrameParse(quic, buffer, c, QUIC_PKT_TYPE_INITIAL);
 }
 
-int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
+static int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
 {
-    QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
     RPacket msg = {};
 
@@ -727,31 +732,28 @@ int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    c = &quic->handshake;
     if (QuicDecryptPacket(c, &msg, buffer, QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
 
-    return QuicFrameParse(quic, buffer, c);
+    return QuicFrameParse(quic, buffer, c, QUIC_PKT_TYPE_HANDSHAKE);
 }
 
-int QuicOneRttParse(QUIC *quic, RPacket *pkt)
+static int QuicOneRttParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
 {
-    QUIC_CRYPTO *c = NULL;
     QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
 
-    c = &quic->application;
     if (QuicDecryptPacket(c, pkt, buffer, QUIC_SPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
         return -1;
     }
 
     RPacketForward(pkt, RPacketRemaining(pkt));
-    return QuicFrameParse(quic, buffer, c);
+    return QuicFrameParse(quic, buffer, c, QUIC_PKT_TYPE_1RTT);
 }
 
-int QuicRetryPacketParse(QUIC *quic, RPacket *pkt)
+static int QuicRetryPacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
 {
     return 0;
 }
@@ -1208,55 +1210,4 @@ void QuicAddQueue(QUIC *quic, QBUFF *qb)
         quic->send_head = qb;
     }
 }
-
-int QuicTlsFrameBuild(QUIC *quic, uint32_t pkt_type)
-{
-    QUIC_BUFFER *buf = QUIC_TLS_BUFFER(quic);
-    QuicFrameCryptoArg arg = {};
-    QuicFrameNode frame = {};
-
-    frame.type = QUIC_FRAME_TYPE_CRYPTO;
-    arg.data = QUIC_BUFFER_HEAD(buf);
-    arg.len = QuicBufGetDataLength(buf);
-    frame.arg = &arg;
-    frame.larg = arg.len;
-
-    return QuicFrameBuild(quic, pkt_type, &frame, 1);
-}
-
-int QuicStreamFrameBuild(QUIC_STREAM_HANDLE h, uint8_t *data, size_t len)
-{
-    QuicFrameNode frame = {};
-    QuicFrameStreamArg arg = {
-        .id = h->id,
-        .data = data,
-        .len = len,
-    };
-
-    frame.type = QUIC_FRAME_TYPE_STREAM;
-    frame.arg = &arg;
-    frame.larg = arg.len;
-
-    return QuicFrameBuild(h->quic, QUIC_PKT_TYPE_1RTT, &frame, 1);
-}
-
-int QuicAckFrameBuild(QUIC *quic, uint32_t pkt_type)
-{
-    QUIC_CRYPTO *c = NULL;
-    QuicFrameNode frame = {};
-
-    c = QuicCryptoGet(quic, pkt_type);
-    if (c == NULL) {
-        return -1;
-    }
-
-    if (QuicFrameAckSendCheck(c) < 0) {
-        return -1;
-    }
-
-    frame.type = QUIC_FRAME_TYPE_ACK;
-
-    return QuicFrameBuild(quic, pkt_type, &frame, 1);
-}
-
 

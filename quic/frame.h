@@ -75,10 +75,13 @@ typedef struct {
     long larg;
 } QuicFrameNode;
 
-int QuicFrameDoParser(QUIC *, RPacket *, QUIC_CRYPTO *);
+int QuicFrameDoParser(QUIC *, RPacket *, QUIC_CRYPTO *, uint32_t);
 int QuicFramePaddingBuild(WPacket *, size_t);
 int QuicFramePingBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 int QuicFrameBuild(QUIC *, uint32_t, QuicFrameNode *, size_t);
 int QuicFrameAckSendCheck(QUIC_CRYPTO *c);
+int QuicCryptoFrameBuild(QUIC *quic, uint32_t);
+int QuicStreamFrameBuild(QUIC_STREAM_HANDLE, uint8_t *, size_t);
+int QuicAckFrameBuild(QUIC *, uint32_t);
 
 #endif

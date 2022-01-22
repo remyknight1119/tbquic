@@ -15,6 +15,10 @@
 #include "buffer.h"
 #include "time.h"
 
+#define QUIC_FRAM_IS_ACK_ELICITING(type) \
+        (type != QUIC_FRAME_TYPE_PADDING && type != QUIC_FRAME_TYPE_ACK && \
+                type != QUIC_FRAME_TYPE_CONNECTION_CLOSE)
+
 static int QuicFramePingParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameCryptoParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameNewTokenParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
@@ -96,17 +100,19 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     },
 };
 
-int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
+int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c,
+                        uint32_t pkt_type)
 {
     QuicFrameParser parser = NULL;
     QuicFlowReturn ret;
     uint64_t type = 0;
     uint64_t flags = 0;
     bool crypto_found = false;
+    bool ack_eliciting = false;
 
     while (QuicVariableLengthDecode(pkt, &type) >= 0) {
         if (type >= QUIC_FRAME_TYPE_MAX) {
-            QUIC_LOG("Unknown type(%lx)", type);
+            QUIC_LOG("Unknown type(%lx)\n", type);
             return -1;
         }
         flags = frame_handler[type].flags;
@@ -116,12 +122,17 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
 
         parser = frame_handler[type].parser;
         if (parser == NULL) {
-            QUIC_LOG("No parser for type(%lx)", type);
+            QUIC_LOG("No parser for type(%lx)\n", type);
             return -1;
         }
 
         if (parser(quic, pkt, type, c) < 0) {
+            QUIC_LOG("Parse failed: type = %lx\n", type);
             return -1;
+        }
+
+        if (QUIC_FRAM_IS_ACK_ELICITING(type)) {
+            ack_eliciting = true;
         }
 
         if (type == QUIC_FRAME_TYPE_CRYPTO) {
@@ -129,7 +140,11 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
         }
     }
 
-    if (crypto_found == true) {
+    if (ack_eliciting) {
+        QuicAckFrameBuild(quic, pkt_type);
+    }
+
+    if (crypto_found) {
         if (quic->tls.handshake_state != TLS_ST_HANDSHAKE_DONE) {
             ret = TlsDoHandshake(&quic->tls);
             if (ret == QUIC_FLOW_RET_ERROR) {
@@ -446,6 +461,7 @@ static int QuicFrameAckBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
     }
 
     c->largest_ack = largest_ack;
+
     return 0;
 }
 
@@ -655,5 +671,55 @@ out:
     WPacketCleanup(&pkt);
     QBuffFree(qb);
     return ret;
+}
+
+int QuicCryptoFrameBuild(QUIC *quic, uint32_t pkt_type)
+{
+    QUIC_BUFFER *buf = QUIC_TLS_BUFFER(quic);
+    QuicFrameCryptoArg arg = {};
+    QuicFrameNode frame = {};
+
+    frame.type = QUIC_FRAME_TYPE_CRYPTO;
+    arg.data = QUIC_BUFFER_HEAD(buf);
+    arg.len = QuicBufGetDataLength(buf);
+    frame.arg = &arg;
+    frame.larg = arg.len;
+
+    return QuicFrameBuild(quic, pkt_type, &frame, 1);
+}
+
+int QuicStreamFrameBuild(QUIC_STREAM_HANDLE h, uint8_t *data, size_t len)
+{
+    QuicFrameNode frame = {};
+    QuicFrameStreamArg arg = {
+        .id = h->id,
+        .data = data,
+        .len = len,
+    };
+
+    frame.type = QUIC_FRAME_TYPE_STREAM;
+    frame.arg = &arg;
+    frame.larg = arg.len;
+
+    return QuicFrameBuild(h->quic, QUIC_PKT_TYPE_1RTT, &frame, 1);
+}
+
+int QuicAckFrameBuild(QUIC *quic, uint32_t pkt_type)
+{
+    QUIC_CRYPTO *c = NULL;
+    QuicFrameNode frame = {};
+
+    c = QuicCryptoGet(quic, pkt_type);
+    if (c == NULL) {
+        return -1;
+    }
+
+    if (QuicFrameAckSendCheck(c) < 0) {
+        return -1;
+    }
+
+    frame.type = QUIC_FRAME_TYPE_ACK;
+
+    return QuicFrameBuild(quic, pkt_type, &frame, 1);
 }
 

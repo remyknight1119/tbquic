@@ -8,6 +8,7 @@
 #include "quic_local.h"
 #include "tls.h"
 #include "packet_local.h"
+#include "frame.h"
 #include "mem.h"
 #include "log.h"
 

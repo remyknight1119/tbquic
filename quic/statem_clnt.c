@@ -58,8 +58,6 @@ QuicClientInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 
     quic->statem.state = QUIC_STATEM_HANDSHAKE;
 
-    QuicAckFrameBuild(quic, QUIC_PKT_TYPE_INITIAL);
-
     return QUIC_FLOW_RET_WANT_READ;
 }
 

@@ -163,7 +163,7 @@ QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    if (QuicInitPacketParse(quic, pkt) < 0) {
+    if (QuicInitPacketParse(quic, pkt, &quic->initial) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -197,12 +197,11 @@ QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    if (QuicHandshakeBodyParse(quic, pkt, type) < 0) {
+    if (QuicPktBodyParse(quic, pkt, type) < 0) {
         QUIC_LOG("Body parse failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
-    QuicAckFrameBuild(quic, type);
     return QUIC_FLOW_RET_FINISH;
 }
 

@@ -41,7 +41,7 @@ enum {
     QUIC_PKT_TYPE_MAX,
 };
 
-typedef int (*QuicPacketParse)(QUIC *quic, RPacket *pkt);
+typedef int (*QuicPacketParse)(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c);
 
 typedef union {
     uint8_t value;
@@ -84,23 +84,16 @@ uint64_t QuicPktNumberDecode(uint64_t, uint32_t, uint8_t);
 int QuicLPacketHeaderParse(QUIC *, RPacket *);
 int QuicSPacketHeaderParse(QUIC *, RPacket *);
 int QuicPktHeaderParse(QUIC *, RPacket *, QuicPacketFlags, uint32_t *);
-int QuicHandshakeBodyParse(QUIC *, RPacket *, uint32_t);
-int QuicInitPacketParse(QUIC *, RPacket *);
-int Quic0RttPacketParse(QUIC *, RPacket *);
-int QuicHandshakePacketParse(QUIC *, RPacket *);
-int QuicOneRttParse(QUIC *, RPacket *);
-int QuicRetryPacketParse(QUIC *, RPacket *);
+int QuicPktBodyParse(QUIC *, RPacket *, uint32_t);
+int QuicInitPacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);
 size_t QuicInitialPacketGetTotalLen(QUIC *, size_t);
 size_t QuicHandshakePacketGetTotalLen(QUIC *, size_t);
 size_t QuicAppDataPacketGetTotalLen(QUIC *, size_t);
 int QuicInitialPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicHandshakePacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicAppDataPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
-int QuicTlsFrameBuild(QUIC *quic, uint32_t);
 void QuicAddQueue(QUIC *quic, QBUFF *qb);
-int QuicStreamFrameBuild(QUIC_STREAM_HANDLE, uint8_t *, size_t);
 int QuicWPacketSubMemcpyVar(WPacket *, const void *, size_t);
-int QuicAckFrameBuild(QUIC *, uint32_t);
 
 #ifdef QUIC_TEST
 extern void (*QuicEncryptPayloadHook)(QBUFF *qb);

@@ -12,6 +12,7 @@ typedef struct {
     /* Number of bytes remaining */
     size_t total_len;
     size_t remaining;
+    uint64_t pkt_type;
 } RPacket;
 
 struct WPacketSub {

@@ -19,6 +19,7 @@ typedef enum {
     QUIC_FLOW_RET_WANT_WRITE,
     QUIC_FLOW_RET_CONTINUE,
     QUIC_FLOW_RET_FINISH,
+    QUIC_FLOW_RET_DROP,
     QUIC_FLOW_RET_END,
 } QuicFlowReturn;
 

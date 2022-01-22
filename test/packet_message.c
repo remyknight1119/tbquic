@@ -267,7 +267,6 @@ int QuicPktFormatTestServer(void)
     }
     QUIC_set_bio(quic, rbio, wbio);
 
-    quic->initial.pkt_num = 1;
     BIO_write(rbio, client_init_packet, sizeof(client_init_packet) - 1);
     rbio = NULL;
     wbio = NULL;

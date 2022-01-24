@@ -21,10 +21,13 @@ typedef struct {
 
 typedef struct {
     uint64_t type;
+#define QUIC_TRANS_PARAM_FLAGS_INT  0x0001
+    uint64_t flags;
     size_t offset;
-} QuicTransParamsOffset;
+} QuicTransParamsDefines;
 
 int QuicTransParamGetOffset(uint64_t, size_t *);
 int QuicTransParamSet(QuicTransParams *, uint64_t, void *, size_t);
+int QuicTransParamNego(QuicTransParams *, QuicTransParams *, QuicTransParams *);
 
 #endif

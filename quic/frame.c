@@ -688,11 +688,12 @@ int QuicCryptoFrameBuild(QUIC *quic, uint32_t pkt_type)
     return QuicFrameBuild(quic, pkt_type, &frame, 1);
 }
 
-int QuicStreamFrameBuild(QUIC_STREAM_HANDLE h, uint8_t *data, size_t len)
+int QuicStreamFrameBuild(QUIC *quic, QUIC_STREAM_HANDLE h,
+                            uint8_t *data, size_t len)
 {
     QuicFrameNode frame = {};
     QuicFrameStreamArg arg = {
-        .id = h->id,
+        .id = h,
         .data = data,
         .len = len,
     };
@@ -701,7 +702,7 @@ int QuicStreamFrameBuild(QUIC_STREAM_HANDLE h, uint8_t *data, size_t len)
     frame.arg = &arg;
     frame.larg = arg.len;
 
-    return QuicFrameBuild(h->quic, QUIC_PKT_TYPE_1RTT, &frame, 1);
+    return QuicFrameBuild(quic, QUIC_PKT_TYPE_1RTT, &frame, 1);
 }
 
 int QuicAckFrameBuild(QUIC *quic, uint32_t pkt_type)

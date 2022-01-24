@@ -7,7 +7,9 @@
 #include <openssl/x509.h>
 #include "tls.h"
 #include "tls_lib.h"
+#include "quic_local.h"
 #include "packet_local.h"
+#include "transport.h"
 #include "common.h"
 #include "mem.h"
 #include "log.h"
@@ -357,10 +359,15 @@ static int TlsExtSrvrParseSigAlgs(TLS *s, RPacket *pkt, uint32_t context,
 static int TlsExtSrvrParseQtp(TLS *s, RPacket *pkt, uint32_t context,
                                     X509 *x, size_t chainidx)
 {
+    QUIC *quic = QuicTlsTrans(s);
     QuicTransParams param = {};
 
-    return TlsParseQtpExtension(s, &param, pkt, server_transport_param,
-                                    QUIC_SERVER_TRANS_PARAM_NUM);
+    if (TlsParseQtpExtension(s, &param, pkt, server_transport_param,
+                                    QUIC_SERVER_TRANS_PARAM_NUM) < 0) {
+        return -1;
+    }
+
+    return QuicTransParamNego(&quic->negoed_param, &s->ext.trans_param, &param);
 }
 
 static int

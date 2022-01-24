@@ -16,6 +16,10 @@
         const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
         (type *)( (char *)__mptr - offsetof(type,member) );})
 
+#define QUIC_GET_U64_VALUE_BY_OFFSET(p, offset) \
+    *((uint64_t *)((uint8_t *)p + offset))
+#define QUIC_SET_U64_VALUE_BY_OFFSET(p, offset, v) \
+    *((uint64_t *)((uint8_t *)p + offset)) = v
 
 #define QUIC_LT(a, b) ((int)((a) - (b)) < 0)
 #define QUIC_GT(a, b) ((int)((a) - (b)) > 0)

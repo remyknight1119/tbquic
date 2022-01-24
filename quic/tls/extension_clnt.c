@@ -14,6 +14,7 @@
 #include "tls_lib.h"
 #include "common.h"
 #include "format.h"
+#include "transport.h"
 #include "log.h"
 
 static int TlsExtClntCheckServerName(TLS *);
@@ -564,13 +565,19 @@ static int TlsExtClntParseSupportedVersion(TLS *tls, RPacket *pkt,
     return 0;
 }
 
-static int TlsExtClntParseTlsExtQtp(TLS *tls, RPacket *pkt, 
-                            uint32_t context, X509 *x, size_t chainidx)
+static int TlsExtClntParseTlsExtQtp(TLS *s, RPacket *pkt, 
+                                uint32_t context, X509 *x,
+                                size_t chainidx)
 {
+    QUIC *quic = QuicTlsTrans(s);
     QuicTransParams param = {};
 
-    return TlsParseQtpExtension(tls, &param, pkt, client_transport_param,
-                                    QUIC_TRANS_PARAM_NUM);
+    if (TlsParseQtpExtension(s, &param, pkt, client_transport_param,
+                                    QUIC_TRANS_PARAM_NUM) < 0) {
+        return -1;
+    }
+
+    return QuicTransParamNego(&quic->negoed_param, &s->ext.trans_param, &param);
 }
 
 static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,

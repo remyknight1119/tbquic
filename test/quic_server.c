@@ -145,8 +145,8 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
     QUIC_DISPENSER *dis = NULL;
-    QUIC_STREAM_HANDLE h = NULL;
     QuicTestData *data = stream_data;
+    QUIC_STREAM_HANDLE h = -1;
     struct epoll_event ev = {};
     struct epoll_event events[TEST_EVENT_MAX_NUM] = {};
     char quic_data[QUIC_RECORD_MSS_LEN] = {};
@@ -230,15 +230,12 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                         index = 0;
                         printf("new QUIC\n");
                         data = &data[index]; 
-                        h = QuicStreamCreate(quic);
-                        if (h == NULL) {
-                            goto out;
-                        }
-
-                        ret = QuicStreamSendEarlyData(h, data->data, data->len);
+                        ret = QuicStreamSendEarlyData(quic, &h, true,
+                                                data->data, data->len);
                         if (ret < 0) {
                             err = QUIC_get_error(quic, ret);
                             if (err != QUIC_ERROR_WANT_READ) {
+                                printf("Error\n");
                                 goto out;
                             }
 

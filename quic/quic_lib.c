@@ -215,7 +215,6 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         goto out;
     }
 
-    QuicStreamConfInit(quic);
     QuicCryptoCipherInit(&quic->initial);
     QuicCryptoCipherInit(&quic->handshake);
     QuicCryptoCipherInit(&quic->application);
@@ -310,7 +309,7 @@ void QuicCryptoFree(QUIC_CRYPTO *c)
 
 void QuicFree(QUIC *quic)
 {
-    QuicStreamQueueDestroy(&quic->stream);
+    QuicStreamConfDeInit(&quic->stream);
     list_del(&quic->node);
 
     QuicDataFree(&quic->token);

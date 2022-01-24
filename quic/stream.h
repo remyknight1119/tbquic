@@ -34,23 +34,21 @@ enum {
 	QUIC_STREAM_STATE_MAX,
 };
 
-typedef struct {
-    uint64_t id_alloced;
-    uint64_t bidi_id_num_limit;
-    uint64_t uni_id_num_limit;
-    struct list_head queue; 
-} QuicStreamConf;
-
 typedef struct QuicStreamIns {
-    struct list_head node; 
-    uint64_t id;
-    uint32_t mode:2;
-    uint32_t recv_state;
-    uint32_t send_state;
-    void *quic;
+    uint8_t recv_state;
+    uint8_t send_state;
 } QuicStreamInstance;
 
-void QuicStreamConfInit(QUIC *);
-void QuicStreamQueueDestroy(QuicStreamConf *scf);
+typedef struct {
+    uint64_t bidi_id_alloced;
+    uint64_t uni_id_alloced;
+    uint64_t max_id_opened;
+    uint64_t max_id_value;
+    QuicStreamInstance *stream;
+} QuicStreamConf;
+
+int QuicStreamInit(QUIC *);
+int QuicStreamConfInit(QuicStreamConf *scf, uint64_t, uint64_t);
+void QuicStreamConfDeInit(QuicStreamConf *);
 
 #endif

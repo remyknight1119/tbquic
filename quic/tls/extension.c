@@ -9,11 +9,6 @@
 #include "common.h"
 #include "log.h"
 
-#define QUIC_GET_U64_VALUE_BY_OFFSET(p, offset) \
-    *((uint64_t *)((uint8_t *)p + offset))
-#define QUIC_SET_U64_VALUE_BY_OFFSET(p, offset, v) \
-    *((uint64_t *)((uint8_t *)p + offset)) = v
-
 static int TlsShouldAddExtension(TLS *tls, uint32_t extctx,
                                     uint32_t thisctx)
 {

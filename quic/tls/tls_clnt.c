@@ -27,7 +27,8 @@ static QuicFlowReturn TlsServerCertProc(TLS *, void *);
 static QuicFlowReturn TlsCertVerifyProc(TLS *, void *);
 static QuicFlowReturn TlsClientFinishedProc(TLS *, void *);
 static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *, void *);
-static int TlsClientPostFinishedWork(TLS *);
+static int TlsClientEncExtPostWork(TLS *);
+static int TlsClientFinishedPostWork(TLS *);
 
 static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
@@ -54,6 +55,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
         .handler = TlsEncExtProc,
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
+        .post_work = TlsClientEncExtPostWork,
     },
     [TLS_ST_CR_SERVER_CERTIFICATE] = {
         .flow_state = QUIC_FLOW_READING,
@@ -81,7 +83,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .next_state = TLS_ST_CR_NEW_SESSION_TICKET,
         .msg_type = TLS_MT_FINISHED,
         .handler = TlsClntFinishedBuild,
-        .post_work = TlsClientPostFinishedWork,
+        .post_work = TlsClientFinishedPostWork,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [TLS_ST_CR_NEW_SESSION_TICKET] = {
@@ -141,7 +143,7 @@ static QuicFlowReturn TlsClientHelloBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    return QUIC_FLOW_RET_WANT_READ;
+    return QUIC_FLOW_RET_NEXT;
 }
 
 static QuicFlowReturn TlsClntFinishedBuild(TLS *s, void *packet)
@@ -153,7 +155,7 @@ static QuicFlowReturn TlsClntFinishedBuild(TLS *s, void *packet)
         return ret;
     }
 
-    return QUIC_FLOW_RET_WANT_READ;
+    return QUIC_FLOW_RET_NEXT;
 }
 
 static QuicFlowReturn TlsServerHelloProc(TLS *tls, void *packet)
@@ -412,7 +414,18 @@ static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *s, void *packet)
     return QUIC_FLOW_RET_FINISH;
 }
 
-static int TlsClientPostFinishedWork(TLS *s)
+static int TlsClientEncExtPostWork(TLS *s)
+{
+    QUIC *quic = QuicTlsTrans(s);
+
+    if (QuicStreamInit(quic) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int TlsClientFinishedPostWork(TLS *s)
 {
     return QuicCreateAppDataClientEncoders(QuicTlsTrans(s));
 }

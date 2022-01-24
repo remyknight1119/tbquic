@@ -104,6 +104,8 @@ struct Quic {
     QUIC_CRYPTO initial;
     QUIC_CRYPTO handshake;
     QUIC_CRYPTO application;
+    /* negotiate parameters */
+    QuicTransParams negoed_param;
     QBUFF *send_head;
     QBuffQueueHead rx_queue;
     QBuffQueueHead tx_queue;

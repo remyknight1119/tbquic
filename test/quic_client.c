@@ -16,6 +16,7 @@
 #include <tbquic/quic.h>
 #include <tbquic/ec.h>
 #include <tbquic/tls.h>
+#include <tbquic/stream.h>
 
 #include "quic_local.h"
 #include "common.h"
@@ -41,6 +42,16 @@ static const char *options[] = {
     "--key      		    -k	key file\n",	
     "--help         		-H	Print help information\n",	
 };
+
+static uint8_t appdata1[] =
+    "\x00\x04\x19\x01\x80\x01\x00\x00\x06\x80\x02\x00\x00\x07\x40\x64"
+    "\xc0\x00\x00\x09\x03\x15\xe8\x23\xa8\x51\x09\x24\xc0\x00\x00\x04"
+    "\x2f\x0c\x7e\x1f\x02\xf6\x12";
+static uint8_t appdata2[] =
+    "\x02\x3f\xe1\xff\x03\xc0\x8c\xf1\xe3\xc2\xe5\xf2\x3a\x6b\xa0\xab"
+    "\x9e\xc9\xbf";
+static uint8_t appdata3[] =
+    "\x01\x06\x02\x00\xd1\xd7\x80\xc1";
 
 static const uint16_t tls_sigalgs[] = {
     TLSEXT_SIGALG_ECDSA_SECP256R1_SHA256,
@@ -173,6 +184,8 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
+    QUIC_STREAM_HANDLE h = -1;
+    QUIC_STREAM_HANDLE h2 = -1;
     int sockfd = 0;
     int ret = 0;
     int err = 0;
@@ -222,6 +235,27 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
     }
 
     printf("Handshake done\n");
+    h = QuicStreamOpen(quic, false);
+    if (h < 0) {
+        goto out;
+    }
+
+    if (QuicStreamSend(quic, h, appdata1, sizeof(appdata1) - 1) < 0) {
+        goto out;
+    }
+
+    h2 = QuicStreamOpen(quic, false);
+    if (h2 < 0) {
+        goto out;
+    }
+
+    if (QuicStreamSend(quic, h2, appdata2, sizeof(appdata2) - 1) < 0) {
+        goto out;
+    }
+
+    if (QuicStreamSend(quic, h, appdata3, sizeof(appdata3) - 1) < 0) {
+        goto out;
+    }
 
 out:
     QuicFree(quic);

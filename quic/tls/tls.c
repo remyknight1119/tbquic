@@ -218,15 +218,19 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
             return ret;
         }
 
-        if (p->post_work != NULL && p->post_work(tls) < 0) {
-            return QUIC_FLOW_RET_ERROR;
+        if (ret == QUIC_FLOW_RET_DROP) {
+            return ret;
         }
 
         if (ret == QUIC_FLOW_RET_WANT_READ || ret == QUIC_FLOW_RET_WANT_WRITE) {
             return ret;
         }
 
-        if (ret == QUIC_FLOW_RET_DROP) {
+        if (p->post_work != NULL && p->post_work(tls) < 0) {
+            return QUIC_FLOW_RET_ERROR;
+        }
+
+        if (ret == QUIC_FLOW_RET_NEXT) {
             return ret;
         }
 
@@ -272,7 +276,8 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
         WPacketBufInit(&wpkt, buffer->buf);
 
         ret = TlsHandshakeStatem(s, &rpkt, &wpkt, proc, num, &pkt_type);
-        if (ret == QUIC_FLOW_RET_WANT_READ && RPacketRemaining(&rpkt)) {
+        if ((ret == QUIC_FLOW_RET_WANT_READ || ret == QUIC_FLOW_RET_NEXT) &&
+                RPacketRemaining(&rpkt)) {
             if (QuicBufAddOffset(buffer, RPacketReadLen(&rpkt)) < 0) {
                 return QUIC_FLOW_RET_ERROR;
             }

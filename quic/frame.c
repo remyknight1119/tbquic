@@ -25,10 +25,16 @@ static int QuicFrameNewTokenParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameAckParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameResetStreamParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *);
+static int QuicFrameStopSendingParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *);
 static int QuicFrameNewConnIdParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
 static int QuicFrameHandshakeDoneParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *);
 static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+static int QuicFrameMaxStreamDataParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *);
+static int QuicFrameStreamDataBlockedParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *);
 static int QuicFrameCryptoBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
                                         void *, long);
 static int QuicFrameAckBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
@@ -44,8 +50,15 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
         .flags = QUIC_FRAME_FLAGS_NO_BODY,
         .parser = QuicFramePingParser,
     },
+    [QUIC_FRAME_TYPE_ACK] = {
+        .parser = QuicFrameAckParser,
+        .builder = QuicFrameAckBuild,
+    },
     [QUIC_FRAME_TYPE_RESET_STREAM] = {
         .parser = QuicFrameResetStreamParser,
+    },
+    [QUIC_FRAME_TYPE_STOP_SENDING] = {
+        .parser = QuicFrameStopSendingParser,
     },
     [QUIC_FRAME_TYPE_CRYPTO] = {
         .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
@@ -54,10 +67,6 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     },
     [QUIC_FRAME_TYPE_NEW_TOKEN] = {
         .parser = QuicFrameNewTokenParser,
-    },
-    [QUIC_FRAME_TYPE_ACK] = {
-        .parser = QuicFrameAckParser,
-        .builder = QuicFrameAckBuild,
     },
     [QUIC_FRAME_TYPE_STREAM] = {
         .parser = QuicFrameStreamParser,
@@ -90,6 +99,12 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_STREAM_OFF_LEN_FIN] = {
         .parser = QuicFrameStreamParser,
         .builder = QuicFrameStreamBuild,
+    },
+    [QUIC_FRAME_TYPE_MAX_STREAM_DATA] = {
+        .parser = QuicFrameMaxStreamDataParser,
+    },
+    [QUIC_FRAME_TYPE_STREAM_DATA_BLOCKED] = {
+        .parser = QuicFrameStreamDataBlockedParser,
     },
     [QUIC_FRAME_TYPE_NEW_CONNECTION_ID] = {
         .parser = QuicFrameNewConnIdParser,
@@ -234,9 +249,11 @@ QuicFramePingParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 static int QuicFrameResetStreamParser(QUIC *quic, RPacket *pkt, uint64_t type,
                                         QUIC_CRYPTO *c)
 {
+    QuicStreamInstance *si = NULL;
     uint64_t stream_id = 0;
     uint64_t error_code = 0;
     uint64_t final_size = 0;
+    uint8_t recv_state = 0;
 
     if (QuicVariableLengthDecode(pkt, &stream_id) < 0) {
         QUIC_LOG("Stream ID decode failed!\n");
@@ -253,7 +270,58 @@ static int QuicFrameResetStreamParser(QUIC *quic, RPacket *pkt, uint64_t type,
         return -1;
     }
 
-    //QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_RESET_RECVD);
+    si = QuicStreamGetInstance(quic, stream_id);
+    if (si == NULL) {
+        QUIC_LOG("Instance not found for ID %lu\n", stream_id);
+        return -1;
+    }
+
+    recv_state = si->recv_state;
+    if (recv_state == QUIC_STREAM_STATE_RECV ||
+            recv_state == QUIC_STREAM_STATE_SIZE_KNOWN ||
+            recv_state == QUIC_STREAM_STATE_DATA_RECVD) {
+        si->recv_state = QUIC_STREAM_STATE_RESET_RECVD;
+    }
+
+    return 0;
+}
+
+static int QuicFrameStopSendingParser(QUIC *quic, RPacket *pkt,
+                                    uint64_t type, QUIC_CRYPTO *c)
+{
+    QuicStreamInstance *si = NULL;
+    uint64_t id = 0;
+    uint64_t err_code = 0;
+
+    if (QuicVariableLengthDecode(pkt, &id) < 0) {
+        QUIC_LOG("ID decode failed!\n");
+        return -1;
+    }
+
+    QUIC_LOG("Stream %lu\n", id);
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        QUIC_LOG("Instance not found for ID %lu\n", id);
+        return -1;
+    }
+
+    if (si->send_state == QUIC_STREAM_STATE_START ||
+            si->send_state == QUIC_STREAM_STATE_DISABLE) {
+        //STREAM_STATE_ERROR
+        QUIC_LOG("Send stream disabled\n");
+        return -1;
+    }
+
+    si->send_state = QUIC_STREAM_STATE_DISABLE;
+
+    if (QuicVariableLengthDecode(pkt, &err_code) < 0) {
+        QUIC_LOG("Max Stream Data decode failed!\n");
+        return -1;
+    }
+
+    if (si->recv_state == QUIC_STREAM_STATE_START) {
+        si->recv_state = QUIC_STREAM_STATE_RECV;
+    }
 
     return 0;
 }
@@ -312,6 +380,7 @@ QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 static int
 QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 {
+    QuicStreamInstance *si = NULL;
     const uint8_t *data = NULL;
     uint64_t id = 0;
     uint64_t offset = 0;
@@ -341,13 +410,22 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
         len = RPacketRemaining(pkt);
     }
 
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        QUIC_LOG("Instance not found for ID %lu\n", id);
+        return -1;
+    }
+
+    if (si->recv_state == QUIC_STREAM_STATE_DISABLE) {
+        QUIC_LOG("Receive stream disabled\n");
+        return -1;
+    }
+
     if (type & QUIC_FRAME_STREAM_BIT_FIN) {
         QUIC_LOG("Stream FIN\n");
-#if 0
-        if (QUIC_STREAM_GET_RECV_STATE(quic) == QUIC_STREAM_STATE_RECV) {
-            QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_SIZE_KNOWN);
+        if (si->recv_state == QUIC_STREAM_STATE_RECV) {
+            si->recv_state = QUIC_STREAM_STATE_SIZE_KNOWN;
         }
-#endif
     }
 
     if (RPacketGetBytes(pkt, &data, len) < 0) {
@@ -355,13 +433,87 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
         return -1;
     }
 
-#if 0
-    if (QUIC_STREAM_GET_RECV_STATE(quic) == QUIC_STREAM_STATE_START) {
-        QUIC_STREAM_SET_RECV_STATE(quic, QUIC_STREAM_STATE_RECV);
+    if (si->recv_state == QUIC_STREAM_STATE_START) {
+        si->recv_state = QUIC_STREAM_STATE_RECV;
     }
-#endif
 
-    QuicPrint(data, len);
+    if (si->recv_state == QUIC_STREAM_STATE_RECV ||
+            si->recv_state == QUIC_STREAM_STATE_SIZE_KNOWN) {
+        QuicPrint(data, len);
+    }
+
+    return 0;
+}
+
+static int QuicFrameStreamDataBlockedParser(QUIC *quic, RPacket *pkt,
+                                    uint64_t type, QUIC_CRYPTO *c)
+{
+    QuicStreamInstance *si = NULL;
+    uint64_t id = 0;
+    uint64_t max_stream_data = 0;
+
+    if (QuicVariableLengthDecode(pkt, &id) < 0) {
+        QUIC_LOG("ID decode failed!\n");
+        return -1;
+    }
+
+    QUIC_LOG("Stream %lu\n", id);
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        QUIC_LOG("Instance not found for ID %lu\n", id);
+        return -1;
+    }
+
+    if (si->recv_state == QUIC_STREAM_STATE_DISABLE) {
+        QUIC_LOG("Receive stream disabled\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &max_stream_data) < 0) {
+        QUIC_LOG("Max Stream Data decode failed!\n");
+        return -1;
+    }
+
+    if (si->recv_state == QUIC_STREAM_STATE_START) {
+        si->recv_state = QUIC_STREAM_STATE_RECV;
+    }
+
+    return 0;
+}
+
+static int QuicFrameMaxStreamDataParser(QUIC *quic, RPacket *pkt,
+                                    uint64_t type, QUIC_CRYPTO *c)
+{
+    QuicStreamInstance *si = NULL;
+    uint64_t id = 0;
+    uint64_t max_stream_data = 0;
+
+    if (QuicVariableLengthDecode(pkt, &id) < 0) {
+        QUIC_LOG("ID decode failed!\n");
+        return -1;
+    }
+
+    QUIC_LOG("Stream %lu\n", id);
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        QUIC_LOG("Instance not found for ID %lu\n", id);
+        return -1;
+    }
+
+    if (si->recv_state == QUIC_STREAM_STATE_DISABLE ||
+            si->recv_state == QUIC_STREAM_STATE_START) {
+        //STREAM_STATE_ERROR
+        QUIC_LOG("Receive stream disabled\n");
+        return -1;
+    }
+
+    if (QuicVariableLengthDecode(pkt, &max_stream_data) < 0) {
+        QUIC_LOG("Max Stream Data decode failed!\n");
+        return -1;
+    }
+
+    si->max_stream_data = max_stream_data;
+
     return 0;
 }
 

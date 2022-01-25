@@ -4,6 +4,7 @@
 
 #include "stream.h"
 
+#include <assert.h>
 #include <tbquic/quic.h>
 #include "quic_local.h"
 #include "tls.h"
@@ -13,42 +14,69 @@
 #include "common.h"
 #include "log.h"
 
-static uint64_t QuicStreamComputeMaxId(uint64_t num)
+static uint64_t QuicStreamComputeMaxId(uint64_t num, bool uni)
 {
     uint64_t base = num & QUIC_STREAM_ID_MASK;
     uint64_t top = num & ~QUIC_STREAM_ID_MASK;
 
-    return ((top << 1) | base);
+    if (uni) {
+        base |= QUIC_STREAM_UNIDIRECTIONAL;
+    }
+
+    return ((top << 1) | base | QUIC_STREAM_INITIATED_BY_SERVER);
 }
 
-static void QuicStreamInstanceInit(QuicStreamInstance *si)
+static bool QuicStreamPeerOpened(int64_t id, bool server)
 {
-    si->recv_state = QUIC_STREAM_STATE_START;
-    si->send_state = QUIC_STREAM_STATE_START;
+    return (server && !(id & QUIC_STREAM_INITIATED_BY_SERVER)) ||
+                (!server && (id & QUIC_STREAM_INITIATED_BY_SERVER));
 }
 
-int QuicStreamConfInit(QuicStreamConf *scf, uint64_t max_stream_bidi,
-                        uint64_t max_stream_uni)
+static void
+QuicStreamInstanceInit(QuicStreamInstance *si, int64_t id, bool server)
 {
-    size_t i = 0;
-    uint64_t max_bidi_stream_id = 0;
-    uint64_t max_uni_stream_id = 0;
+    if (!QuicStreamPeerOpened(id, server) &&
+            (id & QUIC_STREAM_UNIDIRECTIONAL)) {
+        si->recv_state = QUIC_STREAM_STATE_DISABLE;
+    } else {
+        si->recv_state = QUIC_STREAM_STATE_START;
+    }
+
+    if (QuicStreamPeerOpened(id, server) &&
+            (id & QUIC_STREAM_UNIDIRECTIONAL)) {
+        si->send_state = QUIC_STREAM_STATE_DISABLE;
+    } else {
+        si->send_state = QUIC_STREAM_STATE_START;
+    }
+}
+
+static void QuicStreamInstanceRecvOpen(QuicStreamInstance *si)
+{
+    if (si->recv_state == QUIC_STREAM_STATE_START) {
+        si->recv_state = QUIC_STREAM_STATE_RECV;
+    }
+}
+
+static int QuicStreamConfInit(QuicStreamConf *scf, uint64_t max_stream_bidi,
+                        uint64_t max_stream_uni, bool server)
+{
+    int64_t id = 0;
 
     if (scf->stream != NULL) {
         QUIC_LOG("Stream initialized\n");
         return -1;
     }
 
-    max_bidi_stream_id = QuicStreamComputeMaxId(max_stream_bidi);
-    max_uni_stream_id = QuicStreamComputeMaxId(max_stream_uni);
-    scf->max_id_value = QUIC_MAX(max_bidi_stream_id, max_uni_stream_id);
+    scf->max_bidi_stream_id = QuicStreamComputeMaxId(max_stream_bidi, false);
+    scf->max_uni_stream_id = QuicStreamComputeMaxId(max_stream_uni, true);
+    scf->max_id_value = QUIC_MAX(scf->max_bidi_stream_id, scf->max_uni_stream_id);
     scf->stream = QuicMemCalloc(sizeof(*scf->stream)*scf->max_id_value);
     if (scf->stream == NULL) {
         return -1;
     }
 
-    for (i = 0; i < scf->max_id_value; i++) {
-        QuicStreamInstanceInit(&scf->stream[i]);
+    for (id = 0; id < scf->max_id_value; id++) {
+        QuicStreamInstanceInit(&scf->stream[id], id, server);
     }
 
     return 0;
@@ -59,27 +87,18 @@ void QuicStreamConfDeInit(QuicStreamConf *scf)
     QuicMemFree(scf->stream);
 }
 
-static int64_t QuicStreamIdGen(QuicTransParams *param, QuicStreamConf *scf,
-                                bool server, bool uni)
+static int QuicStreamIdCheck(QuicStreamConf *scf, int64_t id)
 {
-    int64_t id = 0;
-
-    if (uni) {
-        if (scf->uni_id_alloced > param->initial_max_stream_uni) {
+    if (id & QUIC_STREAM_UNIDIRECTIONAL) {
+        if (id >= scf->max_uni_stream_id) {
+            //send a STREAMS_BLOCKED frame (type=0x17)
             return -1;
         }
-        id = scf->uni_id_alloced++;
-        id = (id << QUIC_STREAM_ID_MASK_BITS) | QUIC_STREAM_UNIDIRECTIONAL;
     } else {
-        if (scf->bidi_id_alloced > param->initial_max_stream_bidi) {
+        if (id >= scf->max_bidi_stream_id) {
+            //send a STREAMS_BLOCKED frame (type=0x16)
             return -1;
         }
-        id = scf->bidi_id_alloced++;
-        id = (id << QUIC_STREAM_ID_MASK_BITS);
-    }
-
-    if (server) {
-        id |= QUIC_STREAM_INITIATED_BY_SERVER;
     }
 
     if (id >= scf->max_id_value) {
@@ -87,6 +106,33 @@ static int64_t QuicStreamIdGen(QuicTransParams *param, QuicStreamConf *scf,
         return -1;
     }
 
+    return 0;
+}
+
+static int64_t QuicStreamIdGen(QuicStreamConf *scf, bool server, bool uni)
+{
+    uint64_t *alloced = NULL;
+    int64_t id = 0;
+
+    if (uni) {
+        id = scf->uni_id_alloced;
+        id = (id << QUIC_STREAM_ID_MASK_BITS) | QUIC_STREAM_UNIDIRECTIONAL;
+        alloced = &scf->uni_id_alloced;
+    } else {
+        id = scf->bidi_id_alloced;
+        id = (id << QUIC_STREAM_ID_MASK_BITS);
+        alloced = &scf->bidi_id_alloced;
+    }
+
+    if (server) {
+        id |= QUIC_STREAM_INITIATED_BY_SERVER;
+    }
+
+    if (QuicStreamIdCheck(scf, id) < 0) {
+        return -1;
+    }
+
+    (*alloced)++;
     return id;
 }
 
@@ -101,15 +147,18 @@ QUIC_STREAM_HANDLE QuicStreamOpen(QUIC *quic, bool uni)
         return -1;
     }
 
-    id = QuicStreamIdGen(&quic->negoed_param, scf, quic->quic_server, uni);
+    id = QuicStreamIdGen(scf, quic->quic_server, uni);
     if (id < 0) {
         return -1;
     }
 
     si = &scf->stream[id];
+
+    assert(si->send_state == QUIC_STREAM_STATE_START);
+
     si->send_state = QUIC_STREAM_STATE_READY;
     if (!uni) {
-        si->recv_state = QUIC_STREAM_STATE_RECV;
+        QuicStreamInstanceRecvOpen(si);
     }
 
     return id;
@@ -117,6 +166,40 @@ QUIC_STREAM_HANDLE QuicStreamOpen(QUIC *quic, bool uni)
 
 void QuicStreamClose(QUIC_STREAM_HANDLE h)
 {
+}
+
+QuicStreamInstance *QuicStreamGetInstance(QUIC *quic, QUIC_STREAM_HANDLE h)
+{
+    QuicStreamConf *scf = &quic->stream;
+    QuicStreamInstance *si = NULL;
+    int64_t id = h;
+    int64_t i = 0;
+
+    if (scf->stream == NULL) {
+        QUIC_LOG("Stream not initialized\n");
+        return NULL;
+    }
+
+    if (QuicStreamIdCheck(scf, id) < 0) {
+        return NULL;
+    }
+
+    si = &scf->stream[id];
+
+    if (!QuicStreamPeerOpened(id, quic->quic_server) &&
+            si->send_state == QUIC_STREAM_STATE_START) {
+        return NULL;
+    }
+
+    if (id > scf->max_id_opened) {
+        for (i = scf->max_id_opened + 1; i <= id; i++) {
+            QuicStreamInstanceRecvOpen(&scf->stream[i]);
+        }
+
+        scf->max_id_opened = id;
+    }
+
+    return si;
 }
 
 int QuicStreamSendEarlyData(QUIC *quic, QUIC_STREAM_HANDLE *h, bool uni,
@@ -202,5 +285,7 @@ int QuicStreamInit(QUIC *quic)
     QuicTransParams *param = &quic->negoed_param;
 
     return QuicStreamConfInit(&quic->stream, param->initial_max_stream_bidi,
-                                param->initial_max_stream_uni);
+                                param->initial_max_stream_uni,
+                                quic->quic_server);
 }
+

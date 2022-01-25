@@ -20,7 +20,8 @@
             (QUIC_STREAM_INITIATED_BY_SERVER|QUIC_STREAM_UNIDIRECTIONAL)
 
 enum {
-	QUIC_STREAM_STATE_START = 0,
+	QUIC_STREAM_STATE_DISABLE = 0,
+	QUIC_STREAM_STATE_START,
 	QUIC_STREAM_STATE_READY,
 	QUIC_STREAM_STATE_SEND,
 	QUIC_STREAM_STATE_RECV,
@@ -37,18 +38,21 @@ enum {
 typedef struct QuicStreamIns {
     uint8_t recv_state;
     uint8_t send_state;
+    uint64_t max_stream_data;
 } QuicStreamInstance;
 
 typedef struct {
     uint64_t bidi_id_alloced;
     uint64_t uni_id_alloced;
+    uint64_t max_bidi_stream_id;
+    uint64_t max_uni_stream_id;
     uint64_t max_id_opened;
     uint64_t max_id_value;
     QuicStreamInstance *stream;
 } QuicStreamConf;
 
 int QuicStreamInit(QUIC *);
-int QuicStreamConfInit(QuicStreamConf *scf, uint64_t, uint64_t);
 void QuicStreamConfDeInit(QuicStreamConf *);
+QuicStreamInstance *QuicStreamGetInstance(QUIC *, QUIC_STREAM_HANDLE);
 
 #endif

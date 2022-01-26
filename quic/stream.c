@@ -48,6 +48,20 @@ QuicStreamInstanceInit(QuicStreamInstance *si, int64_t id, bool server)
     } else {
         si->send_state = QUIC_STREAM_STATE_START;
     }
+
+    INIT_LIST_HEAD(&si->queue);
+}
+
+static void
+QuicStreamInstanceDeInit(QuicStreamInstance *si)
+{
+    QuicStreamData *sd = NULL;
+    QuicStreamData *n = NULL;
+
+    list_for_each_entry_safe(sd, n, &si->queue, node) {
+        list_del(&sd->node);
+        QuicStreamDataFree(sd);
+    }
 }
 
 static void QuicStreamInstanceRecvOpen(QuicStreamInstance *si)
@@ -84,6 +98,16 @@ static int QuicStreamConfInit(QuicStreamConf *scf, uint64_t max_stream_bidi,
 
 void QuicStreamConfDeInit(QuicStreamConf *scf)
 {
+    int64_t id = 0;
+
+    if (scf->stream == NULL) {
+        return;
+    }
+
+    for (id = 0; id < scf->max_id_value; id++) {
+        QuicStreamInstanceDeInit(&scf->stream[id]);
+    }
+
     QuicMemFree(scf->stream);
 }
 
@@ -287,5 +311,67 @@ int QuicStreamInit(QUIC *quic)
     return QuicStreamConfInit(&quic->stream, param->initial_max_stream_bidi,
                                 param->initial_max_stream_uni,
                                 quic->quic_server);
+}
+
+QuicStreamData *QuicStreamDataCreate(void *origin_buf, int64_t offset,
+                                        const void *data, size_t len)
+{
+    QuicStreamData *sd = NULL;
+
+    if (origin_buf == NULL) {
+        return NULL;
+    }
+
+    sd = QuicMemCalloc(sizeof(*sd));
+    if (sd == NULL) {
+        return NULL;
+    }
+
+    sd->offset = offset;
+    sd->data = data;
+    sd->len = len;
+
+    QuicDataBufGet(origin_buf);
+    sd->origin_buf = origin_buf;
+    return sd;
+}
+
+static void QuicStreamDataAddOfo(QuicStreamData *sd, QuicStreamInstance *si)
+{
+}
+
+void QuicStreamDataAdd(QuicStreamData *sd, QuicStreamInstance *si)
+{
+    int64_t start = sd->offset;
+    int64_t end = sd->offset + sd->len;
+    int64_t offset = 0;
+
+    if (si->offset >= end){
+        //Retransmitted
+        QuicStreamDataFree(sd);
+        return;
+    }
+
+    if (si->offset < start) {
+        //Out of Order
+        QuicStreamDataAddOfo(sd, si);
+        return;
+    }
+
+    if (si->offset > start) {
+        //Overlap
+        offset = si->offset - start;
+        sd->data += offset;
+        sd->len -= offset;
+        sd->offset = si->offset;
+    }
+
+    list_add_tail(&sd->node, &si->queue);
+}
+
+void QuicStreamDataFree(QuicStreamData *sd)
+{
+    QuicDataBufFree(sd->origin_buf);
+    QuicMemFree(sd);
 }
 

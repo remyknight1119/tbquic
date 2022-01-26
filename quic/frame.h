@@ -13,7 +13,8 @@
 /* type + offset + length */
 #define QUIC_FRAME_HEADER_MAX_LEN   (3*sizeof(uint32_t))
 
-typedef int (*QuicFrameParser)(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+typedef int (*QuicFrameParser)(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                    void *);
 typedef int (*QuicFrameBuilder)(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
                                     void *, long);
 
@@ -75,7 +76,7 @@ typedef struct {
     long larg;
 } QuicFrameNode;
 
-int QuicFrameDoParser(QUIC *, RPacket *, QUIC_CRYPTO *, uint32_t);
+int QuicFrameDoParser(QUIC *, RPacket *, QUIC_CRYPTO *, uint32_t, void *);
 int QuicFramePaddingBuild(WPacket *, size_t);
 int QuicFramePingBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 int QuicFrameBuild(QUIC *, uint32_t, QuicFrameNode *, size_t);

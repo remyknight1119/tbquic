@@ -4,6 +4,7 @@
 
 #include "base.h"
 
+#include "atomic.h"
 #include "mem.h"
 
 int QuicDataIsEmpty(const QUIC_DATA *data)
@@ -130,5 +131,48 @@ void QuicDataDestroy(QUIC_DATA *data)
 {
     QuicDataFree(data);
     QuicMemFree(data);
+}
+
+QUIC_DATA_BUF *QuicDataBufCreate(size_t len)
+{
+    QUIC_DATA_BUF *buf = NULL;
+
+    buf = QuicMemCalloc(sizeof(*buf));
+    if (buf == NULL) {
+        return NULL;
+    }
+
+    buf->buf.data = QuicMemMalloc(len);
+    if (buf->buf.data == NULL) {
+        QuicMemFree(buf);
+        return NULL;
+    }
+
+    buf->buf.len = len;
+    atomic_set(&buf->ref, 1);
+
+    return buf;
+}
+
+void QuicDataBufGet(QUIC_DATA_BUF *buf)
+{
+    if (buf == NULL) {
+        return;
+    }
+
+    atomic_inc(&buf->ref);
+}
+
+void QuicDataBufFree(QUIC_DATA_BUF *buf)
+{
+    if (buf == NULL) {
+        return;
+    }
+
+    atomic_dec(&buf->ref);
+    if (buf->ref == 0) {
+        QuicMemFree(buf->buf.data);
+        QuicMemFree(buf);
+    }
 }
 

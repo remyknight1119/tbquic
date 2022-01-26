@@ -15,6 +15,12 @@ typedef struct {
     size_t len;
 } QUIC_DATA;
 
+typedef struct {
+    uint32_t ref;
+    size_t data_len;
+    QUIC_DATA buf;
+} QUIC_DATA_BUF;
+
 int QuicDataIsEmpty(const QUIC_DATA *);
 void QuicDataSet(QUIC_DATA *, const void *, size_t);
 void QuicDataGet(const QUIC_DATA *, const void **, size_t *);
@@ -26,5 +32,8 @@ QUIC_DATA *QuicDataCreate(size_t);
 void QuicDataFree(QUIC_DATA *);
 void QuicDataDestroy(QUIC_DATA *);
 int QuicDataParse(QUIC_DATA *, RPacket *, size_t);
+QUIC_DATA_BUF *QuicDataBufCreate(size_t);
+void QuicDataBufGet(QUIC_DATA_BUF *);
+void QuicDataBufFree(QUIC_DATA_BUF *);
 
 #endif

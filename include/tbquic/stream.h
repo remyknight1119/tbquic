@@ -3,6 +3,9 @@
 
 #include <tbquic/types.h>
 
+#define QUIC_STREAM_DATA_FLAGS_FIN      0x01
+#define QUIC_STREAM_DATA_FLAGS_RESET    0x02
+
 extern QUIC_STREAM_HANDLE QuicStreamOpen(QUIC *quic, bool uni);
 extern int QuicStreamSendEarlyData(QUIC *quic, QUIC_STREAM_HANDLE *h, bool uni,
                                     void *data, size_t len);

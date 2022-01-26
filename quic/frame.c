@@ -19,22 +19,28 @@
         (type != QUIC_FRAME_TYPE_PADDING && type != QUIC_FRAME_TYPE_ACK && \
                 type != QUIC_FRAME_TYPE_CONNECTION_CLOSE)
 
-static int QuicFramePingParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
-static int QuicFrameCryptoParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
-static int QuicFrameNewTokenParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
-static int QuicFrameAckParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+static int QuicFramePingParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                    void *);
+static int QuicFrameCryptoParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                    void *);
+static int QuicFrameNewTokenParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                    void *);
+static int QuicFrameAckParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                    void *);
 static int QuicFrameResetStreamParser(QUIC *, RPacket *, uint64_t,
-                                        QUIC_CRYPTO *);
+                                        QUIC_CRYPTO *, void *);
 static int QuicFrameStopSendingParser(QUIC *, RPacket *, uint64_t,
-                                        QUIC_CRYPTO *);
-static int QuicFrameNewConnIdParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+                                        QUIC_CRYPTO *, void *);
+static int QuicFrameNewConnIdParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                        void *);
 static int QuicFrameHandshakeDoneParser(QUIC *, RPacket *, uint64_t,
-                                        QUIC_CRYPTO *);
-static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *);
+                                        QUIC_CRYPTO *, void *);
+static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                        void *);
 static int QuicFrameMaxStreamDataParser(QUIC *, RPacket *, uint64_t,
-                                        QUIC_CRYPTO *);
+                                        QUIC_CRYPTO *, void *);
 static int QuicFrameStreamDataBlockedParser(QUIC *, RPacket *, uint64_t,
-                                        QUIC_CRYPTO *);
+                                        QUIC_CRYPTO *, void *);
 static int QuicFrameCryptoBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
                                         void *, long);
 static int QuicFrameAckBuild(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
@@ -116,7 +122,7 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
 };
 
 int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c,
-                        uint32_t pkt_type)
+                        uint32_t pkt_type, void *buf)
 {
     QuicFrameParser parser = NULL;
     QuicFlowReturn ret;
@@ -141,7 +147,7 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c,
             return -1;
         }
 
-        if (parser(quic, pkt, type, c) < 0) {
+        if (parser(quic, pkt, type, c, buf) < 0) {
             QUIC_LOG("Parse failed: type = %lx\n", type);
             return -1;
         }
@@ -178,7 +184,8 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c,
 }
 
 static int
-QuicFrameCryptoParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
+QuicFrameCryptoParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
+                        void *buffer)
 {
     QUIC_BUFFER *buf = QUIC_TLS_BUFFER(quic);
     uint8_t *data = NULL;
@@ -223,7 +230,8 @@ QuicFrameCryptoParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 }
 
 static int
-QuicFrameNewTokenParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
+QuicFrameNewTokenParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
+                        void *buf)
 {
     uint64_t length = 0;
 
@@ -241,13 +249,14 @@ QuicFrameNewTokenParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 }
 
 static int
-QuicFramePingParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
+QuicFramePingParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
+                        void *buf)
 {
     return 0;
 }
 
 static int QuicFrameResetStreamParser(QUIC *quic, RPacket *pkt, uint64_t type,
-                                        QUIC_CRYPTO *c)
+                                        QUIC_CRYPTO *c, void *buf)
 {
     QuicStreamInstance *si = NULL;
     uint64_t stream_id = 0;
@@ -287,7 +296,8 @@ static int QuicFrameResetStreamParser(QUIC *quic, RPacket *pkt, uint64_t type,
 }
 
 static int QuicFrameStopSendingParser(QUIC *quic, RPacket *pkt,
-                                    uint64_t type, QUIC_CRYPTO *c)
+                                    uint64_t type, QUIC_CRYPTO *c,
+                                    void *buf)
 {
     QuicStreamInstance *si = NULL;
     uint64_t id = 0;
@@ -327,7 +337,8 @@ static int QuicFrameStopSendingParser(QUIC *quic, RPacket *pkt,
 }
 
 static int
-QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
+QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
+                        void *buf)
 {
     uint64_t largest_acked = 0;
     uint64_t ack_delay = 0;
@@ -378,9 +389,11 @@ QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 }
 
 static int
-QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
+QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
+                        void *buf)
 {
     QuicStreamInstance *si = NULL;
+    QuicStreamData *sd = NULL;
     const uint8_t *data = NULL;
     uint64_t id = 0;
     uint64_t offset = 0;
@@ -439,6 +452,12 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 
     if (si->recv_state == QUIC_STREAM_STATE_RECV ||
             si->recv_state == QUIC_STREAM_STATE_SIZE_KNOWN) {
+        sd = QuicStreamDataCreate(buf, offset, data, len);
+        if (sd == NULL) {
+            return -1;
+        }
+
+        QuicStreamDataAdd(sd, si);
         QuicPrint(data, len);
     }
 
@@ -446,7 +465,8 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c)
 }
 
 static int QuicFrameStreamDataBlockedParser(QUIC *quic, RPacket *pkt,
-                                    uint64_t type, QUIC_CRYPTO *c)
+                                    uint64_t type, QUIC_CRYPTO *c,
+                                    void *buf)
 {
     QuicStreamInstance *si = NULL;
     uint64_t id = 0;
@@ -482,7 +502,8 @@ static int QuicFrameStreamDataBlockedParser(QUIC *quic, RPacket *pkt,
 }
 
 static int QuicFrameMaxStreamDataParser(QUIC *quic, RPacket *pkt,
-                                    uint64_t type, QUIC_CRYPTO *c)
+                                    uint64_t type, QUIC_CRYPTO *c,
+                                    void *buf)
 {
     QuicStreamInstance *si = NULL;
     uint64_t id = 0;
@@ -518,7 +539,7 @@ static int QuicFrameMaxStreamDataParser(QUIC *quic, RPacket *pkt,
 }
 
 static int QuicFrameNewConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
-                                        QUIC_CRYPTO *c)
+                                        QUIC_CRYPTO *c, void *buf)
 {
     QuicConn *conn = &quic->conn;
     uint64_t seq = 0;
@@ -552,7 +573,7 @@ static int QuicFrameNewConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
 }
 
 static int QuicFrameHandshakeDoneParser(QUIC *quic, RPacket *pkt, uint64_t type,
-                                        QUIC_CRYPTO *c)
+                                        QUIC_CRYPTO *c, void *buf)
 {
     QUIC_LOG("handshake done\n");
     if (!quic->quic_server) {

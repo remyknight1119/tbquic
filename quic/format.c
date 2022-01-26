@@ -674,12 +674,12 @@ QuicDecryptPacket(QUIC_CRYPTO *c, RPacket *pkt, uint8_t *buf, size_t *len,
 }
 
 static int QuicFrameParse(QUIC *quic, uint8_t *data, size_t len, QUIC_CRYPTO *c,
-                            uint32_t pkt_type)
+                            uint32_t pkt_type, void *buf)
 {
     RPacket frame = {};
 
     RPacketBufInit(&frame, data, len);
-    return QuicFrameDoParser(quic, &frame, c, pkt_type);
+    return QuicFrameDoParser(quic, &frame, c, pkt_type, buf);
 }
 
 static int Quic0RttPacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
@@ -722,7 +722,7 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
     }
 
     return QuicFrameParse(quic, buffer->data, buffer->len, c,
-                            QUIC_PKT_TYPE_INITIAL);
+                            QUIC_PKT_TYPE_INITIAL, NULL);
 }
 
 static int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
@@ -742,23 +742,34 @@ static int QuicHandshakePacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
     }
 
     return QuicFrameParse(quic, buffer->data, buffer->len, c,
-                            QUIC_PKT_TYPE_HANDSHAKE);
+                            QUIC_PKT_TYPE_HANDSHAKE, NULL);
 }
 
 static int QuicOneRttParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
 {
-    QuicStaticBuffer *buffer = QuicGetPlainTextBuffer();
+    QUIC_DATA_BUF *buf = NULL;
+    uint8_t *data = NULL;
+    size_t len = 0;
+    int ret = 0;
 
-    if (QuicDecryptPacket(c, pkt, buffer->data, &buffer->len,
-                sizeof(buffer->data),
+    buf = QuicDataBufCreate(quic->mss);
+    if (buf == NULL) {
+        return -1;
+    }
+
+    data = buf->buf.data;
+    if (QuicDecryptPacket(c, pkt, data, &len, buf->buf.len,
                 QUIC_SPACKET_TYPE_RESV_MASK) < 0) {
         QUIC_LOG("Decrypt message failed!\n");
+        QuicDataBufFree(buf);
         return -1;
     }
 
     RPacketForward(pkt, RPacketRemaining(pkt));
-    return QuicFrameParse(quic, buffer->data, buffer->len, c,
-                            QUIC_PKT_TYPE_1RTT);
+    ret = QuicFrameParse(quic, data, len, c, QUIC_PKT_TYPE_1RTT, buf);
+
+    QuicDataBufFree(buf);
+    return ret;
 }
 
 static int QuicRetryPacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)

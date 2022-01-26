@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <tbquic/types.h>
+#include "base.h"
 #include "list.h"
 
 #define QUIC_STREAM_INITIATED_BY_SERVER     0x01
@@ -35,10 +36,12 @@ enum {
 	QUIC_STREAM_STATE_MAX,
 };
 
-typedef struct QuicStreamIns {
-    uint8_t recv_state;
-    uint8_t send_state;
+typedef struct {
+    uint64_t recv_state:4;
+    uint64_t send_state:4;
     uint64_t max_stream_data;
+    int64_t offset;
+    struct list_head queue;
 } QuicStreamInstance;
 
 typedef struct {
@@ -51,8 +54,19 @@ typedef struct {
     QuicStreamInstance *stream;
 } QuicStreamConf;
 
+typedef struct {
+    struct list_head node;
+    int64_t offset;
+    const void *data;
+    size_t len;
+    void *origin_buf;
+} QuicStreamData;
+
 int QuicStreamInit(QUIC *);
 void QuicStreamConfDeInit(QuicStreamConf *);
 QuicStreamInstance *QuicStreamGetInstance(QUIC *, QUIC_STREAM_HANDLE);
+QuicStreamData *QuicStreamDataCreate(void *, int64_t, const void *, size_t);
+void QuicStreamDataAdd(QuicStreamData *, QuicStreamInstance *);
+void QuicStreamDataFree(QuicStreamData *);
 
 #endif

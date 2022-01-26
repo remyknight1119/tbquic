@@ -392,8 +392,10 @@ static int
 QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
                         void *buf)
 {
+    QuicStreamConf *scf = &quic->stream;
     QuicStreamInstance *si = NULL;
     QuicStreamData *sd = NULL;
+    QuicStreamMsg *msg = NULL;
     const uint8_t *data = NULL;
     uint64_t id = 0;
     uint64_t offset = 0;
@@ -450,15 +452,25 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
         si->recv_state = QUIC_STREAM_STATE_RECV;
     }
 
-    if (si->recv_state == QUIC_STREAM_STATE_RECV ||
-            si->recv_state == QUIC_STREAM_STATE_SIZE_KNOWN) {
-        sd = QuicStreamDataCreate(buf, offset, data, len);
-        if (sd == NULL) {
-            return -1;
-        }
+    if (si->recv_state != QUIC_STREAM_STATE_RECV &&
+            si->recv_state != QUIC_STREAM_STATE_SIZE_KNOWN) {
+        return 0;
+    }
 
-        QuicStreamDataAdd(sd, si);
-        QuicPrint(data, len);
+    sd = QuicStreamDataCreate(buf, offset, data, len);
+    if (sd == NULL) {
+        return -1;
+    }
+
+    QuicStreamDataAdd(sd, si);
+
+    if (!si->notified) {
+        msg = QuicStreamMsgCreate(id, QUIC_STREAM_MSG_TYPE_DATA_RECVED);
+        if (msg == NULL) {
+            return 0;
+        }
+        QuicStreamMsgAdd(scf, msg);
+        si->notified = 1;
     }
 
     return 0;

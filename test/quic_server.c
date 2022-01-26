@@ -17,9 +17,13 @@
 #include <tbquic/stream.h>
 #include <tbquic/dispenser.h>
 
+#include "common.h"
+
 #define TEST_EVENT_MAX_NUM   10
 #define QUIC_RECORD_MSS_LEN  1250
+#define SEVER_TEST_IOV_NUM 10
 
+static QuicTestBuff QuicServerIovBuf[SEVER_TEST_IOV_NUM];
 static const char *program_version = "1.0.0";//PACKAGE_STRING;
 
 static const struct option long_opts[] = {
@@ -149,7 +153,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     QUIC_STREAM_HANDLE h = -1;
     struct epoll_event ev = {};
     struct epoll_event events[TEST_EVENT_MAX_NUM] = {};
-    char quic_data[QUIC_RECORD_MSS_LEN] = {};
+    QUIC_STREAM_IOVEC iov[SEVER_TEST_IOV_NUM] = {};
     bool new = false;
     uint32_t mss = QUIC_RECORD_MSS_LEN;
     int sockfd = 0;
@@ -158,10 +162,13 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     int nfds = 0;
     int efd = 0;
     int i = 0;
+    int j = 0;
     int index = 0;
-    int rlen = 0;
+    int cnt = 0;
     int err = 0;
     int ret = 0;
+
+    QuicTestStreamIovecInit(iov, QuicServerIovBuf, SEVER_TEST_IOV_NUM);
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
         perror("socket");
@@ -244,12 +251,17 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                         goto next;
                     }
                     printf("old QUIC\n");
-                    rlen = QuicStreamRecv(quic, quic_data, sizeof(quic_data));
-                    if (rlen < 0) {
+                    cnt = QuicStreamReadV(quic, iov, SEVER_TEST_IOV_NUM);
+                    printf("cnt = %d\n", cnt);
+                    if (cnt < 0) {
                         err = QUIC_get_error(quic, ret);
                         if (err != QUIC_ERROR_WANT_READ) {
                             goto out;
                         }
+                    }
+                    for (j = 0; j < cnt; j++) {
+                        printf("Stream ID: %lu\t", iov[j].handle);
+                        QuicPrint(iov[j].iov_base, iov[j].data_len);
                     }
                     //bzero(buf, sizeof(buf));
                     /* 接收客户端的消息 */

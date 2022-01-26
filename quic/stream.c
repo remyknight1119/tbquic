@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <tbquic/quic.h>
+#include <tbquic/stream.h>
 #include "quic_local.h"
 #include "tls.h"
 #include "packet_local.h"
@@ -93,11 +94,14 @@ static int QuicStreamConfInit(QuicStreamConf *scf, uint64_t max_stream_bidi,
         QuicStreamInstanceInit(&scf->stream[id], id, server);
     }
 
+    INIT_LIST_HEAD(&scf->msg_queue);
     return 0;
 }
 
 void QuicStreamConfDeInit(QuicStreamConf *scf)
 {
+    QuicStreamMsg *msg = NULL;
+    QuicStreamMsg *n = NULL;
     int64_t id = 0;
 
     if (scf->stream == NULL) {
@@ -108,7 +112,37 @@ void QuicStreamConfDeInit(QuicStreamConf *scf)
         QuicStreamInstanceDeInit(&scf->stream[id]);
     }
 
+    list_for_each_entry_safe(msg, n, &scf->msg_queue, node) {
+        list_del(&msg->node);
+        QuicStreamMsgFree(msg);
+    }
+
     QuicMemFree(scf->stream);
+}
+
+QuicStreamMsg *QuicStreamMsgCreate(int64_t id, uint32_t type)
+{
+    QuicStreamMsg *msg = NULL;
+
+    msg = QuicMemCalloc(sizeof(*msg));
+    if (msg == NULL) {
+        return NULL;
+    }
+
+    msg->id = id;
+    msg->type = type;
+
+    return msg;
+}
+
+void QuicStreamMsgAdd(QuicStreamConf *scf, QuicStreamMsg *msg)
+{
+    list_add_tail(&msg->node, &scf->msg_queue);
+}
+
+void QuicStreamMsgFree(QuicStreamMsg *msg)
+{
+    QuicMemFree(msg);
 }
 
 static int QuicStreamIdCheck(QuicStreamConf *scf, int64_t id)
@@ -274,16 +308,72 @@ int QuicStreamSend(QUIC *quic, QUIC_STREAM_HANDLE h, void *data, size_t len)
     return len;
 }
 
-int QuicStreamRecv(QUIC *quic, void *data, size_t len)
+static int QuicStreamReadData(QuicStreamInstance *si, uint32_t *flags,
+                            uint8_t *data, size_t len)
 {
-    RPacket pkt = {};
-    QuicPacketFlags flags;
-    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
-    uint32_t flag = 0;
+    QuicStreamData *sd = NULL;
+    QuicStreamData *n = NULL;
+    size_t copy_bytes = 0;
     int rlen = 0;
 
-    rlen = quic->method->read_bytes(quic, &pkt);
-    if (rlen < 0) {
+    list_for_each_entry_safe(sd, n, &si->queue, node) {
+        if (si->offset != sd->offset) {
+            //Out of order data
+            break;
+        }
+
+        if (sd->len + rlen > len) {
+            copy_bytes = len - rlen;
+            assert(QUIC_GT(copy_bytes, 0));
+        } else {
+            copy_bytes = sd->len;
+        }
+
+        QuicMemcpy(&data[rlen], sd->data, copy_bytes);
+        if (copy_bytes == sd->len) {
+            list_del(&sd->node);
+            QuicStreamDataFree(sd);
+        } else {
+            sd->data += copy_bytes;
+            sd->len -= copy_bytes;
+        }
+
+        si->offset += copy_bytes;
+        rlen += copy_bytes;
+        if (rlen == len) {
+            break;
+        }
+    }
+
+    if (list_empty(&si->queue)) {
+        if (si->recv_state == QUIC_STREAM_STATE_DATA_RECVD) {
+            si->recv_state = QUIC_STREAM_STATE_DATA_READ;
+            if (flags != NULL) {
+                *flags |= QUIC_STREAM_DATA_FLAGS_FIN;
+            }
+        }
+    }
+
+    if (si->recv_state == QUIC_STREAM_STATE_RESET_RECVD) {
+        if (flags != NULL) {
+            *flags |= QUIC_STREAM_DATA_FLAGS_RESET;
+        }
+    }
+
+    si->notified = 0;
+    return rlen;
+}
+
+static int QuicStreamRecvNew(QUIC *quic)
+{
+    RPacket pkt = {};
+    QuicPacketFlags pkt_flags;
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+    uint32_t flag = 0;
+    int err = 0;
+
+    err = quic->method->read_bytes(quic, &pkt);
+    if (err < 0) {
         return -1;
     }
 
@@ -292,8 +382,8 @@ int QuicStreamRecv(QUIC *quic, void *data, size_t len)
             return -1;
         }
 
-        flags.value = flag;
-        ret = QuicPacketRead(quic, &pkt, flags);
+        pkt_flags.value = flag;
+        ret = QuicPacketRead(quic, &pkt, pkt_flags);
         if (ret == QUIC_FLOW_RET_ERROR) {
             return -1;
         }
@@ -302,6 +392,87 @@ int QuicStreamRecv(QUIC *quic, void *data, size_t len)
     }
 
     return 0;
+}
+
+int QuicStreamRecv(QUIC *quic, QUIC_STREAM_HANDLE h, uint32_t *flags,
+                        void *data, size_t len)
+{
+    QuicStreamInstance *si = NULL;
+    int rlen = 0;
+
+    si = QuicStreamGetInstance(quic, h);
+    if (si == NULL) {
+        return -1;
+    }
+
+    rlen = QuicStreamReadData(si, flags, data, len);
+    if (rlen > 0) {
+        return rlen;
+    }
+
+    if (QuicStreamRecvNew(quic) < 0) {
+        return -1;
+    }
+
+    return QuicStreamReadData(si, flags, data, len);
+}
+
+int QuicStreamReadV(QUIC *quic, QUIC_STREAM_IOVEC *iov, size_t iovcnt)
+{
+    QuicStreamConf *scf = &quic->stream;
+    QUIC_STREAM_IOVEC *iov_cur = NULL;
+    QuicStreamMsg *msg = NULL;
+    QuicStreamMsg *n = NULL;
+    QuicStreamInstance *si = NULL;
+    uint32_t flags = 0;
+    int64_t id = 0;
+    int cnt = 0;
+    int rlen = 0;
+
+    if (scf->stream == NULL) {
+        return -1;
+    }
+
+    if (iovcnt == 0) {
+        return 0;
+    }
+
+    if (list_empty(&scf->msg_queue)) {
+        if (QuicStreamRecvNew(quic) < 0) {
+            return -1;
+        }
+    }
+
+    list_for_each_entry_safe(msg, n, &scf->msg_queue, node) {
+        while (1) {
+            if (cnt >= iovcnt) {
+                return cnt;
+            }
+            iov_cur = &iov[cnt];
+            id = msg->id;
+            si = QuicStreamGetInstance(quic, id);
+            if (si == NULL) {
+                break;
+            }
+
+            rlen = QuicStreamReadData(si, &flags, iov_cur->iov_base,
+                    iov_cur->iov_len);
+            if (rlen > 0) {
+                iov_cur->handle = id;
+                iov_cur->data_len = rlen;
+                iov_cur->flags = flags;
+                cnt++;
+            }
+
+            if (rlen < iov_cur->iov_len) {
+                break;
+            }
+        }
+        list_del(&msg->node);
+        QuicStreamMsgFree(msg);
+    }
+
+    return cnt;
 }
 
 int QuicStreamInit(QUIC *quic)
@@ -340,6 +511,24 @@ static void QuicStreamDataAddOfo(QuicStreamData *sd, QuicStreamInstance *si)
 {
 }
 
+static bool QuicStreamOrdered(QuicStreamInstance *si)
+{
+    QuicStreamData *sd = NULL;
+    bool ordered = true;
+    int64_t start = si->offset;
+
+    list_for_each_entry(sd, &si->queue, node) {
+        if (start != sd->offset) {
+            ordered = false;
+            break;
+        }
+
+        start = sd->offset + sd->len;
+    }
+
+    return ordered;
+}
+
 void QuicStreamDataAdd(QuicStreamData *sd, QuicStreamInstance *si)
 {
     int64_t start = sd->offset;
@@ -348,6 +537,7 @@ void QuicStreamDataAdd(QuicStreamData *sd, QuicStreamInstance *si)
 
     if (si->offset >= end){
         //Retransmitted
+        QUIC_LOG("Retransmitted\n");
         QuicStreamDataFree(sd);
         return;
     }
@@ -367,6 +557,13 @@ void QuicStreamDataAdd(QuicStreamData *sd, QuicStreamInstance *si)
     }
 
     list_add_tail(&sd->node, &si->queue);
+
+    if (si->recv_state == QUIC_STREAM_STATE_SIZE_KNOWN ||
+            si->recv_state == QUIC_STREAM_STATE_RESET_RECVD) {
+        if (QuicStreamOrdered(si)) {
+            si->recv_state = QUIC_STREAM_STATE_DATA_RECVD;
+        }
+    }
 }
 
 void QuicStreamDataFree(QuicStreamData *sd)

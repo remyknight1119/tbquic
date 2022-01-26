@@ -36,9 +36,15 @@ enum {
 	QUIC_STREAM_STATE_MAX,
 };
 
+enum {
+    QUIC_STREAM_MSG_TYPE_DATA_RECVED = 0,
+    QUIC_STREAM_MSG_TYPE_MAX,
+};
+
 typedef struct {
     uint64_t recv_state:4;
     uint64_t send_state:4;
+    uint64_t notified:1;
     uint64_t max_stream_data;
     int64_t offset;
     struct list_head queue;
@@ -51,8 +57,15 @@ typedef struct {
     uint64_t max_uni_stream_id;
     uint64_t max_id_opened;
     uint64_t max_id_value;
+    struct list_head msg_queue;
     QuicStreamInstance *stream;
 } QuicStreamConf;
+
+typedef struct {
+    struct list_head node;
+    uint32_t type;
+    int64_t id;
+} QuicStreamMsg;
 
 typedef struct {
     struct list_head node;
@@ -68,5 +81,8 @@ QuicStreamInstance *QuicStreamGetInstance(QUIC *, QUIC_STREAM_HANDLE);
 QuicStreamData *QuicStreamDataCreate(void *, int64_t, const void *, size_t);
 void QuicStreamDataAdd(QuicStreamData *, QuicStreamInstance *);
 void QuicStreamDataFree(QuicStreamData *);
+QuicStreamMsg *QuicStreamMsgCreate(int64_t, uint32_t);
+void QuicStreamMsgAdd(QuicStreamConf *, QuicStreamMsg *);
+void QuicStreamMsgFree(QuicStreamMsg *);
 
 #endif

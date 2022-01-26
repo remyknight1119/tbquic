@@ -11,6 +11,7 @@
 
 #define ARRAY_SIZE(array)    (sizeof(array)/sizeof(array[0]))
 #define MSG_SIZE(m)  ((sizeof(m) - 1)/2)
+#define QUIC_TEST_BUF_LEN 2048
 
 typedef union UdpConnKey {
 	struct sockaddr 		addr;
@@ -27,6 +28,10 @@ typedef struct {
     void *data;
     size_t len;
 } QuicTestData;
+
+typedef struct {
+    uint8_t buf[QUIC_TEST_BUF_LEN];
+} QuicTestBuff;
 
 static inline uint8_t char2hex(char c)
 {
@@ -67,6 +72,7 @@ static inline void str2hex(uint8_t *dest, char *src, size_t len)
 extern char *quic_cert;
 extern char *quic_key;
 
+void QuicTestStreamIovecInit(QUIC_STREAM_IOVEC *, QuicTestBuff *, size_t);
 int QuicVariableLengthDecodeTest(void);
 int QuicHkdfExtractExpandTest(void);
 int QuicHkdfExpandLabel(void);

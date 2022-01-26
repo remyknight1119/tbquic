@@ -13,5 +13,6 @@ typedef struct QuicCrypto  QUIC_CRYPTO;
 typedef enum QuicAlgId QUIC_ALG_ID;
 typedef struct QuicDispenser QUIC_DISPENSER;
 typedef int64_t QUIC_STREAM_HANDLE;
+typedef struct QuicStreamIovec QUIC_STREAM_IOVEC;
 
 #endif

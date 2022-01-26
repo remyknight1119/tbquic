@@ -23,7 +23,9 @@
 
 #define TEST_EVENT_MAX_NUM   10
 #define QUIC_RECORD_MAX_LEN  1500
+#define CLIENT_TEST_IOV_NUM 5
 
+static QuicTestBuff QuicClientIovBuf[CLIENT_TEST_IOV_NUM];
 static const char *program_version = "1.0.0";//PACKAGE_STRING;
 
 static const struct option long_opts[] = {
@@ -186,10 +188,14 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
     QUIC *quic = NULL;
     QUIC_STREAM_HANDLE h = -1;
     QUIC_STREAM_HANDLE h2 = -1;
+    QUIC_STREAM_IOVEC iov[CLIENT_TEST_IOV_NUM] = {};
     int sockfd = 0;
+    int i = 0;
     int ret = 0;
+    int cnt = 0;
     int err = 0;
 
+    QuicTestStreamIovecInit(iov, QuicClientIovBuf, CLIENT_TEST_IOV_NUM);
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
         perror("socket");
         return -1;
@@ -235,6 +241,20 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
     }
 
     printf("Handshake done\n");
+    cnt = QuicStreamReadV(quic, iov, CLIENT_TEST_IOV_NUM);
+    printf("cnt = %d\n", cnt);
+    if (cnt < 0) {
+        err = QUIC_get_error(quic, ret);
+        if (err != QUIC_ERROR_WANT_READ) {
+            goto out;
+        }
+    }
+
+    for (i = 0; i < cnt; i++) {
+        printf("Stream ID: %lu\t", iov[i].handle);
+        QuicPrint(iov[i].iov_base, iov[i].data_len);
+    }
+
     h = QuicStreamOpen(quic, false);
     if (h < 0) {
         goto out;

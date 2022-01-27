@@ -8,7 +8,17 @@
 #include "packet_local.h"
 
 #define QBUF_LIST_FOR_EACH(qb, next, head) \
-    list_for_each_entry_send(qb, next, &(head)->queue, node)
+    list_for_each_entry_safe_from(qb, next, &(head)->queue, node)
+
+#define QBUF_LIST_FOR_EACH_REVERSE(qb, next, head) \
+    list_for_each_entry_safe_reverse_from(qb, next, &(head)->queue, node)
+
+#define QBUF_FIRST_NODE(head) \
+    ({ \
+        QBUFF *pos = NULL; \
+        pos = list_first_entry(&(head)->queue, typeof(*pos), node); \
+        pos; \
+     })
 
 #define QBUF_LAST_NODE(head) \
     ({ \
@@ -63,5 +73,6 @@ void QBuffQueueAdd(QBuffQueueHead *, QBUFF *);
 bool QBuffQueueEmpty(QBuffQueueHead *);
 void QBuffQueueUnlink(QBUFF *);
 void QBuffQueueDestroy(QBuffQueueHead *);
+QBUFF *QBufAckSentPkt(QUIC *, QBuffQueueHead *, uint64_t, uint64_t, QBUFF *);
 
 #endif

@@ -65,6 +65,7 @@ QBUFF *QBuffNew(uint32_t pkt_type, size_t len)
     }
 
     qb->buff_len = len;
+    qb->stream_id = -1;
     qb->method = method;
 
     return qb;
@@ -172,5 +173,59 @@ void QBuffQueueDestroy(QBuffQueueHead *h)
         QBuffQueueUnlink(qb);
         QBuffFree(qb);
     }
+}
+
+static void QBufStreamFlagsProc(QUIC *quic, int64_t id, uint64_t flags)
+{
+    QuicStreamInstance *si = NULL;
+
+    if (id < 0) {
+        return;
+    }
+
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        return;
+    }
+
+    if (flags & QBUFF_FLAGS_STREAM_FIN) {
+        if (si->send_state == QUIC_STREAM_STATE_DATA_SENT) {
+            si->send_state = QUIC_STREAM_STATE_DATA_RECVD;
+        }
+    }
+
+    if (flags & QBUFF_FLAGS_STREAM_RESET) {
+        if (si->send_state == QUIC_STREAM_STATE_RESET_SENT) {
+            si->send_state = QUIC_STREAM_STATE_RESET_RECVD;
+        }
+    }
+}
+
+QBUFF *QBufAckSentPkt(QUIC *quic, QBuffQueueHead *h, uint64_t smallest,
+                        uint64_t largest, QBUFF *start)
+{
+    QBUFF *qb = NULL;
+    QBUFF *n = NULL;
+
+    if (start == NULL) {
+        qb = QBUF_LAST_NODE(h);
+    }
+
+    QBUF_LIST_FOR_EACH_REVERSE(qb, n, h) {
+        if (QUIC_GT(qb->pkt_num, largest)) {
+            continue;
+        }
+
+        if (QUIC_GT(smallest, qb->pkt_num)) {
+            return qb;
+        }
+
+        QBufStreamFlagsProc(quic, qb->stream_id, qb->flags);
+
+        QBuffQueueUnlink(qb);
+        QBuffFree(qb);
+    }
+
+    return NULL;
 }
 

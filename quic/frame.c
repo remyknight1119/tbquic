@@ -332,7 +332,10 @@ static int
 QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
                         void *buf)
 {
+    QBuffQueueHead *queue = &c->sent_queue;
+    QBUFF *qb = NULL;
     uint64_t largest_acked = 0;
+    uint64_t smallest_acked = 0;
     uint64_t ack_delay = 0;
     uint64_t range_count = 0;
     uint64_t first_ack_range = 0;
@@ -364,6 +367,13 @@ QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
         return -1;
     }
 
+    smallest_acked = largest_acked - first_ack_range;
+    if (QUIC_LT(smallest_acked, 0)) {
+        //FRAME_ENCODING_ERROR
+        return -1;
+    }
+
+    qb = QBufAckSentPkt(quic, queue, smallest_acked, largest_acked, NULL);
     for (i = 0; i < range_count; i++) {
         if (QuicVariableLengthDecode(pkt, &gap) < 0) {
             QUIC_LOG("Gap decode failed!\n");
@@ -374,9 +384,15 @@ QuicFrameAckParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
             QUIC_LOG("ACK range len decode failed!\n");
             return -1;
         }
+        largest_acked = smallest_acked - gap - 2;
+        smallest_acked = largest_acked - ack_range_len;
+        if (QUIC_LT(largest_acked, 0) || QUIC_LT(smallest_acked, 0)) {
+            //FRAME_ENCODING_ERROR
+            return -1;
+        }
+        qb = QBufAckSentPkt(quic, queue, smallest_acked, largest_acked, qb);
     }
 
-    QUIC_LOG("in\n");
     return 0;
 }
 

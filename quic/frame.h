@@ -1,6 +1,7 @@
 #ifndef TBQUIC_QUIC_FRAME_H_
 #define TBQUIC_QUIC_FRAME_H_
 
+#include <stdbool.h>
 #include <tbquic/types.h>
 
 #include "base.h"
@@ -11,12 +12,13 @@
 #define QUIC_FRAME_STREAM_BIT_OFF       0x04
 
 /* type + offset + length */
-#define QUIC_FRAME_HEADER_MAX_LEN   (3*sizeof(uint32_t))
+#define QUIC_FRAME_CRYPTO_HEADER_MAX_LEN    (3*sizeof(uint32_t))
+/* type + stream ID + offset + length */
+#define QUIC_FRAME_STREAM_HEADER_MAX_LEN    (4*sizeof(uint32_t))
 
 typedef int (*QuicFrameParser)(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
                                     void *);
-typedef int (*QuicFrameBuilder)(QUIC *, WPacket *, QUIC_CRYPTO *, uint64_t,
-                                    void *, long);
+typedef int (*QuicFrameBuilder)(QUIC *, WPacket *, QUIC_CRYPTO *, void *, long);
 
 typedef enum {
     QUIC_FRAME_TYPE_PADDING = 0x00,
@@ -66,6 +68,7 @@ typedef struct {
 
 typedef struct {
     uint64_t id;
+    bool fin;
     void *data;
     size_t len;
 } QuicFrameStreamArg;
@@ -82,7 +85,7 @@ int QuicFramePingBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
 int QuicFrameBuild(QUIC *, uint32_t, QuicFrameNode *, size_t);
 int QuicFrameAckSendCheck(QUIC_CRYPTO *c);
 int QuicCryptoFrameBuild(QUIC *, uint32_t);
-int QuicStreamFrameBuild(QUIC * ,QUIC_STREAM_HANDLE, uint8_t *, size_t);
+int QuicStreamFrameBuild(QUIC *, QUIC_STREAM_IOVEC *, size_t);
 int QuicAckFrameBuild(QUIC *, uint32_t);
 
 #endif

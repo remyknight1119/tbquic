@@ -46,6 +46,7 @@ typedef struct {
     uint64_t send_state:4;
     uint64_t notified:1;
     uint64_t max_stream_data;
+    uint64_t sent_byptes;
     int64_t offset;
     struct list_head queue;
 } QuicStreamInstance;

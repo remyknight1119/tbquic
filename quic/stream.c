@@ -263,6 +263,11 @@ QuicStreamInstance *QuicStreamGetInstance(QUIC *quic, QUIC_STREAM_HANDLE h)
 int QuicStreamSendEarlyData(QUIC *quic, QUIC_STREAM_HANDLE *h, bool uni,
                                 void *data, size_t len)
 {
+    QUIC_STREAM_IOVEC iov = {
+        .iov_base = data,
+        .iov_len = len,
+        .data_len = len,
+    };
     TlsState handshake_state;
     int64_t id = 0;
     int ret = 0;
@@ -279,7 +284,8 @@ int QuicStreamSendEarlyData(QUIC *quic, QUIC_STREAM_HANDLE *h, bool uni,
         }
 
         *h = id;
-        if (QuicStreamFrameBuild(quic, id, data, len) < 0) {
+        iov.handle = id;
+        if (QuicStreamFrameBuild(quic, &iov, 1) < 0) {
             QUIC_LOG("Build Stream frame failed\n");
             return -1;
         }
@@ -296,7 +302,25 @@ int QuicStreamSendEarlyData(QUIC *quic, QUIC_STREAM_HANDLE *h, bool uni,
 
 int QuicStreamSend(QUIC *quic, QUIC_STREAM_HANDLE h, void *data, size_t len)
 {
-    if (QuicStreamFrameBuild(quic, h, data, len) < 0) {
+    QuicStreamInstance *si = NULL;
+    QUIC_STREAM_IOVEC iov = {
+        .handle = h,
+        .iov_base = data,
+        .iov_len = len,
+        .data_len = len,
+    };
+ 
+    si = QuicStreamGetInstance(quic, h);
+    if (si == NULL) {
+        return -1;
+    }
+
+    if (si->send_state != QUIC_STREAM_STATE_READY &&
+            si->send_state != QUIC_STREAM_STATE_SEND) {
+        return -1;
+    }
+
+    if (QuicStreamFrameBuild(quic, &iov, 1) < 0) {
         QUIC_LOG("Build Stream frame failed\n");
         return -1;
     }
@@ -444,6 +468,9 @@ int QuicStreamReadV(QUIC *quic, QUIC_STREAM_IOVEC *iov, size_t iovcnt)
     }
 
     list_for_each_entry_safe(msg, n, &scf->msg_queue, node) {
+        if (msg->type != QUIC_STREAM_MSG_TYPE_DATA_RECVED) {
+            continue;
+        }
         while (1) {
             if (cnt >= iovcnt) {
                 return cnt;

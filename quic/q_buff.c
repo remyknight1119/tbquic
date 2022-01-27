@@ -14,14 +14,17 @@
 static const QuicPktMethod QuicBuffPktMethod[QUIC_PKT_TYPE_MAX] = {
     [QUIC_PKT_TYPE_INITIAL] = {
         .build_pkt = QuicInitialPacketBuild,
+        .get_crypto = QuicGetInitialCrypto,
         .compute_totallen = QuicInitialPacketGetTotalLen,
     },
     [QUIC_PKT_TYPE_HANDSHAKE] = {
         .build_pkt = QuicHandshakePacketBuild,
+        .get_crypto = QuicGetHandshakeCrypto,
         .compute_totallen = QuicHandshakePacketGetTotalLen,
     },
     [QUIC_PKT_TYPE_1RTT] = {
         .build_pkt = QuicAppDataPacketBuild,
+        .get_crypto = QuicGetOneRttCrypto,
         .compute_totallen = QuicAppDataPacketGetTotalLen,
     },
 };
@@ -125,6 +128,11 @@ int QBuffBuildPkt(QUIC *quic, WPacket *pkt, QBUFF *qb, bool last)
     return qb->method->build_pkt(quic, pkt, qb, last);
 }
 
+QUIC_CRYPTO *QBuffGetCrypto(QUIC *quic, QBUFF *qb)
+{
+    return qb->method->get_crypto(quic);
+}
+
 size_t QBufPktComputeTotalLenByType(QUIC *quic, uint32_t pkt_type,
                                     size_t data_len)
 {
@@ -145,13 +153,23 @@ void QBuffQueueAdd(QBuffQueueHead *h, QBUFF *qb)
     list_add_tail(&qb->node, &h->queue);
 }
 
+void QBuffQueueUnlink(QBUFF *qb)
+{
+    list_del(&qb->node);
+}
+
+bool QBuffQueueEmpty(QBuffQueueHead *h)
+{
+    return list_empty(&h->queue);
+}
+
 void QBuffQueueDestroy(QBuffQueueHead *h)
 {
     QBUFF *qb = NULL;
     QBUFF *n = NULL;
 
     list_for_each_entry_safe(qb, n, &h->queue, node) {
-        list_del(&qb->node);
+        QBuffQueueUnlink(qb);
         QBuffFree(qb);
     }
 }

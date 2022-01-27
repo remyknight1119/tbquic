@@ -43,6 +43,8 @@ static int QuicFrameMaxStreamDataParser(QUIC *, RPacket *, uint64_t,
 static int QuicFrameStreamDataBlockedParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *, void *);
 static int QuicFrameAckBuild(QUIC *, WPacket *, QUIC_CRYPTO *, void *, long);
+static int QuicFrameResetStreamBuild(QUIC *, WPacket *, QUIC_CRYPTO *,
+                                        void *, long);
 static int QuicFrameStreamDataBlockedBuild(QUIC *, WPacket *, QUIC_CRYPTO *,
                                         void *, long);
 
@@ -60,6 +62,7 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     },
     [QUIC_FRAME_TYPE_RESET_STREAM] = {
         .parser = QuicFrameResetStreamParser,
+        .builder = QuicFrameResetStreamBuild,
     },
     [QUIC_FRAME_TYPE_STOP_SENDING] = {
         .parser = QuicFrameStopSendingParser,
@@ -71,35 +74,27 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
         .parser = QuicFrameNewTokenParser,
     },
     [QUIC_FRAME_TYPE_STREAM] = {
-        .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameStreamParser,
     },
     [QUIC_FRAME_TYPE_STREAM_FIN] = {
-        .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameStreamParser,
     },
     [QUIC_FRAME_TYPE_STREAM_LEN] = {
-        .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameStreamParser,
     },
     [QUIC_FRAME_TYPE_STREAM_LEN_FIN] = {
-        .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameStreamParser,
     },
     [QUIC_FRAME_TYPE_STREAM_OFF] = {
-        .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameStreamParser,
     },
     [QUIC_FRAME_TYPE_STREAM_OFF_FIN] = {
-        .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameStreamParser,
     },
     [QUIC_FRAME_TYPE_STREAM_OFF_LEN] = {
-        .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameStreamParser,
     },
     [QUIC_FRAME_TYPE_STREAM_OFF_LEN_FIN] = {
-        .flags = QUIC_FRAME_FLAGS_SPLIT_ENABLE,
         .parser = QuicFrameStreamParser,
     },
     [QUIC_FRAME_TYPE_MAX_STREAM_DATA] = {
@@ -619,6 +614,29 @@ static int QuicFrameStreamDataBlockedBuild(QUIC *quic, WPacket *pkt,
                                         QUIC_CRYPTO *c,
                                         void *arg, long larg)
 {
+    QuicStreamInstance *si = NULL;
+    uint64_t id = larg;
+    uint64_t max_stream_data = 0;
+
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        return -1;
+    }
+
+    max_stream_data = si->sent_byptes;
+
+    if (si->send_state == QUIC_STREAM_STATE_READY) {
+        si->send_state = QUIC_STREAM_STATE_SEND;
+    }
+
+    if (QuicVariableLengthWrite(pkt, id) < 0) {
+        return -1;
+    }
+
+    if (QuicVariableLengthWrite(pkt, max_stream_data) < 0) {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -660,6 +678,42 @@ static int QuicFrameAckBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
     return QuicFrameAckGen(quic, pkt, c);
 }
 
+static int QuicFrameResetStreamBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
+                                        void *arg, long larg)
+{
+    QuicStreamInstance *si = NULL;
+    uint64_t id = larg;
+    uint64_t err_code = *((uint64_t *)arg);
+
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        return -1;
+    }
+
+    if (si->send_state != QUIC_STREAM_STATE_READY &&
+            si->send_state != QUIC_STREAM_STATE_SEND &&
+            si->send_state != QUIC_STREAM_STATE_DATA_SENT) {
+        return -1;
+    }
+
+    si->send_state = QUIC_STREAM_STATE_RESET_SENT;
+
+    if (QuicVariableLengthWrite(pkt, id) < 0) {
+        return -1;
+    }
+
+    if (QuicVariableLengthWrite(pkt, err_code) < 0) {
+        return -1;
+    }
+
+    if (QuicVariableLengthWrite(pkt, si->sent_byptes) < 0) {
+        return -1;
+    }
+
+    return 0;
+
+}
+
 int QuicFrameAckSendCheck(QUIC_CRYPTO *c)
 {
     if (!c->encrypt.cipher_inited) {
@@ -688,12 +742,13 @@ int QuicFrameStreamBuild(QUIC *quic, WPacket *pkt, uint64_t id,
         return -1;
     }
 
-    if (si->send_state == QUIC_STREAM_STATE_DISABLE) {
+    if (si->send_state != QUIC_STREAM_STATE_READY &&
+            si->send_state != QUIC_STREAM_STATE_SEND) {
         return -1;
     }
 
-    if (si->send_state == QUIC_STREAM_STATE_START) {
-        si->send_state = QUIC_STREAM_STATE_READY;
+    if (si->send_state == QUIC_STREAM_STATE_READY) {
+        si->send_state = QUIC_STREAM_STATE_SEND;
     }
 
     offset = si->sent_byptes;
@@ -837,8 +892,8 @@ static size_t QuicFrameGetBuffLen(QUIC *quic, uint32_t pkt_type)
     return buf_len;
 }
 
-int
-QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
+static int QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node,
+                size_t num, QBUFF **out)
 {
     QuicFrameBuilder builder = NULL;
     QUIC_CRYPTO *c = NULL;
@@ -857,6 +912,7 @@ QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
         goto out;
     }
 
+    c = QuicCryptoGet(quic, pkt_type);
     for (i = 0; i < num; i++) {
         n = &node[i];
         type = n->type;
@@ -865,19 +921,21 @@ QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
             continue;
         }
         
+        flags = frame_handler[type].flags;
+        builder = frame_handler[type].builder;
+        if (builder == NULL && !(flags & QUIC_FRAME_FLAGS_NO_BODY)) {
+            continue;
+        }
+
         if (QuicVariableLengthWrite(&pkt, type) < 0) {
             goto out;
         }
 
-        flags = frame_handler[type].flags;
         if (flags & QUIC_FRAME_FLAGS_NO_BODY) {
             continue;
         }
 
-        c = QuicCryptoGet(quic, pkt_type);
-        builder = frame_handler[type].builder;
-        assert(builder != NULL);
-        if (builder(quic, &pkt, c, node->arg, node->larg) < 0) {
+        if (builder(quic, &pkt, c, n->arg, n->larg) < 0) {
             QUIC_LOG("Build %lu failed\n", type);
             goto out;
         }
@@ -888,6 +946,11 @@ QuicFrameBuild(QUIC *quic, uint32_t pkt_type, QuicFrameNode *node, size_t num)
             QUIC_LOG("Add frame queue failed\n");
             goto out;
         }
+
+        if (out != NULL) {
+            *out = qb;
+        }
+
         qb = NULL;
     }
 
@@ -911,6 +974,11 @@ static int QuicFrameStreamWrite(QUIC *quic, uint32_t pkt_type, WPacket *pkt,
                 QUIC_FRAME_STREAM_HEADER_MAX_LEN);
         if (nqb == NULL) {
             return -1;
+        }
+
+        nqb->stream_id = id;
+        if (fin) {
+            nqb->flags |= QBUFF_FLAGS_STREAM_FIN;
         }
 
         *qb = nqb;
@@ -1036,6 +1104,51 @@ int QuicAckFrameBuild(QUIC *quic, uint32_t pkt_type)
 
     frame.type = QUIC_FRAME_TYPE_ACK;
 
-    return QuicFrameBuild(quic, pkt_type, &frame, 1);
+    return QuicFrameBuild(quic, pkt_type, &frame, 1, NULL);
 }
+
+int QuicStreamDataBlockedFrameBuild(QUIC *quic, int64_t id, uint32_t pkt_type)
+{
+    QuicStreamInstance *si = NULL;
+    QuicFrameNode frame = {
+        .type = QUIC_FRAME_TYPE_STREAM_DATA_BLOCKED,
+        .larg = id,
+    };
+
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        return -1;
+    }
+
+    return QuicFrameBuild(quic, pkt_type, &frame, 1, NULL);
+}
+
+int QuicResetStreamFrameBuild(QUIC *quic, int64_t id, uint32_t pkt_type,
+                                uint64_t err_code)
+{
+    QuicStreamInstance *si = NULL;
+    QBUFF *qb = NULL;
+    QuicFrameNode frame = {
+        .type = QUIC_FRAME_TYPE_RESET_STREAM,
+        .arg = &err_code,
+        .larg = id,
+    };
+
+    si = QuicStreamGetInstance(quic, id);
+    if (si == NULL) {
+        return -1;
+    }
+
+    if (QuicFrameBuild(quic, pkt_type, &frame, 1, &qb) < 0) {
+        return -1;
+    }
+
+    if (qb != NULL) {
+        qb->stream_id = id;
+        qb->flags |= QBUFF_FLAGS_STREAM_RESET;
+    }
+
+    return 0;
+}
+
 

@@ -65,6 +65,7 @@ struct QuicCrypto {
     uint64_t largest_ack;
     uint64_t arriv_time;
     uint64_t first_ack_range;
+    QBuffQueueHead sent_queue; 
     QuicCipherSpace decrypt;
     QuicCipherSpace encrypt;
 };

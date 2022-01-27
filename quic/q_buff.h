@@ -19,10 +19,12 @@
 
 typedef struct QBuff QBUFF;
 typedef int (*QBuffPktBuilder)(QUIC *, WPacket *, QBUFF *, bool);
+typedef QUIC_CRYPTO *(*QBufPktGetCrypto)(QUIC *quic);
 typedef size_t (*QBuffPktGetTotalLen)(QUIC *, size_t);
 
 typedef struct {
     QBuffPktBuilder build_pkt;
+    QBufPktGetCrypto get_crypto;
     QBuffPktGetTotalLen compute_totallen;
 } QuicPktMethod;
 
@@ -33,6 +35,10 @@ typedef struct {
 struct QBuff {
     struct list_head node; 
     uint64_t pkt_num;
+#define QBUFF_FLAGS_STREAM_FIN      0x01
+#define QBUFF_FLAGS_STREAM_RESET    0x02
+    uint64_t flags;
+    int64_t stream_id;
     const QuicPktMethod *method;
     void *buff;
     size_t buff_len;
@@ -50,9 +56,12 @@ size_t QBuffGetDataLen(QBUFF *);
 int QBuffSetDataLen(QBUFF *, size_t);
 int QBuffAddDataLen(QBUFF *, size_t);
 int QBuffBuildPkt(QUIC *, WPacket *, QBUFF *, bool);
+QUIC_CRYPTO *QBuffGetCrypto(QUIC *, QBUFF *);
 size_t QBufPktComputeTotalLenByType(QUIC *, uint32_t, size_t);
 size_t QBufPktComputeTotalLen(QUIC *, QBUFF *);
 void QBuffQueueAdd(QBuffQueueHead *, QBUFF *);
+bool QBuffQueueEmpty(QBuffQueueHead *);
+void QBuffQueueUnlink(QBUFF *);
 void QBuffQueueDestroy(QBuffQueueHead *);
 
 #endif

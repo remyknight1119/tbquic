@@ -54,24 +54,16 @@ typedef enum {
 
 typedef struct {
 #define QUIC_FRAME_FLAGS_NO_BODY        0x0001
-#define QUIC_FRAME_FLAGS_SPLIT_ENABLE   0x0002
-#define QUIC_FRAME_FLAGS_SKIP           0x0004
+#define QUIC_FRAME_FLAGS_SKIP           0x0002
     uint64_t flags;
     QuicFrameParser parser;
     QuicFrameBuilder builder;
 } QuicFrameProcess;
 
 typedef struct {
-    void *data;
-    size_t len;
-} QuicFrameCryptoArg;
-
-typedef struct {
     uint64_t id;
-    bool fin;
-    void *data;
-    size_t len;
-} QuicFrameStreamArg;
+    uint64_t max_stream_data;
+} QuicFrameStreamDataBlockedArg;
 
 typedef struct {
     uint64_t type;
@@ -82,7 +74,6 @@ typedef struct {
 int QuicFrameDoParser(QUIC *, RPacket *, QUIC_CRYPTO *, uint32_t, void *);
 int QuicFramePaddingBuild(WPacket *, size_t);
 int QuicFramePingBuild(QUIC *, WPacket *, uint8_t *, uint64_t, size_t);
-int QuicFrameBuild(QUIC *, uint32_t, QuicFrameNode *, size_t);
 int QuicFrameAckSendCheck(QUIC_CRYPTO *c);
 int QuicCryptoFrameBuild(QUIC *, uint32_t);
 int QuicStreamFrameBuild(QUIC *, QUIC_STREAM_IOVEC *, size_t);

@@ -1224,9 +1224,5 @@ int QuicAppDataPacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool end)
 void QuicAddQueue(QUIC *quic, QBUFF *qb)
 {
     QBuffQueueAdd(&quic->tx_queue, qb);
-    
-    if (quic->send_head == NULL) {
-        quic->send_head = qb;
-    }
 }
 

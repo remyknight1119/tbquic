@@ -28,6 +28,7 @@ typedef struct {
 
 int QuicTransParamGetOffset(uint64_t, size_t *);
 int QuicTransParamSet(QuicTransParams *, uint64_t, void *, size_t);
+int QuicTransParamGet(QuicTransParams *, uint64_t, void *, size_t);
 int QuicTransParamNego(QuicTransParams *, QuicTransParams *, QuicTransParams *);
 
 #endif

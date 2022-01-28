@@ -569,15 +569,8 @@ static int TlsExtClntParseTlsExtQtp(TLS *s, RPacket *pkt,
                                 uint32_t context, X509 *x,
                                 size_t chainidx)
 {
-    QUIC *quic = QuicTlsTrans(s);
-    QuicTransParams param = {};
-
-    if (TlsParseQtpExtension(s, &param, pkt, client_transport_param,
-                                    QUIC_TRANS_PARAM_NUM) < 0) {
-        return -1;
-    }
-
-    return QuicTransParamNego(&quic->negoed_param, &s->ext.trans_param, &param);
+    return TlsParseQtpExtension(s, pkt, client_transport_param,
+                                    QUIC_TRANS_PARAM_NUM);
 }
 
 static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,

@@ -21,6 +21,11 @@ typedef struct {
     QUIC_DATA buf;
 } QUIC_DATA_BUF;
 
+typedef struct {
+    uint64_t sent;
+    uint64_t recvd;
+} QuicDataStat;
+
 int QuicDataIsEmpty(const QUIC_DATA *);
 void QuicDataSet(QUIC_DATA *, const void *, size_t);
 void QuicDataGet(const QUIC_DATA *, const void **, size_t *);

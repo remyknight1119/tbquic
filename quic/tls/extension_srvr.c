@@ -359,15 +359,8 @@ static int TlsExtSrvrParseSigAlgs(TLS *s, RPacket *pkt, uint32_t context,
 static int TlsExtSrvrParseQtp(TLS *s, RPacket *pkt, uint32_t context,
                                     X509 *x, size_t chainidx)
 {
-    QUIC *quic = QuicTlsTrans(s);
-    QuicTransParams param = {};
-
-    if (TlsParseQtpExtension(s, &param, pkt, server_transport_param,
-                                    QUIC_SERVER_TRANS_PARAM_NUM) < 0) {
-        return -1;
-    }
-
-    return QuicTransParamNego(&quic->negoed_param, &s->ext.trans_param, &param);
+    return TlsParseQtpExtension(s, pkt, server_transport_param,
+                                QUIC_SERVER_TRANS_PARAM_NUM);
 }
 
 static int

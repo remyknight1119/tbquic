@@ -38,12 +38,22 @@ static int QuicFrameHandshakeDoneParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *, void *);
 static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
                                         void *);
+static int QuicFrameMaxStreamsBidiParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *, void *);
+static int QuicFrameMaxStreamsUniParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *, void *);
+static int QuicFrameMaxDataParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                        void *);
 static int QuicFrameMaxStreamDataParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *, void *);
+static int QuicFrameDataBlockedParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *, void *);
 static int QuicFrameStreamDataBlockedParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *, void *);
 static int QuicFrameAckBuild(QUIC *, WPacket *, QUIC_CRYPTO *, void *, long);
 static int QuicFrameResetStreamBuild(QUIC *, WPacket *, QUIC_CRYPTO *,
+                                        void *, long);
+static int QuicFrameDataBlockedBuild(QUIC *, WPacket *, QUIC_CRYPTO *,
                                         void *, long);
 static int QuicFrameStreamDataBlockedBuild(QUIC *, WPacket *, QUIC_CRYPTO *,
                                         void *, long);
@@ -97,8 +107,21 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_STREAM_OFF_LEN_FIN] = {
         .parser = QuicFrameStreamParser,
     },
+    [QUIC_FRAME_TYPE_MAX_DATA] = {
+        .parser = QuicFrameMaxDataParser,
+    },
     [QUIC_FRAME_TYPE_MAX_STREAM_DATA] = {
         .parser = QuicFrameMaxStreamDataParser,
+    },
+    [QUIC_FRAME_TYPE_MAX_STREAMS_BIDI] = {
+        .parser = QuicFrameMaxStreamsBidiParser,
+    },
+    [QUIC_FRAME_TYPE_MAX_STREAMS_UNI] = {
+        .parser = QuicFrameMaxStreamsUniParser,
+    },
+    [QUIC_FRAME_TYPE_DATA_BLOCKED] = {
+        .parser = QuicFrameDataBlockedParser,
+        .builder = QuicFrameDataBlockedBuild,
     },
     [QUIC_FRAME_TYPE_STREAM_DATA_BLOCKED] = {
         .parser = QuicFrameStreamDataBlockedParser,
@@ -474,7 +497,7 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
         return -1;
     }
 
-    QuicStreamDataAdd(sd, si);
+    QuicStreamDataAdd(quic, sd, si);
 
     if (!si->notified) {
         msg = QuicStreamMsgCreate(id, QUIC_STREAM_MSG_TYPE_DATA_RECVED);
@@ -483,6 +506,20 @@ QuicFrameStreamParser(QUIC *quic, RPacket *pkt, uint64_t type, QUIC_CRYPTO *c,
         }
         QuicStreamMsgAdd(scf, msg);
         si->notified = 1;
+    }
+
+    return 0;
+}
+
+static int QuicFrameDataBlockedParser(QUIC *quic, RPacket *pkt,
+                                    uint64_t type, QUIC_CRYPTO *c,
+                                    void *buf)
+{
+    uint64_t max_data = 0;
+
+    if (QuicVariableLengthDecode(pkt, &max_data) < 0) {
+        QUIC_LOG("ID decode failed!\n");
+        return -1;
     }
 
     return 0;
@@ -525,6 +562,37 @@ static int QuicFrameStreamDataBlockedParser(QUIC *quic, RPacket *pkt,
     return 0;
 }
 
+static int QuicFrameStreamParamUpdate(QuicTransParams *param, RPacket *pkt,
+                                        uint64_t type)
+{
+    uint64_t max_streams = 0;
+    uint64_t value = 0;
+
+    if (QuicVariableLengthDecode(pkt, &max_streams) < 0) {
+        QUIC_LOG("Max streams decode failed!\n");
+        return -1;
+    }
+
+    if (QuicTransParamGet(param, type, &value, 0) < 0) {
+        return -1;
+    }
+
+    if (QUIC_GT(max_streams, value)) {
+        if (QuicTransParamSet(param, type, &max_streams, 0) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int QuicFrameMaxDataParser(QUIC *quic, RPacket *pkt, uint64_t type,
+                                    QUIC_CRYPTO *c, void *buf)
+{
+    return QuicFrameStreamParamUpdate(&quic->peer_param, pkt,
+                    QUIC_TRANS_PARAM_INITIAL_MAX_DATA);
+}
+
 static int QuicFrameMaxStreamDataParser(QUIC *quic, RPacket *pkt,
                                     uint64_t type, QUIC_CRYPTO *c,
                                     void *buf)
@@ -557,9 +625,27 @@ static int QuicFrameMaxStreamDataParser(QUIC *quic, RPacket *pkt,
         return -1;
     }
 
-    si->max_stream_data = max_stream_data;
+    if (QUIC_LT(si->max_stream_data, max_stream_data)) {
+        si->max_stream_data = max_stream_data;
+    }
 
     return 0;
+}
+
+static int QuicFrameMaxStreamsBidiParser(QUIC *quic, RPacket *pkt,
+                                        uint64_t type, QUIC_CRYPTO *c,
+                                        void *buf)
+{
+    return QuicFrameStreamParamUpdate(&quic->peer_param, pkt,
+                QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_BIDI);
+}
+
+static int QuicFrameMaxStreamsUniParser(QUIC *quic, RPacket *pkt,
+                                        uint64_t type, QUIC_CRYPTO *c,
+                                        void *buf)
+{
+    return QuicFrameStreamParamUpdate(&quic->peer_param, pkt,
+                QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_UNI);
 }
 
 static int QuicFrameNewConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
@@ -626,6 +712,15 @@ static int QuicFrameCryptoBuild(QUIC *quic, WPacket *pkt, uint64_t offset,
     return QuicWPacketSubMemcpyVar(pkt, data, len);
 }
 
+static int QuicFrameDataBlockedBuild(QUIC *quic, WPacket *pkt,
+                                        QUIC_CRYPTO *c,
+                                        void *arg, long larg)
+{
+    QuicStreamConf *scf = &quic->stream;
+
+    return QuicVariableLengthWrite(pkt, scf->stat_all.sent);
+}
+
 static int QuicFrameStreamDataBlockedBuild(QUIC *quic, WPacket *pkt,
                                         QUIC_CRYPTO *c,
                                         void *arg, long larg)
@@ -639,7 +734,7 @@ static int QuicFrameStreamDataBlockedBuild(QUIC *quic, WPacket *pkt,
         return -1;
     }
 
-    max_stream_data = si->sent_byptes;
+    max_stream_data = si->stat_bytes.sent;
 
     if (si->send_state == QUIC_STREAM_STATE_READY) {
         si->send_state = QUIC_STREAM_STATE_SEND;
@@ -722,7 +817,7 @@ static int QuicFrameResetStreamBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
         return -1;
     }
 
-    if (QuicVariableLengthWrite(pkt, si->sent_byptes) < 0) {
+    if (QuicVariableLengthWrite(pkt, si->stat_bytes.sent) < 0) {
         return -1;
     }
 
@@ -743,7 +838,7 @@ int QuicFrameAckSendCheck(QUIC_CRYPTO *c)
     return 0;
 }
 
-int QuicFrameStreamBuild(QUIC *quic, WPacket *pkt, uint64_t id,
+static int QuicFrameStreamBuild(QUIC *quic, WPacket *pkt, uint64_t id,
                             uint8_t *data, size_t len, bool fin,
                             bool last)
 {
@@ -767,7 +862,7 @@ int QuicFrameStreamBuild(QUIC *quic, WPacket *pkt, uint64_t id,
         si->send_state = QUIC_STREAM_STATE_SEND;
     }
 
-    offset = si->sent_byptes;
+    offset = si->stat_bytes.sent;
     if (offset) {
         type |= QUIC_FRAME_STREAM_BIT_OFF;
     }
@@ -1005,6 +1100,7 @@ static int QuicFrameStreamWrite(QUIC *quic, uint32_t pkt_type, WPacket *pkt,
             return -1;
         }
 
+        nqb->stream_len += wlen;
         offset += wlen;
     }
 
@@ -1119,6 +1215,15 @@ int QuicAckFrameBuild(QUIC *quic, uint32_t pkt_type)
     }
 
     frame.type = QUIC_FRAME_TYPE_ACK;
+
+    return QuicFrameBuild(quic, pkt_type, &frame, 1, NULL);
+}
+
+int QuicDataBlockedFrameBuild(QUIC *quic, int64_t id, uint32_t pkt_type)
+{
+    QuicFrameNode frame = {
+        .type = QUIC_FRAME_TYPE_DATA_BLOCKED,
+    };
 
     return QuicFrameBuild(quic, pkt_type, &frame, 1, NULL);
 }

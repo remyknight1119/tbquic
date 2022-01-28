@@ -39,7 +39,8 @@ typedef enum {
     QUIC_FRAME_TYPE_STREAM_OFF_LEN_FIN = 0x0f,
     QUIC_FRAME_TYPE_MAX_DATA = 0x10,
     QUIC_FRAME_TYPE_MAX_STREAM_DATA = 0x11,
-    QUIC_FRAME_TYPE_MAX_STREAMS = 0x12,
+    QUIC_FRAME_TYPE_MAX_STREAMS_BIDI = 0x12,
+    QUIC_FRAME_TYPE_MAX_STREAMS_UNI = 0x13,
     QUIC_FRAME_TYPE_DATA_BLOCKED = 0x14,
     QUIC_FRAME_TYPE_STREAM_DATA_BLOCKED = 0x15,
     QUIC_FRAME_TYPE_STREAMS_BLOCKED = 0x16,
@@ -78,5 +79,7 @@ int QuicFrameAckSendCheck(QUIC_CRYPTO *c);
 int QuicCryptoFrameBuild(QUIC *, uint32_t);
 int QuicStreamFrameBuild(QUIC *, QUIC_STREAM_IOVEC *, size_t);
 int QuicAckFrameBuild(QUIC *, uint32_t);
+int QuicDataBlockedFrameBuild(QUIC *, int64_t, uint32_t);
+int QuicStreamDataBlockedFrameBuild(QUIC *, int64_t, uint32_t);
 
 #endif

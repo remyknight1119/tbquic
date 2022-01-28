@@ -12,13 +12,7 @@
 #define QUIC_STREAM_ID_MASK                 0x03
 #define QUIC_STREAM_ID_MASK_BITS            2
 
-#define QUIC_STREAM_CLIENT_INITIATED_BIDIRECTIONAL 	    0
-#define QUIC_STREAM_SERVER_INITIATED_BIDIRECTIONAL 	\
-            QUIC_STREAM_INITIATED_BY_SERVER
-#define QUIC_STREAM_CLIENT_INITIATED_UNIDIRECTIONAL \
-            QUIC_STREAM_UNIDIRECTIONAL
-#define QUIC_STREAM_SERVER_INITIATED_UNIDIRECTIONAL \
-            (QUIC_STREAM_INITIATED_BY_SERVER|QUIC_STREAM_UNIDIRECTIONAL)
+#define QUIC_STREAM_IS_UNI(id) (id & QUIC_STREAM_UNIDIRECTIONAL)
 
 enum {
 	QUIC_STREAM_STATE_DISABLE = 0,
@@ -45,21 +39,22 @@ typedef struct {
     uint64_t recv_state:4;
     uint64_t send_state:4;
     uint64_t notified:1;
+    uint64_t local_opened:1;
+    uint64_t uni:1;
     uint64_t max_stream_data;
-    uint64_t sent_byptes;
+    QuicDataStat stat_bytes;
     int64_t offset;
     struct list_head queue;
 } QuicStreamInstance;
 
 typedef struct {
+    QuicDataStat stat_all;
     uint64_t bidi_id_alloced;
     uint64_t uni_id_alloced;
-    uint64_t max_bidi_stream_id;
-    uint64_t max_uni_stream_id;
     uint64_t max_id_opened;
     uint64_t max_id_value;
-    struct list_head msg_queue;
     QuicStreamInstance *stream;
+    struct list_head msg_queue;
 } QuicStreamConf;
 
 typedef struct {
@@ -80,10 +75,12 @@ int QuicStreamInit(QUIC *);
 void QuicStreamConfDeInit(QuicStreamConf *);
 QuicStreamInstance *QuicStreamGetInstance(QUIC *, QUIC_STREAM_HANDLE);
 QuicStreamData *QuicStreamDataCreate(void *, int64_t, const void *, size_t);
-void QuicStreamDataAdd(QuicStreamData *, QuicStreamInstance *);
+void QuicStreamDataAdd(QUIC *, QuicStreamData *, QuicStreamInstance *);
 void QuicStreamDataFree(QuicStreamData *);
 QuicStreamMsg *QuicStreamMsgCreate(int64_t, uint32_t);
 void QuicStreamMsgAdd(QuicStreamConf *, QuicStreamMsg *);
 void QuicStreamMsgFree(QuicStreamMsg *);
+void QuicStreamDataCount(QuicStreamConf *, uint64_t, bool, bool);
+int QuicStreamSendFlowCtrl(QUIC *, int64_t, size_t, uint32_t);
 
 #endif

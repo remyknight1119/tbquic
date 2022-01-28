@@ -64,6 +64,7 @@ QBUFF *QBuffNew(uint32_t pkt_type, size_t len)
         return NULL;
     }
 
+    qb->pkt_type = pkt_type;
     qb->buff_len = len;
     qb->stream_id = -1;
     qb->method = method;

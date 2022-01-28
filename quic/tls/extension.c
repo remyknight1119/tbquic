@@ -251,15 +251,18 @@ TlsExtQtpConstructSourceConnId(TLS *s, QuicTransParams *param, size_t offset,
     return TlsExtQtpConstructCid(&quic->scid, pkt);
 }
 
-int TlsParseQtpExtension(TLS *tls, QuicTransParams *param, RPacket *pkt,
-                                const TlsExtQtpDefinition *tp, size_t num)
+int TlsParseQtpExtension(TLS *s,  RPacket *pkt, const TlsExtQtpDefinition *tp,
+                            size_t num)
 {
     const TlsExtQtpDefinition *p = NULL;
+    QUIC *quic = QuicTlsTrans(s);
+    QuicTransParams *param = NULL;
     uint64_t type = 0;
     uint64_t len = 0;
     size_t offset = 0;
     size_t i = 0;
 
+    param = &quic->peer_param;
     while (RPacketRemaining(pkt)) {
         if (QuicVariableLengthDecode(pkt, &type) < 0) {
             return -1;
@@ -289,7 +292,7 @@ int TlsParseQtpExtension(TLS *tls, QuicTransParams *param, RPacket *pkt,
             continue;
         }
 
-        if (p->parse(tls, param, offset, pkt, len) < 0) {
+        if (p->parse(s, param, offset, pkt, len) < 0) {
             return -1;
         }
     }

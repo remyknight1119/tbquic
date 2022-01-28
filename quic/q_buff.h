@@ -49,10 +49,12 @@ struct QBuff {
 #define QBUFF_FLAGS_STREAM_RESET    0x02
     uint64_t flags;
     int64_t stream_id;
+    uint32_t pkt_type;
     const QuicPktMethod *method;
     void *buff;
     size_t buff_len;
     size_t data_len;
+    size_t stream_len;
 };
 
 void QBuffQueueHeadInit(QBuffQueueHead *);

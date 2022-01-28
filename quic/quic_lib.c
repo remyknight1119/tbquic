@@ -435,56 +435,6 @@ int QUIC_get_error(QUIC *quic, int ret)
     return QUIC_ERROR_QUIC;
 }
 
-static int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
-{
-    QBuffQueueHead *send_queue = &quic->tx_queue;
-    QBUFF *qb = NULL;
-    QBUFF *next = NULL;
-    QBUFF *tail = NULL;
-    QUIC_CRYPTO *c = NULL;
-    WPacket pkt = {};
-    size_t total_len = 0;
-    bool end = false;
-    int ret = 0;
-
-    WPacketStaticBufInit(&pkt, buffer->data, quic->mss);
-    tail = QBUF_LAST_NODE(send_queue);
-    list_for_each_entry_safe(qb, next, &send_queue->queue, node) {
-        if (end) {
-            break;
-        }
-        end = qb == tail;
-        if (!end) {
-            total_len = QBufPktComputeTotalLen(quic, qb) + 
-                            QBufPktComputeTotalLen(quic, next);
-            if (QUIC_GT(total_len, WPacket_get_space(&pkt))) {
-                end = true;
-            }
-        }
-
-        QUIC_LOG("last = %d, data len = %lu\n", end, QBuffGetDataLen(qb));
-        ret = QBuffBuildPkt(quic, &pkt, qb, end);
-        if (ret < 0) {
-            QUIC_LOG("Build pkt failed\n");
-            return -1;
-        }
-
-        c = QBuffGetCrypto(quic, qb);
-        assert(c != NULL);
-
-        QBuffQueueUnlink(qb);
-        QBuffQueueAdd(&c->sent_queue, qb);
-        if (qb == tail) {
-            break;
-        } 
-    }
-
-    buffer->len = WPacket_get_written(&pkt);
-    WPacketCleanup(&pkt);
-
-    return 0;
-}
-
 int QuicSendPacket(QUIC *quic)
 {
     QuicStaticBuffer *buffer = NULL;

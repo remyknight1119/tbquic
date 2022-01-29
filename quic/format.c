@@ -88,7 +88,30 @@ static int QuicCidParse(QUIC_DATA *cid, const uint8_t *data, size_t len)
     return 0;
 }
 
-int QuicLPacketHeaderParse(QUIC *quic, RPacket *pkt)
+static int QuicClntScidParse(QUIC_DATA *cid, const uint8_t *data, size_t len,
+                            bool inited, QUIC_DATA *out, bool *update_dcid)
+{
+    if (cid->data == NULL) {
+        return -1;
+    }
+
+    if (!inited) {
+        out->data = (void *)data;
+        out->len = len;
+        *update_dcid = true;
+        return 0;
+    }
+
+    if (cid->len != len || memcmp(cid->data, data, len) != 0) {
+        QUIC_LOG("CID not match!\n");
+        return -1;
+    }
+ 
+    return 0;
+}
+
+int QuicLPacketHeaderParse(QUIC *quic, RPacket *pkt, QUIC_DATA *new_dcid,
+                            bool *update_dcid)
 {
     uint32_t version = 0;
     uint32_t len = 0;
@@ -135,12 +158,36 @@ int QuicLPacketHeaderParse(QUIC *quic, RPacket *pkt)
         return -1;
     }
 
-    if (QuicCidParse(&quic->dcid, RPacketData(pkt), len) < 0) {
-        QUIC_LOG("SCID parse failed!\n");
-        return -1;
+    if (quic->quic_server) {
+        if (QuicCidParse(&quic->dcid, RPacketData(pkt), len) < 0) {
+            QUIC_LOG("SCID from client parse failed!\n");
+            return -1;
+        }
+    } else {
+        if (QuicClntScidParse(&quic->dcid, RPacketData(pkt), len,
+                    quic->dcid_inited, new_dcid,
+                    update_dcid) < 0) {
+            QUIC_LOG("SCID from server parse failed!\n");
+            return -1;
+        }
     }
  
     RPacketForward(pkt, len);
+
+    return 0;
+}
+
+int QuicUpdateDcid(QUIC *quic, QUIC_DATA *new_dcid, uint32_t pkt_type)
+{
+    QUIC_DATA *dcid = &quic->dcid;
+
+    if (QuicDataDup(dcid, new_dcid) < 0) {
+        return -1;
+    }
+
+    if (pkt_type == QUIC_PKT_TYPE_INITIAL) {
+        quic->dcid_inited = 1;
+    }
 
     return 0;
 }
@@ -150,7 +197,7 @@ int QuicSPacketHeaderParse(QUIC *quic, RPacket *pkt)
     uint32_t len = 0;
 
     len = quic->scid.len;
-    if (QuicCidParse(&quic->scid, RPacketData(pkt), len) < 0) {
+    if (QuicMemCmp(quic->scid.data, RPacketData(pkt), len) != 0) {
         QUIC_LOG("DCID parse failed!\n");
         return -1;
     }
@@ -161,11 +208,11 @@ int QuicSPacketHeaderParse(QUIC *quic, RPacket *pkt)
 }
 
 int QuicPktHeaderParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags,
-                        uint32_t *type)
+                        uint32_t *type, QUIC_DATA *new_dcid,
+                        bool *update_dcid)
 {
     if (QUIC_PACKET_IS_LONG_PACKET(flags)) {
-        QUIC_LOG("Long pkt\n");
-        if (QuicLPacketHeaderParse(quic, pkt) < 0) {
+        if (QuicLPacketHeaderParse(quic, pkt, new_dcid, update_dcid) < 0) {
             QUIC_LOG("Long Header Parse failed\n");
             return -1;
         }
@@ -174,7 +221,6 @@ int QuicPktHeaderParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags,
         return 0;
     }
 
-        QUIC_LOG("Short pkt\n");
     if (QuicSPacketHeaderParse(quic, pkt) < 0) {
         QUIC_LOG("Short Header Parse failed\n");
         return -1;

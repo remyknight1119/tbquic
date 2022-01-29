@@ -41,6 +41,13 @@ int QuicDataDupU16(QUIC_DATA *dst, const QUIC_DATA *src)
     return QuicDataDupBytes(dst, src, 2);
 }
 
+bool QuicDataEq(const QUIC_DATA *d1, const QUIC_DATA *d2)
+{
+    size_t len = d2->len;
+
+    return (d1->len == len && QuicMemCmp(d1->data, d2->data, len) == 0);
+}
+
 void QuicDataSet(QUIC_DATA *dst, const void *data, size_t len)
 {
     dst->data = (void *)data;

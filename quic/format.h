@@ -7,6 +7,7 @@
 #include <tbquic/types.h>
 
 #include "packet_local.h"
+#include "base.h"
 #include "q_buff.h"
 
 #define QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN      1200
@@ -81,9 +82,11 @@ int QuicVariableLengthWrite(WPacket *, uint64_t);
 int QuicVariableLengthValueWrite(WPacket *, uint64_t);
 uint32_t QuicPktNumberEncode(uint64_t, uint64_t, uint8_t);
 uint64_t QuicPktNumberDecode(uint64_t, uint32_t, uint8_t);
-int QuicLPacketHeaderParse(QUIC *, RPacket *);
+int QuicLPacketHeaderParse(QUIC *, RPacket *, QUIC_DATA *, bool *);
 int QuicSPacketHeaderParse(QUIC *, RPacket *);
-int QuicPktHeaderParse(QUIC *, RPacket *, QuicPacketFlags, uint32_t *);
+int QuicUpdateDcid(QUIC *, QUIC_DATA *, uint32_t);
+int QuicPktHeaderParse(QUIC *, RPacket *, QuicPacketFlags, uint32_t *,
+                        QUIC_DATA *, bool *);
 int QuicPktBodyParse(QUIC *, RPacket *, uint32_t);
 int QuicInitPacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);
 size_t QuicInitialPacketGetTotalLen(QUIC *, size_t);

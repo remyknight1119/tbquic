@@ -136,7 +136,8 @@ int QuicCidGen(QUIC_DATA *cid, size_t len)
 }
 
 static int
-QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags, uint8_t type)
+QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags, uint8_t type,
+                    QUIC_DATA *new_dcid, bool *update_dcid)
 {
     if (!QUIC_PACKET_IS_LONG_PACKET(flags)) {
         QUIC_LOG("Not Long packet\n");
@@ -148,7 +149,7 @@ QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags, uint8_t type)
         return -1;
     }
 
-    if (QuicLPacketHeaderParse(quic, pkt) < 0) {
+    if (QuicLPacketHeaderParse(quic, pkt, new_dcid, update_dcid) < 0) {
         QUIC_LOG("Header Parse failed\n");
         return -1;
     }
@@ -159,11 +160,21 @@ QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags, uint8_t type)
 QuicFlowReturn
 QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
-    if (QuicLongPktParse(quic, pkt, flags, QUIC_LPACKET_TYPE_INITIAL) < 0) {
+    QUIC_DATA new_dcid = {};
+    bool update_dcid = false;
+
+    if (QuicLongPktParse(quic, pkt, flags, QUIC_LPACKET_TYPE_INITIAL,
+                &new_dcid, &update_dcid) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
     if (QuicInitPacketParse(quic, pkt, &quic->initial) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (update_dcid && QuicUpdateDcid(quic, &new_dcid,
+                QUIC_LPACKET_TYPE_INITIAL) < 0) {
+        QUIC_LOG("Update DCID failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -190,15 +201,23 @@ int QuicInitialSend(QUIC *quic)
 QuicFlowReturn
 QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
+    QUIC_DATA new_dcid = {};
+    bool update_dcid = false;
     uint32_t type = 0;
 
-    if (QuicPktHeaderParse(quic, pkt, flags, &type) < 0) {
+    if (QuicPktHeaderParse(quic, pkt, flags, &type, &new_dcid,
+                            &update_dcid) < 0) {
         QUIC_LOG("Header parse failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 
     if (QuicPktBodyParse(quic, pkt, type) < 0) {
         QUIC_LOG("Body parse failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (update_dcid && QuicUpdateDcid(quic, &new_dcid, type) < 0) {
+        QUIC_LOG("Update DCID failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
 

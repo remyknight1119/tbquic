@@ -109,6 +109,23 @@ QuicCid *QuicCidFind(QuicCidPool *p, uint64_t seq)
     return NULL;
 }
 
+int QuicCidMatch(QuicCidPool *p, void *data, size_t len)
+{
+    QuicCid *cid = NULL;
+    QUIC_DATA id = {
+        .data = data,
+        .len = len,
+    };
+
+    list_for_each_entry(cid, &p->queue, node) {
+        if (QuicDataEq(&cid->id, &id)) {
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
 int QuicCidRetire(QuicCidPool *p, uint64_t seq)
 {
     QuicCid *cid = NULL;

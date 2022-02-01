@@ -136,23 +136,16 @@ int QuicLPacketHeaderParse(QUIC *quic, RPacket *pkt, QUIC_DATA *new_dcid,
         return -1;
     }
 
-    if (quic->quic_server && len == 0) {
-        QUIC_LOG("DCID len is zero\n");
-        return -1;
-    } 
-
     if (len > 0 && len < QUIC_MIN_CID_LENGTH) {
         QUIC_LOG("CID len is too short(%u)\n", len);
         return -1;
     }
 
-    if (QuicCidParse(&quic->scid, RPacketData(pkt), len) < 0) {
+    if (quic->method->parse_dcid(quic, pkt, len) < 0) {
         QUIC_LOG("DCID parse failed!\n");
         return -1;
     }
  
-    RPacketForward(pkt, len);
-
     if (RPacketGet1(pkt,  &len) < 0) {
         QUIC_LOG("Get source CID len failed\n");
         return -1;
@@ -1270,5 +1263,78 @@ int QuicAppDataPacketBuild(QUIC *quic, WPacket *pkt, QBUFF *qb, bool end)
 void QuicAddQueue(QUIC *quic, QBUFF *qb)
 {
     QBuffQueueAdd(&quic->tx_queue, qb);
+}
+
+int QuicClntParseScid(QUIC *quic, RPacket *pkt, size_t len)
+{
+    return 0;
+}
+
+static int QuicParseDcid(QUIC *quic, RPacket *pkt, size_t len)
+{
+    QUIC_DATA *scid = &quic->scid;
+    const uint8_t *data = NULL;
+    RPacket pcid = {};
+
+    if (RPacketGetBytes(pkt, &data, len) < 0) {
+        return -1;
+    }
+
+    if (!quic->scid_inited) {
+        RPacketBufInit(&pcid, data, len);
+        if (PRacketMemDup(&pcid, &scid->ptr_u8, &scid->len) < 0) {
+            return -1;
+        }
+
+        quic->scid_inited = 1;
+        return 0;
+    }
+
+    if (scid->len == len && memcmp(scid->data, data, len) == 0) {
+        return 0;
+    }
+ 
+    return QuicCidMatch(&quic->conn.scid, (void *)data, len);
+}
+
+int QuicClntParseDcid(QUIC *quic, RPacket *pkt, size_t len)
+{
+    return QuicParseDcid(quic, pkt, len);
+}
+
+int QuicSrvrParseScid(QUIC *quic, RPacket *pkt, size_t len)
+{
+    QUIC_DATA *dcid = &quic->dcid;
+    const uint8_t *data = NULL;
+
+    if (!quic->dcid_inited) {
+        if (len != 0 && PRacketMemDup(pkt, &dcid->ptr_u8, &dcid->len) < 0) {
+            return -1;
+        }
+
+        quic->dcid_inited = 1;
+        return 0;
+    }
+
+    if (dcid->len == len && len == 0) {
+        return 0;
+    }
+
+    data = RPacketData(pkt);
+    if (dcid->len == len && memcmp(dcid->data, data, len) == 0) {
+        return 0;
+    }
+ 
+    return QuicCidMatch(&quic->conn.dcid, (void *)data, len);
+}
+
+int QuicSrvrParseDcid(QUIC *quic, RPacket *pkt, size_t len)
+{
+    if (len == 0) {
+        QUIC_LOG("SCID len can't be 0'\n");
+        return -1;
+    }
+
+    return QuicParseDcid(quic, pkt, len);
 }
 

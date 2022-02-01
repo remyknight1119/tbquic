@@ -29,6 +29,7 @@ int QuicCidGen(QUIC_DATA *, size_t);
 QuicCid *QuicCidAlloc(uint64_t);
 QuicCid *QuicCidIssue(QuicCidPool *, size_t);
 void QuicCidAdd(QuicCidPool *, QuicCid *);
+int QuicCidMatch(QuicCidPool *, void *, size_t);
 int QuicCidRetire(QuicCidPool *, uint64_t);
 void QuicCidRetirePriorTo(QuicCidPool *, uint64_t);
 int QuicActiveCidLimitCheck(QuicCidPool *, uint64_t);

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define QUIC_TRANS_ACTIVE_CONN_ID_LIMIT     2
 #define QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN_LEN   16
 
 typedef struct {
@@ -16,14 +17,15 @@ typedef struct {
     uint64_t initial_max_stream_bidi; 
     uint64_t initial_max_stream_uni; 
     uint64_t max_datagrame_frame_size; 
+    uint64_t active_connection_id_limit; 
     uint8_t stateless_reset_token[QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN_LEN];
 } QuicTransParams;
 
 typedef struct {
     uint64_t type;
-#define QUIC_TRANS_PARAM_FLAGS_INT  0x0001
-    uint64_t flags;
     size_t offset;
+    int (*get_value)(QuicTransParams *, uint64_t, void *, size_t);
+    int (*set_value)(QuicTransParams *, uint64_t, void *, size_t);
 } QuicTransParamsDefines;
 
 int QuicTransParamGetOffset(uint64_t, size_t *);

@@ -97,6 +97,10 @@ int QuicHandshakePacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 int QuicAppDataPacketBuild(QUIC *, WPacket *, QBUFF *, bool);
 void QuicAddQueue(QUIC *quic, QBUFF *qb);
 int QuicWPacketSubMemcpyVar(WPacket *, const void *, size_t);
+int QuicClntParseScid(QUIC *quic, RPacket *pkt, size_t);
+int QuicClntParseDcid(QUIC *quic, RPacket *pkt, size_t);
+int QuicSrvrParseScid(QUIC *quic, RPacket *pkt, size_t);
+int QuicSrvrParseDcid(QUIC *quic, RPacket *pkt, size_t);
 
 #ifdef QUIC_TEST
 extern void (*QuicEncryptPayloadHook)(QBUFF *qb);

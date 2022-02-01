@@ -675,20 +675,27 @@ static int QuicFrameNewConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
         return -1;
     }
 
-    QuicCidRetirePriorTo(p, retire_prior_to);
-    if (QuicTransParamGet(&TLS_EXT_TRANS_PARAM(&quic->tls),
-                QUIC_TRANS_PARAM_ACTIVE_CONNECTION_ID_LIMIT,
-                &active_conn_limit, 0) < 0) {
+    if (quic->dcid.len == 0) {
         return -1;
     }
 
     p = &conn->dcid;
+    QuicCidRetirePriorTo(p, retire_prior_to);
+    if (QuicTransParamGet(&TLS_EXT_TRANS_PARAM(&quic->tls),
+                QUIC_TRANS_PARAM_ACTIVE_CONNECTION_ID_LIMIT,
+                &active_conn_limit, 0) < 0) {
+        QUIC_LOG("Get transport parameter failed!\n");
+        return -1;
+    }
+
     if (QuicActiveCidLimitCheck(p, active_conn_limit) < 0) {
+        QUIC_LOG("Active CID limit check failed!\n");
         return -1;
     }
 
     cid = QuicCidAlloc(seq);
     if (cid == NULL) {
+        QUIC_LOG("Alloc CID failed!\n");
         return -1;
     }
     

@@ -35,6 +35,8 @@ struct QuicMethod {
     bool alloc_rbuf;
     int (*quic_connect)(QUIC *);
     int (*quic_accept)(QUIC *);
+    int (*parse_dcid)(QUIC *, RPacket *, size_t);
+    int (*parse_scid)(QUIC *, RPacket *, size_t);
     int (*read_bytes)(QUIC *, RPacket *);
     int (*write_bytes)(QUIC *, uint8_t *, size_t);
     const TlsMethod *tls_method;
@@ -91,6 +93,7 @@ struct Quic {
     uint64_t cid_len:8;
     uint64_t fd_mode:1;
     uint64_t dcid_inited:1;
+    uint64_t scid_inited:1;
     const QUIC_CTX *ctx;
     const QUIC_METHOD *method;
     BIO *rbio;

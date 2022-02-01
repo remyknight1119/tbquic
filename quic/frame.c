@@ -34,6 +34,8 @@ static int QuicFrameStopSendingParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *, void *);
 static int QuicFrameNewConnIdParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
                                         void *);
+static int QuicFrameRetireConnIdParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
+                                        void *);
 static int QuicFrameHandshakeDoneParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *, void *);
 static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
@@ -129,6 +131,9 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     },
     [QUIC_FRAME_TYPE_NEW_CONNECTION_ID] = {
         .parser = QuicFrameNewConnIdParser,
+    },
+    [QUIC_FRAME_TYPE_RETIRE_CONNECTION_ID] = {
+        .parser = QuicFrameRetireConnIdParser,
     },
     [QUIC_FRAME_TYPE_HANDSHAKE_DONE] = {
         .flags = QUIC_FRAME_FLAGS_NO_BODY,
@@ -710,6 +715,24 @@ static int QuicFrameNewConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
     }
 
     QuicCidAdd(p, cid);
+    return 0;
+}
+
+static int QuicFrameRetireConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
+                                        QUIC_CRYPTO *c, void *buf)
+{
+    QuicConn *conn = &quic->conn;
+    uint64_t seq = 0;
+
+    if (QuicVariableLengthDecode(pkt, &seq) < 0) {
+        QUIC_LOG("Seq decode failed!\n");
+        return -1;
+    }
+
+    if (QuicCidRetire(&conn->dcid, seq) < 0) {
+        QUIC_LOG("Retire seq %lu failed!\n", seq);
+    }
+
     return 0;
 }
 

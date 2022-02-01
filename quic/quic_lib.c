@@ -199,6 +199,10 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->tls.ext.trans_param = ctx->ext.trans_param;
     quic->ctx = ctx;
 
+    if (QuicConnInit(&quic->conn) < 0) {
+        goto out;
+    }
+
     if (TlsInit(&quic->tls, ctx) < 0) {
         goto out;
     }

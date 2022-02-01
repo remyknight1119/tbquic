@@ -33,6 +33,7 @@
 #define TLS_HANDSHAKE_DONE(t) TLS_HANDSHAKE_STATE(t, TLS_ST_HANDSHAKE_DONE)
 #define TLS_USE_PSS(s) \
     (s->peer_sigalg != NULL && s->peer_sigalg->sig == EVP_PKEY_RSA_PSS)
+#define TLS_EXT_TRANS_PARAM(tls) (tls)->ext.trans_param 
 
 typedef int (*TlsExtConstructor)(TLS *, WPacket *, uint32_t, X509 *, size_t);
 

@@ -68,7 +68,6 @@ QuicFlowReturn QuicPacketRead(QUIC *, RPacket *, QuicPacketFlags);
 int QuicStateMachineAct(QUIC *, const QuicStatemFlow *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
-int QuicCidGen(QUIC_DATA *, size_t);
 int QuicStatemReadBytes(QUIC *, RPacket *);
 
 #endif

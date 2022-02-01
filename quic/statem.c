@@ -120,21 +120,6 @@ QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
     return 0;
 }
 
-int QuicCidGen(QUIC_DATA *cid, size_t len)
-{
-    assert(cid->data == NULL);
-
-    cid->data = QuicMemMalloc(len);
-    if (cid->data == NULL) {
-        return -1;
-    }
-
-    QuicRandBytes(cid->data, len);
-    cid->len = len;
-
-    return 0;
-}
-
 static int
 QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags, uint8_t type,
                     QUIC_DATA *new_dcid, bool *update_dcid)

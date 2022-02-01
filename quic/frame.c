@@ -652,12 +652,14 @@ static int QuicFrameNewConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
                                         QUIC_CRYPTO *c, void *buf)
 {
     QuicConn *conn = &quic->conn;
+    QuicCidPool *p = NULL;
+    QuicCid *cid = NULL;
     uint64_t seq = 0;
     uint64_t retire_prior_to = 0;
     uint64_t len = 0;
+    uint64_t active_conn_limit = 0;
 
     QUIC_LOG("in\n");
-
     if (QuicVariableLengthDecode(pkt, &seq) < 0) {
         QUIC_LOG("Seq decode failed!\n");
         return -1;
@@ -673,13 +675,35 @@ static int QuicFrameNewConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
         return -1;
     }
 
-    if (QuicDataParse(&conn->id, pkt, len) < 0) {
+    QuicCidRetirePriorTo(p, retire_prior_to);
+    if (QuicTransParamGet(&TLS_EXT_TRANS_PARAM(&quic->tls),
+                QUIC_TRANS_PARAM_ACTIVE_CONNECTION_ID_LIMIT,
+                &active_conn_limit, 0) < 0) {
+        return -1;
+    }
+
+    p = &conn->dcid;
+    if (QuicActiveCidLimitCheck(p, active_conn_limit) < 0) {
+        return -1;
+    }
+
+    cid = QuicCidAlloc(seq);
+    if (cid == NULL) {
+        return -1;
+    }
+    
+    if (QuicDataParse(&cid->id, pkt, len) < 0) {
         QUIC_LOG("Connection ID parse failed!\n");
         return -1;
     }
 
-    return RPacketCopyBytes(pkt, conn->stateless_reset_token,
-            sizeof(conn->stateless_reset_token));
+    if (RPacketCopyBytes(pkt, cid->stateless_reset_token,
+            sizeof(cid->stateless_reset_token)) < 0) {
+        return -1;
+    }
+
+    QuicCidAdd(p, cid);
+    return 0;
 }
 
 static int QuicFrameHandshakeDoneParser(QUIC *quic, RPacket *pkt, uint64_t type,

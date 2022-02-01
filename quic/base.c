@@ -97,6 +97,7 @@ int QuicDataParse(QUIC_DATA *data, RPacket *pkt, size_t len)
     }
 
     if (RPacketCopyBytes(pkt, data->data, len) < 0) {
+        QuicMemFree(data);
         return -1;
     }
 

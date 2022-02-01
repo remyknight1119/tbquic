@@ -551,6 +551,29 @@ int TlsSrvrParseExtensions(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
 static int TlsExtQtpParseSourceConnId(TLS *s, QuicTransParams *param,
                         size_t offset, RPacket *pkt, uint64_t len)
 {
+    QUIC *quic = QuicTlsTrans(s);
+    QUIC_DATA *dcid = NULL;
+    const uint8_t *data = NULL;
+    QUIC_DATA scid = {
+        .len = len,
+    };
+
+    if (RPacketGetBytes(pkt, &data, len) < 0) {
+        return -1;
+    }
+
+    scid.data = (void *)data;
+    dcid = &quic->dcid;
+    if (dcid->len == 0) {
+        return 0;
+    }
+
+    if (!QuicDataEq(dcid, &scid)) {
+        QUIC_LOG("CID not match, SCID, len = %lu, DCID len = %lu\n",
+                        len, dcid->len);
+        return -1;
+    }
+
     return 0;
 }
 

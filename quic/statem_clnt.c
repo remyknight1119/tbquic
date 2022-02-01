@@ -41,6 +41,11 @@ static int QuicClientInitialSend(QUIC *quic)
     if (cid->data == NULL && QuicCidGen(cid, quic->cid_len) < 0) {
         return -1;
     }
+
+    if (QuicCreateInitialDecoders(quic, quic->version, cid) < 0) {
+        return -1;
+    }
+
     ret = QuicInitialSend(quic);
     QuicBufReserve(QUIC_TLS_BUFFER(quic));
     return ret;

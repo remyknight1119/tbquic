@@ -8,11 +8,12 @@
 #include <tbquic/quic.h>
 #include "common.h"
 
+static void QuicTransParamActiveConnIdLimitInit(QuicTransParams *, uint64_t);
 static int QuicTransParamGetInt(QuicTransParams *, uint64_t, void *, size_t);
 static int QuicTransParamGetActiveConnIdLimit(QuicTransParams *, uint64_t,
                                 void *, size_t);
 static int QuicTransParamSetInt(QuicTransParams *, uint64_t, void *, size_t);
-static const QuicTransParamsDefines trans_param_offset[] = {
+static const QuicTransParamsDefines trans_param_definition[] = {
     {
         .type = QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT,
         .offset = offsetof(QuicTransParams, max_idle_timeout),
@@ -65,8 +66,12 @@ static const QuicTransParamsDefines trans_param_offset[] = {
     {
         .type = QUIC_TRANS_PARAM_ACTIVE_CONNECTION_ID_LIMIT,
         .offset = offsetof(QuicTransParams, active_connection_id_limit),
+        .init = QuicTransParamActiveConnIdLimitInit,
         .get_value = QuicTransParamGetActiveConnIdLimit,
         .set_value = QuicTransParamSetInt,
+    },
+    {
+        .type = QUIC_TRANS_PARAM_INITIAL_SOURCE_CONNECTION_ID,
     },
     {
         .type = QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE,
@@ -81,8 +86,8 @@ static const QuicTransParamsDefines *QuicTransParamDefFind(uint64_t type)
     const QuicTransParamsDefines *p = NULL;
     size_t i = 0;
 
-    for (i = 0; i < QUIC_NELEM(trans_param_offset); i++) {
-        p = &trans_param_offset[i];
+    for (i = 0; i < QUIC_NELEM(trans_param_definition); i++) {
+        p = &trans_param_definition[i];
         if (p->type == type) {
             return p;
         }
@@ -160,3 +165,24 @@ int QuicTransParamGet(QuicTransParams *param, uint64_t type, void *value,
 
     return p->get_value(param, p->offset, value, len);
 }
+
+void QuicTransParamInit(QuicTransParams *param)
+{
+    const QuicTransParamsDefines *p = NULL;
+    size_t i = 0;
+
+    for (i = 0; i < QUIC_NELEM(trans_param_definition); i++) {
+        p = &trans_param_definition[i];
+        if (p->init != NULL) {
+            p->init(param, p->offset);
+        }
+    }
+}
+
+static void QuicTransParamActiveConnIdLimitInit(QuicTransParams *param,
+                                                    uint64_t offset)
+{
+    QUIC_SET_U64_VALUE_BY_OFFSET(param, offset,
+                QUIC_TRANS_ACTIVE_CONN_ID_LIMIT);
+}
+

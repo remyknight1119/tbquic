@@ -722,11 +722,6 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
         return -1;
     }
 
-    if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
-        QUIC_LOG("Create Initial Decoders failed!\n");
-        return -1;
-    }
-
     if (QuicDecryptPacket(c, &msg, buffer->data, &buffer->len,
                 sizeof(buffer->data),
                 QUIC_LPACKET_TYPE_RESV_MASK) < 0) {
@@ -1273,32 +1268,16 @@ int QuicClntParseScid(QUIC *quic, RPacket *pkt, size_t len)
     return QuicCidCmp(&quic->conn.dcid, dcid, data, len);
 }
 
-static int QuicParseDcid(QUIC *quic, RPacket *pkt, size_t len)
+int QuicClntParseDcid(QUIC *quic, RPacket *pkt, size_t len)
 {
     QUIC_DATA *scid = &quic->scid;
     const uint8_t *data = NULL;
-    RPacket pcid = {};
 
     if (RPacketGetBytes(pkt, &data, len) < 0) {
         return -1;
     }
 
-    if (!quic->scid_inited) {
-        RPacketBufInit(&pcid, data, len);
-        if (PRacketMemDup(&pcid, &scid->ptr_u8, &scid->len) < 0) {
-            return -1;
-        }
-
-        quic->scid_inited = 1;
-        return 0;
-    }
-
     return QuicCidCmp(&quic->conn.scid, scid, data, len);
-}
-
-int QuicClntParseDcid(QUIC *quic, RPacket *pkt, size_t len)
-{
-    return QuicParseDcid(quic, pkt, len);
 }
 
 int QuicSrvrParseScid(QUIC *quic, RPacket *pkt, size_t len)
@@ -1330,11 +1309,84 @@ int QuicSrvrParseScid(QUIC *quic, RPacket *pkt, size_t len)
 
 int QuicSrvrParseDcid(QUIC *quic, RPacket *pkt, size_t len)
 {
-    if (len == 0) {
-        QUIC_LOG("SCID len can't be 0'\n");
+    QUIC_DATA *scid = &quic->scid;
+    QUIC_DATA dcid = {
+        .len = len,
+    };
+    const uint8_t *data = NULL;
+
+    if (RPacketGetBytes(pkt, &data, len) < 0) {
         return -1;
     }
 
-    return QuicParseDcid(quic, pkt, len);
+    dcid.data = (void *)data;
+    if (QuicCreateInitialDecoders(quic, quic->version, &dcid) < 0) {
+        return -1;
+    }
+
+    if (quic->cid_len == 0) {
+        if (quic->scid_inited) {
+            if (len != 0) {
+                QUIC_LOG("SCID len should be 0'\n");
+                return -1;
+            }
+        } else {
+            quic->scid_inited = 1;
+        }
+
+        return 0;
+    }
+
+    if (!quic->scid_inited) {
+        if (len == quic->cid_len) {
+            if (QuicDataCopy(scid, data, len) < 0) {
+                return -1;
+            }
+        } else {
+            if (QuicCidGen(scid, quic->cid_len) < 0) {
+                return -1;
+            }
+        }
+
+        quic->scid_inited = 1;
+        return 0;
+    }
+
+    return QuicCidCmp(&quic->conn.scid, scid, data, len);
+}
+
+int QuicGetPktFlags(QuicPacketFlags *flags, RPacket *pkt)
+{
+    uint32_t flag = 0;
+
+    if (RPacketGet1(pkt, &flag) < 0) {
+        return -1;
+    }
+
+    flags->value = flag;
+    return 0;
+}
+
+int QuicGetDcidFromPkt(QUIC_DATA *dcid, const uint8_t *data, size_t len)
+{
+    const uint8_t *start = NULL;
+    QuicPacketFlags flags;
+    RPacket pkt = {};
+
+    RPacketBufInit(&pkt, data, len);
+    if (QuicGetPktFlags(&flags, &pkt) < 0) {
+        return -1;
+    }
+
+    if (QUIC_PACKET_IS_LONG_PACKET(flags)) {
+        return -1;
+    }
+
+    if (RPacketGetBytes(&pkt, &start, dcid->len) < 0) {
+        return -1;
+    }
+
+    dcid->data = (void *)start;
+    return 0;
 }
 

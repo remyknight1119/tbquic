@@ -24,10 +24,12 @@ typedef struct {
 typedef struct {
     uint64_t type;
     size_t offset;
+    void (*init)(QuicTransParams *, uint64_t);
     int (*get_value)(QuicTransParams *, uint64_t, void *, size_t);
     int (*set_value)(QuicTransParams *, uint64_t, void *, size_t);
 } QuicTransParamsDefines;
 
+void QuicTransParamInit(QuicTransParams *);
 int QuicTransParamGetOffset(uint64_t, size_t *);
 int QuicTransParamSet(QuicTransParams *, uint64_t, void *, size_t);
 int QuicTransParamGet(QuicTransParams *, uint64_t, void *, size_t);

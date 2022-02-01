@@ -37,7 +37,6 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
     const QuicStatemFlow *sm = NULL;
     QUIC_STATEM *st = &quic->statem;
     RPacket pkt = {};
-    uint32_t flag = 0;
     QuicPacketFlags flags;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int rlen = 0;
@@ -58,11 +57,10 @@ QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
         assert(st->state >= 0 && st->state < num);
         sm = &statem[st->state];
 
-        if (RPacketGet1(&pkt, &flag) < 0) {
+        if (QuicGetPktFlags(&flags, &pkt) < 0) {
             return -1;
         }
 
-        flags.value = flag;
         ret = sm->recv(quic, &pkt, flags);
         switch (ret) {
             case QUIC_FLOW_RET_WANT_READ:
@@ -169,10 +167,6 @@ QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 int QuicInitialSend(QUIC *quic)
 {
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH; 
-
-    if (QuicCreateInitialDecoders(quic, quic->version) < 0) {
-        return -1;
-    }
 
     ret = TlsDoHandshake(&quic->tls);
     if (ret == QUIC_FLOW_RET_ERROR) {

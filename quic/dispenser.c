@@ -33,7 +33,8 @@ err:
     return NULL;
 }
 
-static QUIC *QuicDispenserFind(const QUIC_DISPENSER *dis, const Address *src)
+static QUIC *
+QuicDispenserFindByAddr(const QUIC_DISPENSER *dis, const Address *src)
 {
     QUIC *quic = NULL;
     QUIC *pos = NULL;
@@ -45,6 +46,18 @@ static QUIC *QuicDispenserFind(const QUIC_DISPENSER *dis, const Address *src)
             QUIC_LOG("found\n");
             break;
         }
+    }
+
+    return quic;
+}
+
+static QUIC *
+QuicDispenserFindByCid(const QUIC_DISPENSER *dis, const QUIC_DATA *cid)
+{
+    QUIC *quic = NULL;
+
+    if (cid->len == 0) {
+        return NULL;
     }
 
     return quic;
@@ -78,6 +91,9 @@ QUIC *QuicDoDispense(QUIC_DISPENSER *dis, QUIC_CTX *ctx, bool *new)
 {
     QUIC *quic = NULL;
     QUIC_DATA *buf = NULL;
+    QUIC_DATA cid = {
+        .len = ctx->cid_len,
+    };
     Address source = {
         .addrlen = sizeof(source.addr),
     };
@@ -97,7 +113,10 @@ QUIC *QuicDoDispense(QUIC_DISPENSER *dis, QUIC_CTX *ctx, bool *new)
     }
 
     buf->len = rlen;
-    quic = QuicDispenserFind(dis, &source);
+    quic = QuicDispenserFindByAddr(dis, &source);
+    if (quic == NULL && QuicGetDcidFromPkt(&cid, buf->data, buf->len) == 0) {
+        quic = QuicDispenserFindByCid(dis, &cid);
+    }
     if (quic != NULL) {
         *new = false;
         dis->read = false;

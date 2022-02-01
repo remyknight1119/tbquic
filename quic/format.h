@@ -101,6 +101,8 @@ int QuicClntParseScid(QUIC *quic, RPacket *pkt, size_t);
 int QuicClntParseDcid(QUIC *quic, RPacket *pkt, size_t);
 int QuicSrvrParseScid(QUIC *quic, RPacket *pkt, size_t);
 int QuicSrvrParseDcid(QUIC *quic, RPacket *pkt, size_t);
+int QuicGetPktFlags(QuicPacketFlags *, RPacket *);
+int QuicGetDcidFromPkt(QUIC_DATA *, const uint8_t *, size_t);
 
 #ifdef QUIC_TEST
 extern void (*QuicEncryptPayloadHook)(QBUFF *qb);

@@ -44,9 +44,11 @@ struct QuicMethod {
 
 struct QuicCtx {
     const QUIC_METHOD *method;
+    uint64_t options;
     /* Max Segment Size */
     uint32_t mss;
     uint32_t verify_mode;
+    uint8_t cid_len;
     QuicCert *cert;
     struct {
         QUIC_DATA alpn;
@@ -89,6 +91,7 @@ struct Quic {
     uint32_t version;
     uint32_t mss;
     uint32_t verify_mode;
+    uint64_t options;
     uint64_t pkt_num_len:2;
     uint64_t cid_len:8;
     uint64_t fd_mode:1;

@@ -6,6 +6,7 @@
 #include <openssl/evp.h>
 
 #include <tbquic/types.h>
+#include "base.h"
 
 #define TLS13_AEAD_NONCE_LENGTH     12
 #define AES_KEY_MAX_SIZE    32
@@ -70,7 +71,7 @@ struct QuicCiphers {
 #ifdef QUIC_TEST
 extern void (*QuicSecretTest)(uint8_t *secret);
 #endif
-int QuicCreateInitialDecoders(QUIC *, uint32_t);
+int QuicCreateInitialDecoders(QUIC *, uint32_t, QUIC_DATA *);
 int QuicCreateHandshakeClientEncoders(QUIC *);
 int QuicCreateHandshakeClientDecoders(QUIC *);
 int QuicCreateHandshakeServerEncoders(QUIC *);

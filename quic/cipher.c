@@ -334,10 +334,9 @@ static int QuicPrepareEncoderDecoders(QUIC_CRYPTO *c, const EVP_MD *md,
     return 0;
 }
 
-int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
+int QuicCreateInitialDecoders(QUIC *quic, uint32_t version, QUIC_DATA *cid)
 {
     QUIC_CRYPTO *init = NULL;
-    QUIC_DATA *cid = NULL;
     uint8_t *decrypt_secret = NULL;
     uint8_t *encrypt_secret = NULL;
     uint8_t client_secret[HASH_SHA2_256_LENGTH];
@@ -354,11 +353,9 @@ int QuicCreateInitialDecoders(QUIC *quic, uint32_t version)
      * initial packets are protected with AEAD_AES_128_GCM.
      */
     if (QUIC_IS_SERVER(quic)) {
-        cid = &quic->scid;
         decrypt_secret = client_secret;
         encrypt_secret = server_secret;
     } else {
-        cid = &quic->dcid;
         decrypt_secret = server_secret;
         encrypt_secret = client_secret;
     }

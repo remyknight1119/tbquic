@@ -10,6 +10,7 @@
 #include "base.h"
 #include "q_buff.h"
 
+#define QUIC_PKT_NUM_MAX (0x3FFFFFFFFFFFFFFF) //2^62 - 1
 #define QUIC_INITIAL_PKT_DATAGRAM_SIZE_MIN      1200
 
 #define QUIC_LPACKET_TYPE_INITIAL 	    0x00

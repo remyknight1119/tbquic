@@ -55,12 +55,17 @@ int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
     WPacket pkt = {};
     size_t total_len = 0;
     bool end = false;
+    bool short_header = false;
     int ret = 0;
 
     WPacketStaticBufInit(&pkt, buffer->data, quic->mss);
     tail = QBUF_LAST_NODE(send_queue);
     list_for_each_entry_safe(qb, next, &send_queue->queue, node) {
         if (end) {
+            break;
+        }
+
+        if (short_header) {
             break;
         }
         end = qb == tail;
@@ -87,6 +92,7 @@ int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
         c = QBuffGetCrypto(quic, qb);
         assert(c != NULL);
 
+        short_header = qb->pkt_type == QUIC_PKT_TYPE_1RTT;
         QBuffQueueUnlink(qb);
         QBuffQueueAdd(&c->sent_queue, qb);
         if (qb == tail) {
@@ -98,5 +104,22 @@ int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
     WPacketCleanup(&pkt);
 
     return 0;
+}
+
+static void QuicCryptoCipherFree(QuicCipherSpace *cs)
+{
+    QuicCipherCtxFree(&cs->ciphers);
+}
+
+static void QuicCryptoKeyFree(QUIC_CRYPTO *c)
+{
+    QuicCryptoCipherFree(&c->decrypt);
+    QuicCryptoCipherFree(&c->encrypt);
+}
+
+void QuicCryptoFree(QUIC_CRYPTO *c)
+{
+    QBuffQueueDestroy(&c->sent_queue);
+    QuicCryptoKeyFree(c);
 }
 

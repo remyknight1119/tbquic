@@ -1,10 +1,21 @@
-1. 0-RTT
-2. Cert Auth
-3. Session reuse
-4. ASYNC
-5. Engine
-6. Cert chain
-7. Token
-8. Timer
-9. Error handling
-10. Log
+* 0-RTT
+* Cert Auth
+* Session reuse
+* ASYNC
+* Engine
+* Cert chain
+* Token
+* Timer
+* Error handling
+* Log
+* PMTU probing
+* Connection close
+* Congestion control
+* ACK
+* Key update
+* Preferred Address
+* Connection Migration
+* Address validation
+* TLS handshake out of order
+* Discard TLS keys
+* Retry packet

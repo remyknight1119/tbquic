@@ -786,6 +786,7 @@ static int QuicFrameHandshakeDoneParser(QUIC *quic, RPacket *pkt, uint64_t type,
     QUIC_LOG("handshake done\n");
     if (!quic->quic_server) {
         quic->statem.state = QUIC_STATEM_HANDSHAKE_DONE;
+        QuicCryptoFree(&quic->handshake);
     }
 
     return 0;

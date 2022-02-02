@@ -65,6 +65,7 @@ typedef struct {
 
 struct QuicCrypto {
     uint64_t pkt_num;
+    uint64_t min_pkt_num;
     uint64_t largest_pn;
     uint64_t largest_acked;
     uint64_t largest_ack;
@@ -136,6 +137,8 @@ QUIC_CRYPTO *QuicGetInitialCrypto(QUIC *);
 QUIC_CRYPTO *QuicGetHandshakeCrypto(QUIC *);
 QUIC_CRYPTO *QuicGetOneRttCrypto(QUIC *);
 int QuicWritePkt(QUIC *, QuicStaticBuffer *);
+void QuicCryptoFree(QUIC_CRYPTO *);
+
 
 
 #endif

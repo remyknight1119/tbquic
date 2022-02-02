@@ -670,20 +670,28 @@ QuicDecryptPacket(QUIC_CRYPTO *c, RPacket *pkt, uint8_t *buf, size_t *len,
     }
 
     pkt_num = QuicPktNumberDecode(c->largest_pn, h_pkt_num, pkt_num_len*8);
-    if (QUIC_GT(c->largest_pn, pkt_num)) {
+    if (pkt_num == QUIC_PKT_NUM_MAX) {
         QUIC_LOG("PKT number invalid!\n");
         return -1;
     }
 
-    if (c->largest_pn == pkt_num && pkt_num != 0) {
+    if (QUIC_GT(c->min_pkt_num, pkt_num)) {
         QUIC_LOG("PKT number invalid!\n");
+        //return -1;
+    }
+
+    if (QuicDecryptMessage(&cipher->pp_cipher, buf, len, buf_size,
+                h_pkt_num, pkt_num_len, pkt) < 0) {
         return -1;
     }
 
-    c->largest_pn = pkt_num;
+    if (QUIC_LT(c->largest_pn, pkt_num)) {
+        c->largest_pn = pkt_num;
+    } else if (c->largest_pn == pkt_num && pkt_num != 0) {
+        QUIC_LOG("PKT number invalid!\n");
+    }
 
-    return QuicDecryptMessage(&cipher->pp_cipher, buf, len, buf_size,
-                h_pkt_num, pkt_num_len, pkt);
+    return 0;
 }
 
 static int QuicFrameParse(QUIC *quic, uint8_t *data, size_t len, QUIC_CRYPTO *c,

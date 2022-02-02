@@ -83,7 +83,14 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt,
     }
 
     state = tls->handshake_state;
-    if (type != p->msg_type) {
+    while (type != p->msg_type) {
+        if (p->optional) {
+            tls->handshake_state = p->next_state;
+            state = tls->handshake_state;
+            QUIC_LOG("Optional state, skip\n");
+            p = &proc[state];
+            continue;
+        }
         QUIC_LOG("type not match(%u : %u)\n", p->msg_type, type);
         if (TlsHandshakeMsgRetrans(type, state, proc, num)) {
             QUIC_LOG("retrans\n");

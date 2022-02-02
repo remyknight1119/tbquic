@@ -307,20 +307,6 @@ int QuicDoHandshake(QUIC *quic)
     return quic->do_handshake(quic);
 }
 
-void QuicCryptoCipherFree(QuicCipherSpace *cs)
-{
-    QuicCipherCtxFree(&cs->ciphers);
-}
-
-void QuicCryptoFree(QUIC_CRYPTO *c)
-{
-
-    QBuffQueueDestroy(&c->sent_queue);
-
-    QuicCryptoCipherFree(&c->decrypt);
-    QuicCryptoCipherFree(&c->encrypt);
-}
-
 void QuicFree(QUIC *quic)
 {
     QuicStreamConfDeInit(&quic->stream);

@@ -70,18 +70,21 @@ typedef enum {
     /*Read state must in order */
     TLS_ST_CR_SERVER_HELLO,
     TLS_ST_CR_ENCRYPTED_EXTENSIONS,
+    TLS_ST_CR_CERT_REQUEST,
     TLS_ST_CR_SERVER_CERTIFICATE,
     TLS_ST_CR_CERT_VERIFY,
     TLS_ST_CR_FINISHED,
     TLS_ST_CR_NEW_SESSION_TICKET,
     TLS_ST_SR_CLIENT_HELLO,
+    TLS_ST_SR_CLIENT_CERTIFICATE,
     TLS_ST_SR_CERT_VERIFY,
+    TLS_ST_SR_FINISHED,
     TLS_ST_SW_SERVER_HELLO,
     TLS_ST_SW_ENCRYPTED_EXTENSIONS,
+    TLS_ST_SW_CERT_REQUEST,
     TLS_ST_SW_SERVER_CERTIFICATE,
     TLS_ST_SW_CERT_VERIFY,
     TLS_ST_SW_FINISHED,
-    TLS_ST_SR_FINISHED,
     TLS_ST_SW_NEW_SESSION_TICKET,
     TLS_ST_HANDSHAKE_DONE,
     TLS_ST_MAX,
@@ -153,6 +156,7 @@ typedef struct {
     QuicFlowReturn (*handler)(TLS *, void *);
     int (*post_work)(TLS *);
     uint32_t pkt_type;
+    uint32_t optional;
 } TlsProcess;
 
 #ifdef QUIC_TEST

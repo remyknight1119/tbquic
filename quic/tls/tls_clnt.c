@@ -20,9 +20,12 @@
 #include "log.h"
 
 static QuicFlowReturn TlsClientHelloBuild(TLS *, void *);
+static QuicFlowReturn TlsClntCertBuild(TLS *, void *);
+static QuicFlowReturn TlsClntCertVerifyBuild(TLS *, void *);
 static QuicFlowReturn TlsClntFinishedBuild(TLS *, void *);
 static QuicFlowReturn TlsServerHelloProc(TLS *, void *);
 static QuicFlowReturn TlsEncExtProc(TLS *, void *);
+static QuicFlowReturn TlsCertRequestProc(TLS *, void *);
 static QuicFlowReturn TlsServerCertProc(TLS *, void *);
 static QuicFlowReturn TlsCertVerifyProc(TLS *, void *);
 static QuicFlowReturn TlsClientFinishedProc(TLS *, void *);
@@ -51,11 +54,19 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     },
     [TLS_ST_CR_ENCRYPTED_EXTENSIONS] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CR_SERVER_CERTIFICATE,
+        .next_state = TLS_ST_CR_CERT_REQUEST,
         .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
         .handler = TlsEncExtProc,
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
         .post_work = TlsClientEncExtPostWork,
+    },
+    [TLS_ST_CR_CERT_REQUEST] = {
+        .flow_state = QUIC_FLOW_READING,
+        .next_state = TLS_ST_CR_SERVER_CERTIFICATE,
+        .msg_type = TLS_MT_CERTIFICATE_REQUEST,
+        .handler = TlsCertRequestProc,
+        .pkt_type = QUIC_PKT_TYPE_INITIAL,
+        .optional = 1,
     },
     [TLS_ST_CR_SERVER_CERTIFICATE] = {
         .flow_state = QUIC_FLOW_READING,
@@ -76,6 +87,20 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .next_state = TLS_ST_CW_FINISHED,
         .msg_type = TLS_MT_FINISHED,
         .handler = TlsClientFinishedProc,
+        .pkt_type = QUIC_PKT_TYPE_INITIAL,
+    },
+    [TLS_ST_CW_CLIENT_CERTIFICATE] = {
+        .flow_state = QUIC_FLOW_WRITING,
+        .next_state = TLS_ST_CW_CERT_VERIFY,
+        .msg_type = TLS_MT_CERTIFICATE,
+        .handler = TlsClntCertBuild,
+        .pkt_type = QUIC_PKT_TYPE_INITIAL,
+    },
+    [TLS_ST_CW_CERT_VERIFY] = {
+        .flow_state = QUIC_FLOW_WRITING,
+        .next_state = TLS_ST_CW_FINISHED,
+        .msg_type = TLS_MT_CERTIFICATE_VERIFY,
+        .handler = TlsClntCertVerifyBuild,
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
     },
     [TLS_ST_CW_FINISHED] = {
@@ -143,6 +168,16 @@ static QuicFlowReturn TlsClientHelloBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    return QUIC_FLOW_RET_NEXT;
+}
+
+static QuicFlowReturn TlsClntCertBuild(TLS *s, void *packet)
+{
+    return QUIC_FLOW_RET_NEXT;
+}
+
+static QuicFlowReturn TlsClntCertVerifyBuild(TLS *s, void *packet)
+{
     return QUIC_FLOW_RET_NEXT;
 }
 
@@ -227,6 +262,11 @@ static QuicFlowReturn TlsEncExtProc(TLS *tls, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    return QUIC_FLOW_RET_FINISH;
+}
+
+static QuicFlowReturn TlsCertRequestProc(TLS *tls, void *packet)
+{
     return QUIC_FLOW_RET_FINISH;
 }
 

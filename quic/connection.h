@@ -1,6 +1,7 @@
 #ifndef TBQUIC_QUIC_CONNECTION_H_
 #define TBQUIC_QUIC_CONNECTION_H_
 
+#include <tbquic/types.h>
 #include "base.h"
 #include "list.h"
 
@@ -33,6 +34,7 @@ int QuicCidMatch(QuicCidPool *, void *, size_t);
 int QuicCidRetire(QuicCidPool *, uint64_t);
 void QuicCidRetirePriorTo(QuicCidPool *, uint64_t);
 int QuicActiveCidLimitCheck(QuicCidPool *, uint64_t);
+void QuicCheckStatelessResetToken(QUIC *, const uint8_t *);
 int QuicConnInit(QuicConn *);
 void QuicConnFree(QuicConn *);
 

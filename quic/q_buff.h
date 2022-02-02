@@ -39,7 +39,7 @@ typedef struct {
 } QuicPktMethod;
 
 typedef struct {
-    struct list_head queue; 
+    struct list_head queue;
 } QBuffQueueHead;
 
 struct QBuff {

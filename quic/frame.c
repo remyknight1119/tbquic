@@ -36,6 +36,8 @@ static int QuicFrameNewConnIdParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
                                         void *);
 static int QuicFrameRetireConnIdParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
                                         void *);
+static int QuicFrameConnCloseParser(QUIC *, RPacket *, uint64_t,
+                                        QUIC_CRYPTO *, void *);
 static int QuicFrameHandshakeDoneParser(QUIC *, RPacket *, uint64_t,
                                         QUIC_CRYPTO *, void *);
 static int QuicFrameStreamParser(QUIC *, RPacket *, uint64_t, QUIC_CRYPTO *,
@@ -134,6 +136,12 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     },
     [QUIC_FRAME_TYPE_RETIRE_CONNECTION_ID] = {
         .parser = QuicFrameRetireConnIdParser,
+    },
+    [QUIC_FRAME_TYPE_CONNECTION_CLOSE] = {
+        .parser = QuicFrameConnCloseParser,
+    },
+    [QUIC_FRAME_TYPE_CONNECTION_CLOSE_APP] = {
+        .parser = QuicFrameConnCloseParser,
     },
     [QUIC_FRAME_TYPE_HANDSHAKE_DONE] = {
         .flags = QUIC_FRAME_FLAGS_NO_BODY,
@@ -732,6 +740,42 @@ static int QuicFrameRetireConnIdParser(QUIC *quic, RPacket *pkt, uint64_t type,
     if (QuicCidRetire(&conn->dcid, seq) < 0) {
         QUIC_LOG("Retire seq %lu failed!\n", seq);
     }
+
+    return 0;
+}
+
+static int QuicFrameConnCloseParser(QUIC *quic, RPacket *pkt, uint64_t type,
+                                        QUIC_CRYPTO *c, void *buf)
+{
+    const uint8_t *reason_phrase = NULL;
+    uint64_t err_code = 0;
+    uint64_t frame_type = 0;
+    uint64_t reason_phrase_len = 0;
+    
+    QUIC_LOG("Connection Close\n");
+    if (QuicVariableLengthDecode(pkt, &err_code) < 0) {
+        QUIC_LOG("Error code decode failed!\n");
+        return -1;
+    }
+
+    if (type == QUIC_FRAME_TYPE_CONNECTION_CLOSE) {
+        if (QuicVariableLengthDecode(pkt, &frame_type) < 0) {
+            QUIC_LOG("Frame type decode failed!\n");
+            return -1;
+        }
+    }
+
+    if (QuicVariableLengthDecode(pkt, &reason_phrase_len) < 0) {
+        QUIC_LOG("Reason phrase length decode failed!\n");
+        return -1;
+    }
+
+    if (RPacketGetBytes(pkt, &reason_phrase, reason_phrase_len) < 0) {
+        QUIC_LOG("Get reason phrase failed!\n");
+        return -1;
+    }
+
+    quic->statem.state = QUIC_STATEM_DRAINING;
 
     return 0;
 }

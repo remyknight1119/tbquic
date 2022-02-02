@@ -115,6 +115,7 @@ QUIC *QuicDoDispense(QUIC_DISPENSER *dis, QUIC_CTX *ctx, bool *new)
     buf->len = rlen;
     quic = QuicDispenserFindByAddr(dis, &source);
     if (quic == NULL && QuicGetDcidFromPkt(&cid, buf->data, buf->len) == 0) {
+        /* Maybe a Connection Migration */
         quic = QuicDispenserFindByCid(dis, &cid);
     }
     if (quic != NULL) {

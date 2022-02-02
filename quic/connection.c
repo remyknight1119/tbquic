@@ -8,6 +8,7 @@
 #include "mem.h"
 #include "rand.h"
 #include "common.h"
+#include "quic_local.h"
 
 int QuicCidGen(QUIC_DATA *id, size_t len)
 {
@@ -179,6 +180,36 @@ int QuicActiveCidLimitCheck(QuicCidPool *p, uint64_t limit)
     }
 
     return 0;
+}
+
+void QuicCheckStatelessResetToken(QUIC *quic, const uint8_t *token)
+{
+    QuicCidPool *p = &quic->conn.dcid;
+    QuicCid *cid = NULL;
+    uint8_t *reset_token = NULL;
+    size_t token_len = QUIC_STATELESS_RESET_TOKEN_LEN;
+
+    if (token == NULL) {
+        return;
+    }
+
+    if (!quic->quic_server) {
+        reset_token = quic->peer_param.stateless_reset_token;
+        if (QuicMemCmp(reset_token, token, token_len) == 0) {
+            goto matched;
+        } 
+    }
+
+    list_for_each_entry(cid, &p->queue, node) {
+        reset_token = cid->stateless_reset_token;
+        if (QuicMemCmp(reset_token, token, token_len) == 0) {
+            goto matched;
+        }
+    }
+
+    return;
+matched:
+    quic->statem.state = QUIC_STATEM_CLOSED;
 }
 
 int QuicConnInit(QuicConn *c)

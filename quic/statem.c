@@ -177,22 +177,28 @@ int QuicInitialSend(QUIC *quic)
     return 0;
 }
 
-QuicFlowReturn
-QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
+QuicFlowReturn QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
 {
+    const uint8_t *stateless_reset_token = NULL;
     QUIC_DATA new_dcid = {};
     bool update_dcid = false;
+    uint64_t offset = 0;
     uint32_t type = 0;
+
+    offset = RPacketRemaining(pkt) - QUIC_STATELESS_RESET_TOKEN_LEN;
+    if (QUIC_GT(offset, 0)) {
+        stateless_reset_token = RPacketData(pkt) + offset;
+    }
 
     if (QuicPktHeaderParse(quic, pkt, flags, &type, &new_dcid,
                             &update_dcid) < 0) {
         QUIC_LOG("Header parse failed\n");
-        return QUIC_FLOW_RET_ERROR;
+        goto err;
     }
 
     if (QuicPktBodyParse(quic, pkt, type) < 0) {
         QUIC_LOG("Body parse failed\n");
-        return QUIC_FLOW_RET_ERROR;
+        goto err;
     }
 
     if (update_dcid && QuicUpdateDcid(quic, &new_dcid, type) < 0) {
@@ -201,6 +207,21 @@ QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
     }
 
     return QUIC_FLOW_RET_FINISH;
+err:
+
+    QuicCheckStatelessResetToken(quic, stateless_reset_token);
+    return QUIC_FLOW_RET_ERROR;
 }
 
+QuicFlowReturn
+QuicPacketClosingRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
+{
+    return QUIC_FLOW_RET_FINISH;
+}
+
+QuicFlowReturn
+QuicPacketDrainingRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
+{
+    return QUIC_FLOW_RET_FINISH;
+}
 

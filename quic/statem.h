@@ -31,6 +31,9 @@ typedef enum {
 	QUIC_STATEM_INITIAL = 0,
 	QUIC_STATEM_HANDSHAKE,
 	QUIC_STATEM_HANDSHAKE_DONE,
+	QUIC_STATEM_CLOSING,
+	QUIC_STATEM_DRAINING,
+	QUIC_STATEM_CLOSED,
 	QUIC_STATEM_MAX,
 } QuicStatem;
 
@@ -63,8 +66,10 @@ typedef struct {
 } QuicStatemFlow;
 
 QuicFlowReturn QuicInitialRecv(QUIC *, RPacket *, QuicPacketFlags);
-int QuicInitialSend(QUIC *);
+QuicFlowReturn QuicPacketClosingRecv(QUIC *, RPacket *, QuicPacketFlags);
+QuicFlowReturn QuicPacketDrainingRecv(QUIC *, RPacket *, QuicPacketFlags);
 QuicFlowReturn QuicPacketRead(QUIC *, RPacket *, QuicPacketFlags);
+int QuicInitialSend(QUIC *);
 int QuicStateMachineAct(QUIC *, const QuicStatemFlow *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);

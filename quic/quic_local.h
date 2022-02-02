@@ -19,6 +19,7 @@
 #include "address.h"
 #include "packet_local.h"
 #include "connection.h"
+#include "timer.h"
 
 #define QUIC_VERSION_1      0x01
 
@@ -114,6 +115,9 @@ struct Quic {
     QUIC_CRYPTO application;
     QuicTransParams peer_param;
     QBUFF *send_head;
+    Timer delay_ack;
+    Timer retrans;
+    Timer keep_alive;
     QBuffQueueHead rx_queue;
     QBuffQueueHead tx_queue;
 };

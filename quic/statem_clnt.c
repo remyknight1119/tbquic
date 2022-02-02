@@ -30,6 +30,12 @@ static QuicStatemFlow client_statem[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_HANDSHAKE_DONE] = {
         .recv = QuicPacketRead,
     },
+    [QUIC_STATEM_CLOSING] = {
+        .recv = QuicPacketClosingRecv,
+    },
+    [QUIC_STATEM_DRAINING] = {
+        .recv = QuicPacketDrainingRecv,
+    },
 };
 
 static int QuicClientInitialSend(QUIC *quic)

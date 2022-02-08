@@ -28,6 +28,15 @@ static size_t QuicAesEcbGetCipherLen(size_t, size_t);
 static size_t QuicAesGcmGetCipherLen(size_t, size_t);
 static size_t QuicAesCcmGetCipherLen(size_t, size_t);
 
+static const uint8_t quic_client_handshake_traffic[] = "c hs traffic";
+static const uint8_t quic_server_handshake_traffic[] = "s hs traffic";
+static const uint8_t quic_client_application_traffic[] = "c ap traffic";
+static const uint8_t quic_server_application_traffic[] = "s ap traffic";
+static const char quic_client_handshake_label[] = CLIENT_HANDSHAKE_LABEL;
+static const char quic_server_handshake_label[] = SERVER_HANDSHAKE_LABEL;
+static const char quic_client_app_lable[] = CLIENT_APPLICATION_LABEL;
+static const char quic_server_app_label[] = SERVER_APPLICATION_LABEL;
+
 static const QuicCipherSuite cipher_suite[QUIC_ALG_MAX] = {
     [QUIC_ALG_AES_128_ECB] = {
         .nid = NID_aes_128_ecb,
@@ -437,6 +446,9 @@ QuicCreateEncryptorDecryptor(TLS *s, QUIC_CRYPTO *c, uint8_t *in_secret,
     QuicCipherSpace *cs = NULL;
     const TlsCipher *cipher = NULL;
     const EVP_MD *md = NULL;
+    static const uint8_t resumption_master_secret[] = "res master";
+    uint8_t hashval[EVP_MAX_MD_SIZE] = {};
+    size_t hlen = 0;
     int md_size = 0;
     
     cs = (enc == QUIC_EVP_DECRYPT) ? &c->decrypt : &c->encrypt;
@@ -455,12 +467,13 @@ QuicCreateEncryptorDecryptor(TLS *s, QUIC_CRYPTO *c, uint8_t *in_secret,
         return -1;
     }
 
+    if (TlsHandshakeHash(s, hashval, hsize, &hlen) < 0) {
+        QUIC_LOG("Handshake Hash failed\n");
+        return -1;
+    }
+
     if (server_traffic == true) {
-        size_t hlen = 0;
-        if (TlsHandshakeHash(s, hash, hsize, &hlen) < 0) {
-            QUIC_LOG("Handshake Hash failed\n");
-            return -1;
-        }
+        QuicMemcpy(hash, hashval, hlen);
     }
 
     if (QUIC_set_hp_cipher_space_alg(cs, QUIC_ALG_AES_128_ECB) < 0) {
@@ -484,6 +497,16 @@ QuicCreateEncryptorDecryptor(TLS *s, QUIC_CRYPTO *c, uint8_t *in_secret,
         return -1;
     }
 
+    if (label == quic_client_application_traffic) {
+        if (TLS13HkdfExpandLabel(md, in_secret, md_size,
+                        resumption_master_secret,
+                        sizeof(resumption_master_secret) - 1,
+                        hashval, hlen, s->resumption_master_secret,
+                        hlen) < 0) {
+            return -1;
+        }
+    }
+
     return QuicInstallEncryptorDecryptor(s, md, in_secret, out_secret, label,
                                             label_len, hash, cs, finsecret,
                                             md_size, log_label, enc);
@@ -492,60 +515,56 @@ QuicCreateEncryptorDecryptor(TLS *s, QUIC_CRYPTO *c, uint8_t *in_secret,
 static int QuicCreateHandshakeClientEncryptorDecryptor(QUIC *quic, int enc)
 {
     TLS *s = &quic->tls;
-    static const uint8_t client_handshake_traffic[] = "c hs traffic";
     
     return QuicCreateEncryptorDecryptor(s, &quic->handshake,
                             s->handshake_secret, NULL,
                             s->handshake_traffic_hash,
                             sizeof(s->handshake_traffic_hash),
-                            client_handshake_traffic,
-                            sizeof(client_handshake_traffic) - 1,
+                            quic_client_handshake_traffic,
+                            sizeof(quic_client_handshake_traffic) - 1,
                             s->client_finished_secret,
-                            CLIENT_HANDSHAKE_LABEL, false, enc);
+                            quic_client_handshake_label, false, enc);
 }
 
 static int
 QuicCreateHandshakeServerEncryptorDecryptor(QUIC *quic, int enc)
 {
     TLS *s = &quic->tls;
-    static const uint8_t server_handshake_traffic[] = "s hs traffic";
     
     return QuicCreateEncryptorDecryptor(s, &quic->handshake,
                             s->handshake_secret, NULL,
                             s->handshake_traffic_hash,
                             sizeof(s->handshake_traffic_hash),
-                            server_handshake_traffic,
-                            sizeof(server_handshake_traffic) - 1,
+                            quic_server_handshake_traffic,
+                            sizeof(quic_server_handshake_traffic) - 1,
                             s->server_finished_secret,
-                            SERVER_HANDSHAKE_LABEL, true, enc);
+                            quic_server_handshake_label, true, enc);
 }
 
 int QuicCreateAppDataClientEncryptorDecryptor(QUIC *quic, int enc)
 {
     TLS *s = &quic->tls;
-    static const uint8_t client_application_traffic[] = "c ap traffic";
     
     return QuicCreateEncryptorDecryptor(s, &quic->application, s->master_secret,
                             s->client_app_traffic_secret,
                             s->server_finished_hash,
                             sizeof(s->server_finished_hash),
-                            client_application_traffic,
-                            sizeof(client_application_traffic) - 1,
-                            NULL, CLIENT_APPLICATION_LABEL, false, enc);
+                            quic_client_application_traffic,
+                            sizeof(quic_client_application_traffic) - 1,
+                            NULL, quic_client_app_lable, false, enc);
 }
 
 static int QuicCreateAppDataServerEncryptorDecryptor(QUIC *quic, int enc)
 {
     TLS *s = &quic->tls;
-    static const uint8_t server_application_traffic[] = "s ap traffic";
     
     return QuicCreateEncryptorDecryptor(s, &quic->application, s->master_secret,
                             s->server_app_traffic_secret,
                             s->server_finished_hash,
                             sizeof(s->server_finished_hash),
-                            server_application_traffic,
-                            sizeof(server_application_traffic) - 1,
-                            NULL, SERVER_APPLICATION_LABEL, true, enc);
+                            quic_server_application_traffic,
+                            sizeof(quic_server_application_traffic) - 1,
+                            NULL, quic_server_app_label, true, enc);
 }
 
 int QuicCreateHandshakeClientEncoders(QUIC *quic)

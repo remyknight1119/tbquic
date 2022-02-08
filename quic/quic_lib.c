@@ -18,6 +18,7 @@
 #include "datagram.h"
 #include "common.h"
 #include "format.h"
+#include "session.h"
 
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
@@ -327,6 +328,9 @@ void QuicFree(QUIC *quic)
     QuicCryptoFree(&quic->initial);
 
     QuicDataDestroy(quic->read_buf);
+
+    QuicSessionDestroy(quic->session);
+
     TlsFree(&quic->tls);
 
     QuicConnFree(&quic->conn);

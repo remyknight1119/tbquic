@@ -15,6 +15,7 @@
 #include "tls_lib.h"
 #include "common.h"
 #include "format.h"
+#include "session.h"
 #include "log.h"
 
 static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
@@ -197,6 +198,11 @@ static QuicFlowReturn TlsClientHelloProc(TLS *s, void *packet)
     }
 
     s->handshake_msg_len = 0;
+
+    if (QuicGetSession(QuicTlsTrans(s)) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     return QUIC_FLOW_RET_FINISH;
 }
 

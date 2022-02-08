@@ -105,6 +105,7 @@ struct Quic {
     BIO *wbio;
     QUIC_DATA *read_buf;
     int (*do_handshake)(QUIC *);
+    QUIC_SESSION *session;
     Address source;
     Address dest;
     QuicConn conn;

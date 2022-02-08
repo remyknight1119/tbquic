@@ -17,6 +17,7 @@
 #include "extension.h"
 #include "tls_lib.h"
 #include "mem.h"
+#include "session.h"
 #include "log.h"
 
 static QuicFlowReturn TlsClientHelloBuild(TLS *, void *);
@@ -253,6 +254,11 @@ static QuicFlowReturn TlsServerHelloProc(TLS *tls, void *packet)
 
     tls->handshake_msg_len = 0;
     QuicBufClear(&tls->buffer);
+
+    if (QuicGetSession(quic) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     return QUIC_FLOW_RET_FINISH;
 }
 
@@ -450,6 +456,62 @@ static QuicFlowReturn TlsClientFinishedProc(TLS *s, void *packet)
 
 static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *s, void *packet)
 {
+    QUIC *quic = QuicTlsTrans(s);
+    RPacket *pkt = packet;
+    QuicSessionTicket *t = NULL;
+    RPacket nonce = {};
+    const uint8_t *ticket = NULL;
+    uint32_t ticket_lifetime_hint = 0;
+    uint32_t age_add = 0;
+    uint32_t ticket_len = 0;
+
+    if (RPacketGet4(pkt, &ticket_lifetime_hint) < 0) {
+        QUIC_LOG("Get ticket lifetime hint!\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGet4(pkt, &age_add) < 0) {
+        QUIC_LOG("Get age add!\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGetLengthPrefixed1(pkt, &nonce) < 0) {
+        QUIC_LOG("Get nonce failed!\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGet2(pkt, &ticket_len) < 0) {
+        QUIC_LOG("Get ticket len!\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+    
+    if (ticket_len == 0) {
+        return QUIC_FLOW_RET_FINISH;
+    }
+
+    if (RPacketGetBytes(pkt, &ticket, ticket_len) < 0) {
+        QUIC_LOG("Get ticket failed!\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    t = QuicSessionTicketNew(ticket_lifetime_hint, age_add, ticket, ticket_len);
+    if (t == NULL) {
+        QUIC_LOG("New session ticket failed!\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    QuicSessionTicketAdd(quic->session, t);
+
+    if (TlsClntParseExtensions(s, pkt, TLSEXT_NEW_SESSION_TICKET,
+                                NULL, 0) < 0) {
+        QUIC_LOG("Parse Extension failed!\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (QuicSessionMasterKeyGen(s, t, &nonce) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     QUIC_LOG("innn\n");
     return QUIC_FLOW_RET_FINISH;
 }

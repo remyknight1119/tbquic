@@ -6,10 +6,11 @@
 #include "tls.h"
 #include "packet_local.h"
 
-#define TLSEXT_CLIENT_HELLO    0x0001
-#define TLSEXT_SERVER_HELLO    0x0002
-#define TLSEXT_CERTIFICATE     0x0004
-#define TLSEXT_ENCRYPTED_EXT   0x0008
+#define TLSEXT_CLIENT_HELLO         0x0001
+#define TLSEXT_SERVER_HELLO         0x0002
+#define TLSEXT_CERTIFICATE          0x0004
+#define TLSEXT_ENCRYPTED_EXT        0x0008
+#define TLSEXT_NEW_SESSION_TICKET   0x0010
 
 #define TLSEXT_KEX_MODE_KE_DHE     0x01
 

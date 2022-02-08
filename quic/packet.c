@@ -251,10 +251,6 @@ static int RPacketGetLengthPrefixed(RPacket *pkt, RPacket *subpkt, size_t len)
 {
     const uint8_t *data = NULL;
 
-    if (RPacketRemaining(pkt) != len) {
-        return -1;
-    }
-
     if (RPacketGetBytes(pkt, &data, len) < 0) {
         return -1;
     }

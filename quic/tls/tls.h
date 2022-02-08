@@ -116,6 +116,7 @@ struct Tls {
     uint8_t early_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_secret[EVP_MAX_MD_SIZE];
     uint8_t master_secret[EVP_MAX_MD_SIZE];
+    uint8_t resumption_master_secret[EVP_MAX_MD_SIZE];
     uint8_t client_finished_secret[EVP_MAX_MD_SIZE];
     uint8_t server_finished_secret[EVP_MAX_MD_SIZE];
     uint8_t client_app_traffic_secret[EVP_MAX_MD_SIZE];

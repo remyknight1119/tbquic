@@ -1194,4 +1194,85 @@ int TlsTakeMac(TLS *s)
     return 0;
 }
 
+int TlsPskDoBinder(TLS *s, const EVP_MD *md, uint8_t *msgstart,
+                    size_t binder_offset, uint8_t *binder,
+                    QuicSessionTicket *t)
+{
+    EVP_MD_CTX *mctx = NULL;
+    EVP_PKEY *mackey = NULL;
+    static const uint8_t resumption_label[] = "res binder";
+    uint8_t hash[EVP_MAX_MD_SIZE] = {};
+    uint8_t binderkey[EVP_MAX_MD_SIZE] = {};
+    uint8_t finishedkey[EVP_MAX_MD_SIZE] = {};
+    size_t hashsize = EVP_MD_size(md);
+    size_t bindersize = 0;
+    int ret = -1;
+    
+    if (TlsGenerateSecret(md, NULL, t->master_key, t->master_key_length,
+                            s->early_secret) < 0) {
+        return -1;
+    }
+
+    mctx = EVP_MD_CTX_new();
+    if (mctx == NULL) {
+        return -1;
+    }
+
+    if (EVP_DigestInit_ex(mctx, md, NULL) <= 0) {
+        goto err;
+    }
+
+    if (EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
+        goto err;
+    }
+
+    if (TLS13HkdfExpandLabel(md, s->early_secret, hashsize, resumption_label,
+                        sizeof(resumption_label) - 1, hash, hashsize, binderkey,
+                        hashsize) < 0) {
+        goto err;
+    }
+
+    if (TlsDeriveFinishedKey(s, md, binderkey, finishedkey, hashsize) < 0) {
+        goto err;
+    }
+
+    if (EVP_DigestInit_ex(mctx, md, NULL) <= 0) {
+        goto err;
+    }
+
+    if (EVP_DigestUpdate(mctx, msgstart, binder_offset) <= 0) {
+        goto err;
+    }
+
+    if (EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
+        goto err;
+    }
+
+    mackey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, finishedkey,
+                                            hashsize);
+    if (mackey == NULL) {
+        goto err;
+    }
+
+    if (EVP_DigestSignInit(mctx, NULL, md, NULL, mackey) <= 0) {
+        goto err;
+    }
+
+    if (EVP_DigestSignUpdate(mctx, hash, hashsize) <= 0) {
+        goto err;
+    }
+
+    bindersize = hashsize;
+    if (EVP_DigestSignFinal(mctx, binder, &bindersize) <= 0 ||
+            bindersize != hashsize) {
+        goto err;
+    }
+
+    ret = 0;
+
+err:
+    EVP_PKEY_free(mackey);
+    EVP_MD_CTX_free(mctx);
+    return ret;
+}
 

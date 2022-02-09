@@ -32,8 +32,9 @@ void QuicSessionDestroy(QUIC_SESSION *);
 int QuicGetSession(QUIC *);
 QuicSessionTicket *QuicSessionTicketNew(uint32_t, uint32_t, const uint8_t *,
                                         size_t);
-QuicSessionTicket *QuicSessionTicketPeek(QUIC_SESSION *);
+QuicSessionTicket *QuicSessionTicketGet(QUIC_SESSION *, uint32_t *);
 void QuicSessionTicketAdd(QUIC_SESSION *, QuicSessionTicket *);
 int QuicSessionMasterKeyGen(TLS *, QuicSessionTicket *, RPacket *);
+void QuicSessionTicketFree(QuicSessionTicket *);
 
 #endif

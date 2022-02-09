@@ -368,14 +368,62 @@ static ExtReturn TlsExtClntPreSharedKey(TLS *s, WPacket *pkt, uint32_t context,
 {
     QUIC_SESSION *sess = TlsGetSession(s);
     QuicSessionTicket *t = NULL;
+    const EVP_MD *md = NULL;
+    uint8_t *binder = NULL;
+    uint8_t *msgstart = NULL;
+    size_t hashsize = 0;
+    size_t binder_offset = 0;
+    uint32_t age_ms = 0;
 
     if (sess->cipher == NULL) {
         return EXT_RETURN_FAIL;
     }
 
-    t = QuicSessionTicketPeek(sess);
+    t = QuicSessionTicketGet(sess, &age_ms);
     if (t == NULL) {
         return EXT_RETURN_NOT_SENT;
+    }
+
+    md = QuicMd(sess->cipher->digest);
+    if (md == NULL) {
+        return EXT_RETURN_FAIL;
+    }
+
+    if (WPacketStartSubU16(pkt) < 0) { 
+        return EXT_RETURN_FAIL;
+    }
+
+    if (WPacketSubMemcpyU16(pkt, t->ticket.data, t->ticket.len) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    if (WPacketPut4(pkt, age_ms) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return EXT_RETURN_FAIL;
+    }
+
+    binder_offset = WPacket_get_written(pkt);
+    if (WPacketStartSubU16(pkt) < 0) { 
+        return EXT_RETURN_FAIL;
+    }
+
+    hashsize = EVP_MD_size(md);
+    if (WPacketSubAllocBytesU8(pkt, hashsize, &binder) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    if (WPacketClose(pkt) < 0 || WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return EXT_RETURN_FAIL;
+    }
+
+    msgstart = WPacket_get_curr(pkt) - WPacket_get_written(pkt);
+    if (TlsPskDoBinder(s, md, msgstart, binder_offset, binder, t) < 0) {
+        return EXT_RETURN_FAIL;
     }
 
     return EXT_RETURN_SENT;

@@ -38,15 +38,32 @@ void QuicSessionTicketAdd(QUIC_SESSION *sess, QuicSessionTicket *t)
     list_add_tail(&t->node, &sess->ticket_queue);
 }
 
-QuicSessionTicket *QuicSessionTicketPeek(QUIC_SESSION *sess)
+QuicSessionTicket *QuicSessionTicketGet(QUIC_SESSION *sess, uint32_t *age_ms)
 {
+    QuicSessionTicket *t = NULL;
+    QuicSessionTicket *n = NULL;
+    time_t now = time(NULL);
+    int age_sec = 0;
+
     struct list_head *head = &sess->ticket_queue;
 
     if (list_empty(head)) {
         return NULL;
     }
 
-    return list_first_entry(head, QuicSessionTicket, node);
+    list_for_each_entry_safe(t, n, head, node) {
+        age_sec = now - t->time - 1;
+        if (age_sec >= 0 && QUIC_GE(t->lifetime_hint, age_sec)) {
+            if (age_ms != NULL) {
+                *age_ms = age_sec * 1000 + t->age_add;
+            }
+            return t;
+        }
+        list_del(&t->node);
+        QuicSessionTicketFree(t);
+    }
+
+    return NULL;
 }
 
 void QuicSessionTicketFree(QuicSessionTicket *t)

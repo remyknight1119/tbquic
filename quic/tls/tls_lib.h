@@ -2,6 +2,7 @@
 #define TBQUIC_QUIC_TLS_TLS_LIB_H_
 
 #include "tls.h"
+#include "session.h"
 
 #include <openssl/evp.h>
 
@@ -55,5 +56,7 @@ int TlsDoCertVerify(TLS *, const uint8_t *, size_t, EVP_PKEY *, const EVP_MD *);
 size_t TlsFinalFinishMac(TLS *, const char *, size_t, uint8_t *);
 int TlsTakeMac(TLS *);
 QUIC_SESSION *TlsGetSession(TLS *s);
+int TlsPskDoBinder(TLS *, const EVP_MD *, uint8_t *, size_t, uint8_t *,
+                        QuicSessionTicket *);
 
 #endif

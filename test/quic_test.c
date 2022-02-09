@@ -88,6 +88,10 @@ static QuicFuncTest test_funcs[] = {
         .test = TlsTlsFinalFinishMacTest,
         .err_msg = "TLS Final Finish Mac",
     },
+    {
+        .test = TlsPskDoBinderTest,
+        .err_msg = "TLS PSK Do Binder",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)

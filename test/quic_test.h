@@ -89,5 +89,6 @@ int TlsGenerateServerSecretTest(void);
 int TlsClientHandshakeReadTest(void);
 int TlsGenerateMasterSecretTest(void);
 int TlsTlsFinalFinishMacTest(void);
+int TlsPskDoBinderTest(void);
 
 #endif

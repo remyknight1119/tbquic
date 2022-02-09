@@ -41,8 +41,9 @@ int TlsConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
                              size_t num)
 {
     const TlsExtConstruct *thisexd = NULL;
+    WPacket tmp = {};
     size_t i = 0;
-    int ret = 0;
+    ExtReturn ret = EXT_RETURN_SENT;
 
     if (WPacketStartSubU16(pkt) < 0) { 
         return -1;
@@ -71,6 +72,7 @@ int TlsConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
             continue;
         }
 
+        tmp = *pkt;
         if (WPacketPut2(pkt, thisexd->type) < 0) {
             QUIC_LOG("Put session ID len failed\n");
             return -1;
@@ -81,12 +83,20 @@ int TlsConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
         }
 
         ret = thisexd->construct(tls, pkt, context, x, chainidx);
-        if (ret < 0) {
+        if (ret == EXT_RETURN_FAIL) {
             return -1;
         }
+
         if (WPacketClose(pkt) < 0) {
-            QUIC_LOG("Close packet failed\n");
-            return -1;
+            if (ret != EXT_RETURN_NOT_SENT) {
+                QUIC_LOG("Close packet failed\n");
+                return -1;
+            }
+        }
+
+        if (ret == EXT_RETURN_NOT_SENT) {
+            *pkt = tmp;
+            continue;
         }
     }
 
@@ -188,7 +198,7 @@ int TlsParseExtensions(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
 const TlsExtQtpDefinition *(*QuicTestTransParamHook)(const TlsExtQtpDefinition
                                 *param, size_t num);
 #endif
-int TlsConstructQtpExtension(TLS *tls, WPacket *pkt,
+ExtReturn TlsConstructQtpExtension(TLS *tls, WPacket *pkt,
                                 const TlsExtQtpDefinition *param,
                                 size_t num)
 {
@@ -212,7 +222,7 @@ int TlsConstructQtpExtension(TLS *tls, WPacket *pkt,
         }
 
         if (QuicVariableLengthWrite(pkt, p->type) < 0) {
-            return -1;
+            return EXT_RETURN_FAIL;
         }
 
         if (p->construct == NULL) {
@@ -220,11 +230,11 @@ int TlsConstructQtpExtension(TLS *tls, WPacket *pkt,
         }
 
         if (p->construct(tls, &tls->ext.trans_param, offset, pkt) < 0) {
-            return -1;
+            return EXT_RETURN_FAIL;
         }
     }
 
-    return 0;
+    return EXT_RETURN_SENT;
 }
 
 static int TlsExtQtpConstructCid(QUIC_DATA *cid, WPacket *pkt)

@@ -14,7 +14,7 @@
 #include "quic_local.h"
 #include "q_buff.h"
 #include "buffer.h"
-#include "time.h"
+#include "quic_time.h"
 
 #define QUIC_FRAM_IS_ACK_ELICITING(type) \
         (type != QUIC_FRAME_TYPE_PADDING && type != QUIC_FRAME_TYPE_ACK && \

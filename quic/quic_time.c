@@ -2,7 +2,7 @@
  * Remy Lewis(remyknight1119@gmail.com)
  */
 
-#include "time.h"
+#include "quic_time.h"
 
 #include <stddef.h>
 #include <sys/time.h>

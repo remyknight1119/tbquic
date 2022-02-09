@@ -15,6 +15,7 @@
 #include "base.h"
 #include "cert.h"
 #include "crypto.h"
+#include "quic_local.h"
 #include "common.h"
 #include "cipher.h"
 #include "mem.h"
@@ -786,6 +787,13 @@ int TlsSetServerSigAlgs(TLS *s)
     sigalgs.ptr_u16 = (void *)salgs;
 
     return TlsGetSharedSigAlgs(s, &s->ext.peer_sigalgs, &sigalgs);
+}
+
+QUIC_SESSION *TlsGetSession(TLS *s)
+{
+    QUIC *quic = QuicTlsTrans(s);
+
+    return quic->session;
 }
 
 static bool TlsHasCert(const TLS *s, int idx)

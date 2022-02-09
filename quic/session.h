@@ -3,6 +3,7 @@
 
 #define TLS_MAX_RESUMPTION_PSK_LENGTH       256
 
+#include <time.h>
 #include <tbquic/types.h>
 
 #include "base.h"
@@ -14,6 +15,7 @@ typedef struct {
     struct list_head node;
      /* Session lifetime hint in seconds */
     uint64_t lifetime_hint;
+    time_t time;
     uint32_t age_add;
     QUIC_DATA ticket;
     uint8_t master_key[TLS_MAX_RESUMPTION_PSK_LENGTH];
@@ -21,6 +23,7 @@ typedef struct {
 } QuicSessionTicket;
 
 struct QuicSession {
+    const TlsCipher *cipher;
     struct list_head ticket_queue;
 };
 
@@ -29,6 +32,7 @@ void QuicSessionDestroy(QUIC_SESSION *);
 int QuicGetSession(QUIC *);
 QuicSessionTicket *QuicSessionTicketNew(uint32_t, uint32_t, const uint8_t *,
                                         size_t);
+QuicSessionTicket *QuicSessionTicketPeek(QUIC_SESSION *);
 void QuicSessionTicketAdd(QUIC_SESSION *, QuicSessionTicket *);
 int QuicSessionMasterKeyGen(TLS *, QuicSessionTicket *, RPacket *);
 

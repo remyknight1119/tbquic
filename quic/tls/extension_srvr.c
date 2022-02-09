@@ -16,14 +16,16 @@
 
 static int TlsExtSrvrCheckAlpn(TLS *);
 static int TlsExtSrvrCheckKeyShare(TLS *);
-static int TlsExtSrvrConstructSupportedVersion(TLS *, WPacket *, uint32_t,
+static ExtReturn TlsExtSrvrConstructSupportedVersion(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtSrvrConstructKeyShare(TLS *, WPacket *, uint32_t,
+static ExtReturn TlsExtSrvrConstructKeyShare(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtSrvrConstructServerName(TLS *, WPacket *, uint32_t, X509 *,
+static ExtReturn TlsExtSrvrConstructServerName(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
+static ExtReturn TlsExtSrvrConstructAlpn(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtSrvrConstructAlpn(TLS *, WPacket *, uint32_t, X509 *, size_t);
-static int TlsExtSrvronstructQtp(TLS *, WPacket *, uint32_t, X509 *, size_t);
+static ExtReturn TlsExtSrvronstructQtp(TLS *, WPacket *, uint32_t, X509 *,
+                                        size_t);
 static int TlsExtSrvrParseServerName(TLS *, RPacket *, uint32_t,
                                             X509 *, size_t);
 static int TlsExtSrvrParseSigAlgs(TLS *, RPacket *, uint32_t, X509 *,
@@ -184,18 +186,22 @@ static TlsExtQtpDefinition server_transport_param[] = {
 
 #define QUIC_SERVER_TRANS_PARAM_NUM QUIC_NELEM(server_transport_param)
 
-static int TlsExtSrvrConstructServerName(TLS *s, WPacket *pkt,
+static ExtReturn TlsExtSrvrConstructServerName(TLS *s, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
-    return 0;
+    return EXT_RETURN_SENT;
 }
 
-static int TlsExtSrvrConstructSupportedVersion(TLS *s, WPacket *pkt,
+static ExtReturn TlsExtSrvrConstructSupportedVersion(TLS *s, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
-    return WPacketPut2(pkt, TLS_VERSION_1_3);
+    if (WPacketPut2(pkt, TLS_VERSION_1_3) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    return EXT_RETURN_SENT;
 }
 
 static int TlsExtSrvrCheckKeyShare(TLS *s)
@@ -210,7 +216,8 @@ static int TlsExtSrvrCheckKeyShare(TLS *s)
     return 0;
 }
 
-static int TlsExtSrvrConstructKeyShare(TLS *s, WPacket *pkt, uint32_t context,
+static ExtReturn
+TlsExtSrvrConstructKeyShare(TLS *s, WPacket *pkt, uint32_t context,
                                         X509 *x, size_t chainidx)
 {
     EVP_PKEY *ckey = NULL;
@@ -218,20 +225,20 @@ static int TlsExtSrvrConstructKeyShare(TLS *s, WPacket *pkt, uint32_t context,
     unsigned char *encoded_point = NULL;
     size_t encoded_pt_len = 0;
     int ret = -1;
-    int err = -1;
+    int err = EXT_RETURN_FAIL;
 
     ckey = s->peer_kexch_key;
     if (ckey == NULL) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketPut2(pkt, s->group_id) < 0) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     skey = TlsGeneratePkey(ckey);
     if (skey == NULL) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     encoded_pt_len = EVP_PKEY_get1_tls_encodedpoint(skey, &encoded_point);
@@ -252,7 +259,7 @@ static int TlsExtSrvrConstructKeyShare(TLS *s, WPacket *pkt, uint32_t context,
         QUIC_LOG("Derive key failed\n");
         goto out;
     }
-    err = 0;
+    err = EXT_RETURN_SENT;
 
 out:
     EVP_PKEY_free(skey);
@@ -268,16 +275,20 @@ static int TlsExtSrvrCheckAlpn(TLS *s)
     return 0;
 }
 
-static int TlsExtSrvrConstructAlpn(TLS *s, WPacket *pkt,
+static ExtReturn TlsExtSrvrConstructAlpn(TLS *s, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
     QUIC_DATA *alpn = &s->alpn_selected;
 
-    return TlsExtConstructAlpn(alpn, pkt);
+    if (TlsExtConstructAlpn(alpn, pkt) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    return EXT_RETURN_SENT;
 }
 
-static int TlsExtSrvronstructQtp(TLS *s, WPacket *pkt, uint32_t context,
+static ExtReturn TlsExtSrvronstructQtp(TLS *s, WPacket *pkt, uint32_t context,
                                     X509 *x, size_t chainidx)
 {
     return TlsConstructQtpExtension(s, pkt, server_transport_param,

@@ -15,28 +15,32 @@
 #include "common.h"
 #include "format.h"
 #include "transport.h"
+#include "session.h"
 #include "log.h"
 
 static int TlsExtClntCheckServerName(TLS *);
 static int TlsExtClntCheckAlpn(TLS *);
+static int TlsExtClntCheckPreSharedKey(TLS *);
 static int TlsExtClntCheckUnknown(TLS *);
-static int TlsExtClntConstructServerName(TLS *, WPacket *, uint32_t,
+static ExtReturn TlsExtClntConstructServerName(TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
-static int TlsExtClntConstructSigAlgs(TLS *, WPacket *, uint32_t, X509 *,
+static ExtReturn TlsExtClntConstructSigAlgs(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtClntConstructTlsExtQtp(TLS *, WPacket *, uint32_t,
+static ExtReturn TlsExtClntConstructTlsExtQtp(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructSupportedGroups(TLS *, WPacket *, uint32_t,
+static ExtReturn TlsExtClntConstructSupportedGroups(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructSupportedVersion(TLS *, WPacket *, uint32_t,
+static ExtReturn TlsExtClntConstructSupportedVersion(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructKeyExchModes(TLS *, WPacket *, uint32_t,
+static ExtReturn TlsExtClntConstructKeyExchModes(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructKeyShare(TLS *, WPacket *, uint32_t,
+static ExtReturn TlsExtClntConstructKeyShare(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntConstructAlpn(TLS *, WPacket *, uint32_t, X509 *,
+static ExtReturn TlsExtClntConstructAlpn(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtClntConstructUnknown(TLS *, WPacket *, uint32_t, X509 *,
+static ExtReturn TlsExtClntPreSharedKey(TLS *, WPacket *, uint32_t, X509 *,
+                                        size_t);
+static ExtReturn TlsExtClntConstructUnknown(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 static int TlsExtClntParseServerName(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
@@ -71,6 +75,12 @@ static const TlsExtConstruct client_ext_construct[] = {
         .context = TLSEXT_CLIENT_HELLO,
         .check = TlsExtClntCheckAlpn,
         .construct = TlsExtClntConstructAlpn,
+    },
+    {
+        .type = EXT_TYPE_PRE_SHARED_KEY,
+        .context = TLSEXT_CLIENT_HELLO,
+        .check = TlsExtClntCheckPreSharedKey,
+        .construct = TlsExtClntPreSharedKey,
     },
     {
         .type = EXT_TYPE_SUPPORTED_VERSIONS,
@@ -238,33 +248,33 @@ static int TlsExtClntCheckServerName(TLS *tls)
     return 0;
 }
 
-static int TlsExtClntConstructServerName(TLS *tls, WPacket *pkt,
+static ExtReturn TlsExtClntConstructServerName(TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
     const char *hostname = tls->ext.hostname;
 
     if (WPacketStartSubU16(pkt) < 0) { 
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketPut1(pkt, TLSEXT_NAMETYPE_HOST_NAME) < 0) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketSubMemcpyU16(pkt, hostname, strlen(hostname)) < 0) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
-    return 0;
+    return EXT_RETURN_SENT;
 }
 
-static int TlsExtClntConstructSupportedGroups(TLS *tls, WPacket *pkt,
+static ExtReturn TlsExtClntConstructSupportedGroups(TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
@@ -274,7 +284,7 @@ static int TlsExtClntConstructSupportedGroups(TLS *tls, WPacket *pkt,
     size_t i = 0;
 
     if (WPacketStartSubU16(pkt) < 0) { 
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     TlsGetSupportedGroups(tls, &pgroups, &pgroupslen);
@@ -282,19 +292,19 @@ static int TlsExtClntConstructSupportedGroups(TLS *tls, WPacket *pkt,
     for (i = 0; i < pgroupslen; i++) {
         id = pgroups[i];
         if (WPacketPut2(pkt, id) < 0) {
-            return -1;
+            return EXT_RETURN_FAIL;
         }
     }
 
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
-    return 0;
+    return EXT_RETURN_SENT;
 }
 
-static int TlsExtClntConstructSigAlgs(TLS *tls, WPacket *pkt,
+static ExtReturn TlsExtClntConstructSigAlgs(TLS *tls, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
@@ -302,20 +312,20 @@ static int TlsExtClntConstructSigAlgs(TLS *tls, WPacket *pkt,
     size_t salglen = 0;
 
     if (WPacketStartSubU16(pkt) < 0) { 
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     salglen = TlsGetPSigAlgs(tls, &salg);
     if (TlsCopySigAlgs(pkt, salg, salglen) < 0) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
-    return 0;
+    return EXT_RETURN_SENT;
 }
 
 static int TlsExtClntCheckAlpn(TLS *tls)
@@ -327,7 +337,7 @@ static int TlsExtClntCheckAlpn(TLS *tls)
     return 0;
 }
 
-static int TlsExtClntConstructAlpn(TLS *s, WPacket *pkt,
+static ExtReturn TlsExtClntConstructAlpn(TLS *s, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
@@ -335,51 +345,80 @@ static int TlsExtClntConstructAlpn(TLS *s, WPacket *pkt,
 
     s->alpn_sent = 0;
     if (TlsExtConstructAlpn(alpn, pkt) < 0) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
     s->alpn_sent = 1;
+
+    return EXT_RETURN_SENT;
+}
+
+static int TlsExtClntCheckPreSharedKey(TLS *s)
+{
+    QUIC_SESSION *sess = TlsGetSession(s);
+
+    if (sess == NULL || list_empty(&sess->ticket_queue)) {
+        return -1;
+    }
 
     return 0;
 }
 
-static int TlsExtClntConstructSupportedVersion(TLS *tls, WPacket *pkt,
+static ExtReturn TlsExtClntPreSharedKey(TLS *s, WPacket *pkt, uint32_t context,
+                                    X509 *x, size_t chainidx)
+{
+    QUIC_SESSION *sess = TlsGetSession(s);
+    QuicSessionTicket *t = NULL;
+
+    if (sess->cipher == NULL) {
+        return EXT_RETURN_FAIL;
+    }
+
+    t = QuicSessionTicketPeek(sess);
+    if (t == NULL) {
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    return EXT_RETURN_SENT;
+}
+
+static ExtReturn TlsExtClntConstructSupportedVersion(TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
     if (WPacketStartSubU8(pkt) < 0) { 
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketPut2(pkt, TLS_VERSION_1_3) < 0) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
-    return 0;
+    return EXT_RETURN_SENT;
 }
 
-static int TlsExtClntConstructKeyExchModes(TLS *tls, WPacket *pkt,
+static ExtReturn TlsExtClntConstructKeyExchModes(TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
     if (WPacketStartSubU8(pkt) < 0) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketPut1(pkt, TLSEXT_KEX_MODE_KE_DHE) < 0) {
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
-    return 0;
+    return EXT_RETURN_SENT;
 }
 
 #ifdef QUIC_TEST
@@ -433,7 +472,7 @@ out:
     return -1;
 }
 
-static int TlsExtClntConstructKeyShare(TLS *tls, WPacket *pkt,
+static ExtReturn TlsExtClntConstructKeyShare(TLS *tls, WPacket *pkt,
                                         uint32_t context, X509 *x,
                                         size_t chainidx)
 {
@@ -443,7 +482,7 @@ static int TlsExtClntConstructKeyShare(TLS *tls, WPacket *pkt,
     size_t i = 0;
 
     if (WPacketStartSubU16(pkt) < 0) { 
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
     TlsGetSupportedGroups(tls, &pgroups, &pgroupslen);
@@ -455,16 +494,16 @@ static int TlsExtClntConstructKeyShare(TLS *tls, WPacket *pkt,
 
     for (i = 0; i <= max_idx; i++) {
         if (TlsExtClntAddKeyShare(tls, pkt, pgroups[i]) < 0) {
-            return -1;
+            return EXT_RETURN_FAIL;
         }
     }
 
     if (WPacketClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
-        return -1;
+        return EXT_RETURN_FAIL;
     }
 
-    return 0;
+    return EXT_RETURN_SENT;
 }
 
 static int TlsExtClntCheckUnknown(TLS *tls)
@@ -477,15 +516,19 @@ static int TlsExtClntCheckUnknown(TLS *tls)
     return -1;
 }
 
-static int TlsExtClntConstructUnknown(TLS *tls, WPacket *pkt,
+static ExtReturn TlsExtClntConstructUnknown(TLS *tls, WPacket *pkt,
                             uint32_t context, X509 *x, size_t chainidx)
 {
     uint8_t data[] = "\x00\x03\x02\x68\x33";
     
-    return WPacketMemcpy(pkt, data, sizeof(data) - 1);
+    if (WPacketMemcpy(pkt, data, sizeof(data) - 1) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    return EXT_RETURN_SENT;
 }
 
-static int TlsExtClntConstructTlsExtQtp(TLS *tls, WPacket *pkt,
+static ExtReturn TlsExtClntConstructTlsExtQtp(TLS *tls, WPacket *pkt,
                             uint32_t context, X509 *x, size_t chainidx)
 {
     return TlsConstructQtpExtension(tls, pkt, client_transport_param,

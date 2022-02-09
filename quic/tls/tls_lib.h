@@ -54,5 +54,6 @@ const EVP_MD *TlsLookupMd(const SigAlgLookup *);
 int TlsDoCertVerify(TLS *, const uint8_t *, size_t, EVP_PKEY *, const EVP_MD *);
 size_t TlsFinalFinishMac(TLS *, const char *, size_t, uint8_t *);
 int TlsTakeMac(TLS *);
+QUIC_SESSION *TlsGetSession(TLS *s);
 
 #endif

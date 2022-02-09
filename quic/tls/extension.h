@@ -44,6 +44,11 @@ typedef enum {
     EXT_TYPE_MAX = 65535,
 } ExtensionType;
 
+typedef enum {
+    EXT_RETURN_FAIL,
+    EXT_RETURN_SENT,
+    EXT_RETURN_NOT_SENT
+} ExtReturn;
 
 typedef struct {
     uint16_t type;
@@ -55,7 +60,7 @@ typedef struct {
     /* Check if need construct */
     int (*check)(TLS *tls);
     /* Construct extension */
-    int (*construct)(TLS *tls, WPacket *pkt, uint32_t context, X509 *x,
+    ExtReturn (*construct)(TLS *tls, WPacket *pkt, uint32_t context, X509 *x,
                                     size_t chainidx);
 } TlsExtConstruct;
 
@@ -98,8 +103,8 @@ int TlsConstructExtensions(TLS *, WPacket *, uint32_t, X509 *, size_t,
                              const TlsExtConstruct *, size_t);
 int TlsParseExtensions(TLS *, RPacket *, uint32_t, X509 *, size_t,
                              const TlsExtParse *, size_t);
-int TlsConstructQtpExtension(TLS *, WPacket *, const TlsExtQtpDefinition *,
-                            size_t);
+ExtReturn
+TlsConstructQtpExtension(TLS *, WPacket *, const TlsExtQtpDefinition *, size_t);
 int TlsExtConstructAlpn(QUIC_DATA *, WPacket *);
 int TlsParseQtpExtension(TLS *, RPacket *, const TlsExtQtpDefinition *, size_t);
 int TlsClntConstructExtensions(TLS *, WPacket *, uint32_t, X509 *, size_t);

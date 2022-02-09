@@ -277,6 +277,11 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    cnt = QuicStreamReadV(quic, iov, CLIENT_TEST_IOV_NUM);
+    printf("cnt = %d\n", cnt);
+    if (cnt < 0) {
+    }
+
 out:
     QuicFree(quic);
     QuicCtxFree(ctx);

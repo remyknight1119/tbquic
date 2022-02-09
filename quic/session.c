@@ -28,6 +28,7 @@ QuicSessionTicketNew(uint32_t lifetime_hint, uint32_t age_add,
 
     t->lifetime_hint = lifetime_hint;
     t->age_add = age_add;
+    t->time = time(NULL);
 
     return t;
 }
@@ -35,6 +36,17 @@ QuicSessionTicketNew(uint32_t lifetime_hint, uint32_t age_add,
 void QuicSessionTicketAdd(QUIC_SESSION *sess, QuicSessionTicket *t)
 {
     list_add_tail(&t->node, &sess->ticket_queue);
+}
+
+QuicSessionTicket *QuicSessionTicketPeek(QUIC_SESSION *sess)
+{
+    struct list_head *head = &sess->ticket_queue;
+
+    if (list_empty(head)) {
+        return NULL;
+    }
+
+    return list_first_entry(head, QuicSessionTicket, node);
 }
 
 void QuicSessionTicketFree(QuicSessionTicket *t)
@@ -101,5 +113,6 @@ int QuicGetSession(QUIC *quic)
         return -1;
     }
 
+    quic->session->cipher = quic->tls.handshake_cipher;
     return 0;
 }

@@ -17,7 +17,7 @@
 #include "log.h"
 #include "frame.h"
 #include "tls.h"
-#include "time.h"
+#include "quic_time.h"
 
 static int Quic0RttPacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);
 static int QuicHandshakePacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);

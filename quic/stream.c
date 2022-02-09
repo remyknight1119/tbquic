@@ -375,6 +375,14 @@ int QuicStreamSend(QUIC *quic, QUIC_STREAM_HANDLE h, void *data, size_t len)
     return len;
 }
 
+#if 0
+int QuicStreamWriteV(QUIC *quic, QUIC_STREAM_IOVEC *iov, size_t iovcnt)
+{
+    QuicStreamConf *scf = &quic->stream;
+    QUIC_STREAM_IOVEC *iov_cur = NULL;
+}
+#endif
+ 
 static int QuicStreamReadData(QuicStreamInstance *si, uint32_t *flags,
                             uint8_t *data, size_t len)
 {

@@ -38,14 +38,15 @@ static ExtReturn TlsExtClntConstructKeyShare(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 static ExtReturn TlsExtClntConstructAlpn(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static ExtReturn TlsExtClntPreSharedKey(TLS *, WPacket *, uint32_t, X509 *,
-                                        size_t);
+static ExtReturn TlsExtClntConstructPreSharedKey(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
 static ExtReturn TlsExtClntConstructUnknown(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 static int TlsExtClntParseServerName(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseAlpn(TLS *, RPacket *, uint32_t,
-                                        X509 *, size_t);
+static int TlsExtClntParseAlpn(TLS *, RPacket *, uint32_t, X509 *, size_t);
+static int TlsExtClntParsePreSharedKey(TLS *, RPacket *, uint32_t, X509 *,
+                                        size_t);
 static int TlsExtClntParseSupportedVersion(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntParseKeyShare(TLS *, RPacket *, uint32_t,
@@ -80,7 +81,7 @@ static const TlsExtConstruct client_ext_construct[] = {
         .type = EXT_TYPE_PRE_SHARED_KEY,
         .context = TLSEXT_CLIENT_HELLO,
         .check = TlsExtClntCheckPreSharedKey,
-        .construct = TlsExtClntPreSharedKey,
+        .construct = TlsExtClntConstructPreSharedKey,
     },
     {
         .type = EXT_TYPE_SUPPORTED_VERSIONS,
@@ -122,6 +123,11 @@ static const TlsExtParse client_ext_parse[] = {
         .parse = TlsExtClntParseAlpn,
     },
     {
+        .type = EXT_TYPE_PRE_SHARED_KEY,
+        .context = TLSEXT_SERVER_HELLO,
+        .parse = TlsExtClntParsePreSharedKey,
+    },
+    {
         .type = EXT_TYPE_SUPPORTED_VERSIONS,
         .context = TLSEXT_SERVER_HELLO,
         .parse = TlsExtClntParseSupportedVersion,
@@ -138,7 +144,6 @@ static const TlsExtParse client_ext_parse[] = {
     },
 };
  
-static int TlsExtQtpCheckGrease(TLS *, QuicTransParams *, size_t);
 static int TlsExtQtpCheckGrease(TLS *, QuicTransParams *, size_t);
 static int TlsExtClntQtpCheckStatelessResetToken(TLS *,
                                 QuicTransParams *, size_t);
@@ -363,8 +368,9 @@ static int TlsExtClntCheckPreSharedKey(TLS *s)
     return 0;
 }
 
-static ExtReturn TlsExtClntPreSharedKey(TLS *s, WPacket *pkt, uint32_t context,
-                                    X509 *x, size_t chainidx)
+static ExtReturn TlsExtClntConstructPreSharedKey(TLS *s, WPacket *pkt,
+                                    uint32_t context, X509 *x,
+                                    size_t chainidx)
 {
     QUIC_SESSION *sess = TlsGetSession(s);
     QuicSessionTicket *t = NULL;
@@ -636,6 +642,25 @@ static int TlsExtClntParseAlpn(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
     return 0;
 }
 
+static int TlsExtClntParsePreSharedKey(TLS *s, RPacket *pkt, uint32_t context,
+                                            X509 *x, size_t chainidx)
+{
+    QUIC_SESSION *sess = TlsGetSession(s);
+    uint32_t identity = 0;
+
+    if (RPacketGet2(pkt, &identity) < 0) {
+        return -1;
+    }
+
+    if (QUIC_GE(identity, sess->tick_identity)) {
+        return -1;
+    }
+
+    s->hit = 1;
+
+    return 0;
+}
+ 
 static int TlsExtClntParseSupportedVersion(TLS *tls, RPacket *pkt, 
                             uint32_t context, X509 *x, size_t chainidx)
 {

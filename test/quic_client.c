@@ -182,6 +182,8 @@ out:
     return ret;
 }
 
+QUIC_SESSION *session;
+
 static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
 {
     QUIC_CTX *ctx = NULL;
@@ -240,7 +242,8 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
         }
     }
 
-    printf("Handshake done\n");
+    session = QUIC_get_session(quic);
+    printf("Handshake done, session = %p\n", session);
     cnt = QuicStreamReadV(quic, iov, CLIENT_TEST_IOV_NUM);
     printf("cnt = %d\n", cnt);
     if (cnt < 0) {
@@ -280,6 +283,43 @@ static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
     cnt = QuicStreamReadV(quic, iov, CLIENT_TEST_IOV_NUM);
     printf("cnt = %d\n", cnt);
     if (cnt < 0) {
+    }
+    QuicFree(quic);
+
+    quic = QuicNew(ctx);
+    if (quic == NULL) {
+        goto out;
+    }
+
+    QUIC_set_connect_state(quic);
+    if (QUIC_set_fd(quic, sockfd) < 0) {
+        goto out;
+    }
+
+    if (QuicTlsClientExtensionSet(quic) < 0) {
+        goto out;
+    }
+
+    if (QUIC_set_session(quic, session) < 0) {
+        printf("Set session failed\n");
+        goto out;
+    }
+
+    while (1) {
+        printf("Send Early data\n");
+        ret = QuicStreamSendEarlyData(quic, &h, true, appdata1,
+                sizeof(appdata1) - 1);
+        if (ret < 0) {
+            err = QUIC_get_error(quic, ret);
+            if (err != QUIC_ERROR_WANT_READ) {
+                printf("Error\n");
+                goto out;
+            }
+
+            continue;
+        }
+
+        break;
     }
 
 out:

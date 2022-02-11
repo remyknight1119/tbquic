@@ -36,6 +36,7 @@ QuicSessionTicketNew(uint32_t lifetime_hint, uint32_t age_add,
 void QuicSessionTicketAdd(QUIC_SESSION *sess, QuicSessionTicket *t)
 {
     list_add_tail(&t->node, &sess->ticket_queue);
+    sess->tick_identity++;
 }
 
 QuicSessionTicket *QuicSessionTicketGet(QUIC_SESSION *sess, uint32_t *age_ms)
@@ -102,8 +103,14 @@ QUIC_SESSION *QuicSessionCreate(void)
         return NULL;
     }
 
+    sess->references = 1;
     INIT_LIST_HEAD(&sess->ticket_queue);
     return sess;
+}
+
+void QuicSessionUpRef(QUIC_SESSION *sess)
+{
+    sess->references++;
 }
 
 void QuicSessionDestroy(QUIC_SESSION *sess)
@@ -111,16 +118,25 @@ void QuicSessionDestroy(QUIC_SESSION *sess)
     QuicSessionTicket *t = NULL;
     QuicSessionTicket *n = NULL;
 
-    if (sess == NULL) {
-        return;
-    }
-
     list_for_each_entry_safe(t, n, &sess->ticket_queue, node) {
         list_del(&t->node);
         QuicSessionTicketFree(t);
     }
 
     QuicMemFree(sess);
+}
+
+void QuicSessionFree(QUIC_SESSION *sess)
+{
+    if (sess == NULL) {
+        return;
+    }
+
+    if (--sess->references > 0) {
+        return;
+    }
+
+    QuicSessionDestroy(sess);
 }
 
 int QuicGetSession(QUIC *quic)

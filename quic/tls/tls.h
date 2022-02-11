@@ -97,8 +97,9 @@ typedef struct {
 struct Tls {
     TlsState handshake_state;
     const TlsMethod *method;
-    uint8_t server:1;
-    uint8_t alpn_sent:1;
+    uint64_t server:1;
+    uint64_t alpn_sent:1;
+    uint64_t hit:1;
     uint8_t client_random[TLS_RANDOM_BYTE_LEN];
     uint8_t server_random[TLS_RANDOM_BYTE_LEN];
     struct hlist_head cipher_list;

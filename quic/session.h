@@ -24,11 +24,14 @@ typedef struct {
 
 struct QuicSession {
     const TlsCipher *cipher;
+    uint32_t tick_identity;
+    int references;
     struct list_head ticket_queue;
 };
 
 QUIC_SESSION *QuicSessionCreate(void);
-void QuicSessionDestroy(QUIC_SESSION *);
+void QuicSessionUpRef(QUIC_SESSION *);
+void QuicSessionFree(QUIC_SESSION *);
 int QuicGetSession(QUIC *);
 QuicSessionTicket *QuicSessionTicketNew(uint32_t, uint32_t, const uint8_t *,
                                         size_t);

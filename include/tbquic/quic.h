@@ -89,6 +89,9 @@ extern void QUIC_set_rbio(QUIC *quic, BIO *rbio);
 extern void QUIC_set_wbio(QUIC *quic, BIO *wbio);
 extern void QUIC_set_bio(QUIC *quic, BIO *rbio, BIO *wbio);
 extern int QUIC_set_fd(QUIC *quic, int fd);
+extern QUIC_SESSION *QUIC_get_session(QUIC *quic);
+extern QUIC_SESSION *QUIC_get1_session(QUIC *quic);
+extern int QUIC_set_session(QUIC *quic, QUIC_SESSION *sess);
 extern int QUIC_get_error(QUIC *quic, int ret);
 
 #endif

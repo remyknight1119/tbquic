@@ -329,7 +329,7 @@ void QuicFree(QUIC *quic)
 
     QuicDataDestroy(quic->read_buf);
 
-    QuicSessionDestroy(quic->session);
+    QuicSessionFree(quic->session);
 
     TlsFree(&quic->tls);
 
@@ -404,6 +404,33 @@ int QUIC_set_fd(QUIC *quic, int fd)
 
 err:
     return ret;
+}
+
+QUIC_SESSION *QUIC_get_session(QUIC *quic)
+{
+    return quic->session;
+}
+
+QUIC_SESSION *QUIC_get1_session(QUIC *quic)
+{
+    QUIC_SESSION *sess = quic->session;
+
+    if (sess == NULL) {
+        QuicSessionUpRef(sess);
+    }
+
+    return sess;
+}
+
+int QUIC_set_session(QUIC *quic, QUIC_SESSION *sess)
+{
+    if (sess == NULL) {
+        QuicSessionUpRef(sess);
+    }
+
+    QuicSessionFree(quic->session);
+    quic->session = sess;
+    return 0;
 }
 
 bool QuicWantRead(QUIC *quic)

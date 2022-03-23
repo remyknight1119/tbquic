@@ -78,12 +78,6 @@ static const TlsExtConstruct client_ext_construct[] = {
         .construct = TlsExtClntConstructAlpn,
     },
     {
-        .type = EXT_TYPE_PRE_SHARED_KEY,
-        .context = TLSEXT_CLIENT_HELLO,
-        .check = TlsExtClntCheckPreSharedKey,
-        .construct = TlsExtClntConstructPreSharedKey,
-    },
-    {
         .type = EXT_TYPE_SUPPORTED_VERSIONS,
         .context = TLSEXT_CLIENT_HELLO,
         .construct = TlsExtClntConstructSupportedVersion,
@@ -108,6 +102,12 @@ static const TlsExtConstruct client_ext_construct[] = {
         .context = TLSEXT_CLIENT_HELLO,
         .check = TlsExtClntCheckUnknown,
         .construct = TlsExtClntConstructUnknown,
+    },
+    {
+        .type = EXT_TYPE_PRE_SHARED_KEY,
+        .context = TLSEXT_CLIENT_HELLO,
+        .check = TlsExtClntCheckPreSharedKey,
+        .construct = TlsExtClntConstructPreSharedKey,
     },
 };
 
@@ -422,16 +422,23 @@ static ExtReturn TlsExtClntConstructPreSharedKey(TLS *s, WPacket *pkt,
         return EXT_RETURN_FAIL;
     }
 
-    if (WPacketClose(pkt) < 0 || WPacketClose(pkt) < 0) {
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return EXT_RETURN_FAIL;
+    }
+
+    if (WPacketForceClose(pkt) < 0) {
         QUIC_LOG("Close packet failed\n");
         return EXT_RETURN_FAIL;
     }
 
     msgstart = WPacket_get_curr(pkt) - WPacket_get_written(pkt);
+    
     if (TlsPskDoBinder(s, md, msgstart, binder_offset, binder, t) < 0) {
         return EXT_RETURN_FAIL;
     }
 
+    QUIC_LOG("Sent\n");
     return EXT_RETURN_SENT;
 }
 

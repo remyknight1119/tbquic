@@ -415,7 +415,7 @@ QUIC_SESSION *QUIC_get1_session(QUIC *quic)
 {
     QUIC_SESSION *sess = quic->session;
 
-    if (sess == NULL) {
+    if (sess != NULL) {
         QuicSessionUpRef(sess);
     }
 

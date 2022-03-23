@@ -9,6 +9,7 @@
 #include "tls_lib.h"
 #include "common.h"
 #include "crypto.h"
+#include "log.h"
 
 QuicSessionTicket *
 QuicSessionTicketNew(uint32_t lifetime_hint, uint32_t age_add,
@@ -49,11 +50,13 @@ QuicSessionTicket *QuicSessionTicketGet(QUIC_SESSION *sess, uint32_t *age_ms)
     struct list_head *head = &sess->ticket_queue;
 
     if (list_empty(head)) {
+        QUIC_LOG("Ticket Queu empty\n");
         return NULL;
     }
 
     list_for_each_entry_safe(t, n, head, node) {
-        age_sec = now - t->time - 1;
+        age_sec = now - t->time;
+        QUIC_LOG("age sec = %d, hint = %d\n", age_sec, (int)t->lifetime_hint);
         if (age_sec >= 0 && QUIC_GE(t->lifetime_hint, age_sec)) {
             if (age_ms != NULL) {
                 *age_ms = age_sec * 1000 + t->age_add;
@@ -118,6 +121,7 @@ void QuicSessionDestroy(QUIC_SESSION *sess)
     QuicSessionTicket *t = NULL;
     QuicSessionTicket *n = NULL;
 
+    QUIC_LOG("destroy %p\n", sess);
     list_for_each_entry_safe(t, n, &sess->ticket_queue, node) {
         list_del(&t->node);
         QuicSessionTicketFree(t);

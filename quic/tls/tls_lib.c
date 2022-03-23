@@ -667,9 +667,11 @@ int TlsKeyDerive(TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
     }
 
     md = TlsHandshakeMd(tls);
-    ret = TlsGenerateSecret(md, NULL, NULL, 0, tls->early_secret);
-    if (ret < 0) {
-        goto out;
+    if (!tls->hit) {
+        ret = TlsGenerateSecret(md, NULL, NULL, 0, tls->early_secret);
+        if (ret < 0) {
+            goto out;
+        }
     }
 
     ret = TlsGenerateSecret(md, tls->early_secret, pms, pmslen,

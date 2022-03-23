@@ -604,6 +604,10 @@ int WPacketClose(WPacket *pkt)
 
     sub = pkt->subs;
     if (sub == NULL) {
+        if (pkt->flags & WPACKET_FLAGS_CLOSED) {
+            return 0;
+        }
+
         return -1;
     }
 
@@ -618,6 +622,22 @@ int WPacketClose(WPacket *pkt)
     QuicMemFree(sub);
 
     return 0;
+}
+
+int WPacketForceClose(WPacket *pkt)
+{
+    int ret = 0;
+
+    while (pkt->subs != NULL) {
+        ret = WPacketClose(pkt);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    pkt->flags |= WPACKET_FLAGS_CLOSED;
+
+    return ret;
 }
 
 int WPacketSubMemcpyBytes(WPacket *pkt, const void *src, size_t len,

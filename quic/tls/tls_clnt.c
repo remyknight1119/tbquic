@@ -75,6 +75,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .msg_type = TLS_MT_CERTIFICATE,
         .handler = TlsServerCertProc,
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
+        .optional = 1,
     },
     [TLS_ST_CR_CERT_VERIFY] = {
         .flow_state = QUIC_FLOW_READING,
@@ -82,6 +83,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
         .handler = TlsCertVerifyProc,
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
+        .optional = 1,
     },
     [TLS_ST_CR_FINISHED] = {
         .flow_state = QUIC_FLOW_READING,

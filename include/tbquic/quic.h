@@ -70,6 +70,8 @@ extern int QUIC_CTX_set_alpn_protos(QUIC_CTX *ctx, const uint8_t *protos,
                                     size_t protos_len);
 extern int QUIC_set_alpn_protos(QUIC *quic, const uint8_t *protos,
                                     size_t protos_len);
+extern int QUIC_CTX_set_max_early_data(QUIC_CTX *ctx, uint32_t max_early_data);
+
 extern int QuicSendPacket(QUIC *quic);
 extern bool QuicWantRead(QUIC *quic);
 extern bool QuicWantWrite(QUIC *quic);

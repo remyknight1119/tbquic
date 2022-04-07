@@ -72,6 +72,10 @@ QuicSessionTicket *QuicSessionTicketGet(QUIC_SESSION *sess, uint32_t *age_ms)
 
 void QuicSessionTicketFree(QuicSessionTicket *t)
 {
+    if (t == NULL) {
+        return;
+    }
+
     QuicDataFree(&t->ticket);
     QuicMemFree(t);
 }
@@ -145,6 +149,10 @@ void QuicSessionFree(QUIC_SESSION *sess)
 
 int QuicGetSession(QUIC *quic)
 {
+    if (quic->session != NULL) {
+        return 0;
+    }
+
     quic->session = QuicSessionCreate();
     if (quic->session == NULL) {
         return -1;

@@ -49,6 +49,7 @@ struct QuicCtx {
     /* Max Segment Size */
     uint32_t mss;
     uint32_t verify_mode;
+    uint32_t max_early_data;
     uint8_t cid_len;
     QuicCert *cert;
     struct {

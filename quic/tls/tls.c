@@ -478,6 +478,8 @@ int TlsFinishedCheck(TLS *s, RPacket *pkt)
 int TlsInit(TLS *s, QUIC_CTX *ctx)
 {
     s->handshake_state = TLS_ST_OK;
+    s->lifetime_hint = QUIC_SESSION_TICKET_LIFETIME_HINT_DEF;
+    s->max_early_data = ctx->max_early_data;
     s->method = ctx->method->tls_method;
     if (QuicBufInit(&s->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
         return -1;

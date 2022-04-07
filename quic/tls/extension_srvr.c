@@ -24,8 +24,10 @@ static ExtReturn TlsExtSrvrConstructServerName(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 static ExtReturn TlsExtSrvrConstructAlpn(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static ExtReturn TlsExtSrvronstructQtp(TLS *, WPacket *, uint32_t, X509 *,
+static ExtReturn TlsExtSrvrConstructQtp(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
+static ExtReturn TlsExtSrvrConstructEarlyData(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
 static int TlsExtSrvrParseServerName(TLS *, RPacket *, uint32_t,
                                             X509 *, size_t);
 static int TlsExtSrvrParseSigAlgs(TLS *, RPacket *, uint32_t, X509 *,
@@ -42,6 +44,9 @@ static int TlsExtSrvrParseKeyShare(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtSrvrParseAlpn(TLS *, RPacket *, uint32_t, X509 *,
                                         size_t);
+static int TlsExtsrvrParsePsk(TLS *, RPacket *, uint32_t, X509 *,
+                                        size_t);
+
 static const TlsExtConstruct server_ext_construct[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
@@ -68,7 +73,12 @@ static const TlsExtConstruct server_ext_construct[] = {
     {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_ENCRYPTED_EXT,
-        .construct = TlsExtSrvronstructQtp,
+        .construct = TlsExtSrvrConstructQtp,
+    },
+    {
+        .type = EXT_TYPE_EARLY_DATA, 
+        .context = TLSEXT_NEW_SESSION_TICKET,
+        .construct = TlsExtSrvrConstructEarlyData,
     },
 };
 
@@ -112,6 +122,11 @@ static const TlsExtParse server_ext_parse[] = {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_CLIENT_HELLO,
         .parse = TlsExtSrvrParseQtp,
+    },
+    {
+        .type = EXT_TYPE_PRE_SHARED_KEY,
+        .context = TLSEXT_CLIENT_HELLO,
+        .parse = TlsExtsrvrParsePsk,
     },
 };
 
@@ -288,11 +303,36 @@ static ExtReturn TlsExtSrvrConstructAlpn(TLS *s, WPacket *pkt,
     return EXT_RETURN_SENT;
 }
 
-static ExtReturn TlsExtSrvronstructQtp(TLS *s, WPacket *pkt, uint32_t context,
+static ExtReturn TlsExtSrvrConstructQtp(TLS *s, WPacket *pkt, uint32_t context,
                                     X509 *x, size_t chainidx)
 {
     return TlsConstructQtpExtension(s, pkt, server_transport_param,
                                     QUIC_SERVER_TRANS_PARAM_NUM);
+}
+
+static ExtReturn TlsExtSrvrConstructEarlyData(TLS *s, WPacket *pkt, uint32_t context,
+                                    X509 *x, size_t chainidx)
+{
+    if (context == TLSEXT_NEW_SESSION_TICKET) {
+        if (s->max_early_data == 0) {
+            return EXT_RETURN_NOT_SENT;
+        }
+        
+        if (WPacketStartSubU16(pkt) < 0) {
+            return EXT_RETURN_FAIL;
+        }
+
+        if (WPacketPut4(pkt, s->max_early_data) < 0) {
+            return EXT_RETURN_FAIL;
+        }
+
+        if (WPacketClose(pkt) < 0) {
+            return EXT_RETURN_FAIL;
+        }
+        return EXT_RETURN_SENT;
+    }
+
+    return EXT_RETURN_SENT;
 }
 
 static int TlsExtSrvrParseServerName(TLS *s, RPacket *pkt, uint32_t context,
@@ -544,9 +584,40 @@ static int TlsExtSrvrParseAlpn(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
      *                      s->ctx->ext.alpn_select_cb_arg);
      */
     selected.data = s->alpn_proposed.ptr_u8 + 1;
-    selected.len = s->alpn_proposed.len -1;
+    selected.len = s->alpn_proposed.len - 1;
     if (QuicDataDup(&s->alpn_selected, &selected) < 0) {
         return -1;
+    }
+
+    return 0;
+}
+
+static int TlsExtsrvrParsePsk(TLS *s, RPacket *pkt, uint32_t context,
+                                    X509 *x, size_t chainidx)
+{
+    QUIC_SESSION *sess = NULL;
+    RPacket identities = {};
+    RPacket identity = {};
+    uint32_t ticket_agel = 0;
+    uint32_t id = 0;
+
+    if (RPacketGetLengthPrefixed2(pkt, &identities) < 0) {
+        return -1;
+    }
+
+    for (id = 0; RPacketRemaining(&identities) != 0; id++) {
+        if (RPacketGetLengthPrefixed2(&identities, &identity) < 0) {
+            return -1;
+        }
+
+        if (RPacketGet4(&identities, &ticket_agel) < 0) {
+            return -1;
+        }
+
+        if (TlsDecryptTicket(s, RPacketData(&identity),
+                    RPacketRemaining(&identity), &sess) < 0) {
+            return -1;
+        }
     }
 
     return 0;

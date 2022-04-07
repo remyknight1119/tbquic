@@ -100,6 +100,13 @@ int QUIC_CTX_set_alpn_protos(QUIC_CTX *ctx, const uint8_t *protos,
     return QuicDataCopy(&ctx->ext.alpn, protos, protos_len);
 }
 
+int QUIC_CTX_set_max_early_data(QUIC_CTX *ctx, uint32_t max_early_data)
+{
+    ctx->max_early_data = max_early_data;
+
+    return 1;
+}
+
 /*
  * QUIC_set_alpn_protos sets the ALPN protocol list on |quic| to |protos|.
  * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit

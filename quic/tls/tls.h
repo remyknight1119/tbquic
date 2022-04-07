@@ -27,6 +27,8 @@
 #define TLS_VERSION_1_2         0x0303
 #define TLS_VERSION_1_3         0x0304
 
+#define TLSEXT_KEYNAME_LENGTH  16
+
 #define TLS_IS_READING(t) QUIC_STATEM_READING(t->rwstate)
 #define TLS_IS_WRITING(t) QUIC_STATEM_WRITING(t->rwstate)
 #define TLS_HANDSHAKE_STATE(t, state) ((t)->handshake_state == state)
@@ -114,6 +116,9 @@ struct Tls {
     const SigAlgLookup *peer_sigalg;
     uint16_t group_id;
     uint16_t psk_kex_mode;
+    uint32_t lifetime_hint;
+    uint32_t max_early_data;
+    uint64_t next_ticket_nonce;
     uint8_t early_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_secret[EVP_MAX_MD_SIZE];
     uint8_t master_secret[EVP_MAX_MD_SIZE];

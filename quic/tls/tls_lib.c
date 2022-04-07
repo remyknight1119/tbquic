@@ -8,6 +8,7 @@
 #include <openssl/obj_mac.h>
 #include <openssl/ec.h>
 #include <openssl/kdf.h>
+#include <openssl/hmac.h>
 #include <tbquic/ec.h>
 #include <tbquic/tls.h>
 
@@ -1275,6 +1276,40 @@ int TlsPskDoBinder(TLS *s, const EVP_MD *md, uint8_t *msgstart,
 err:
     EVP_PKEY_free(mackey);
     EVP_MD_CTX_free(mctx);
+    return ret;
+}
+
+int TlsDecryptTicket(TLS *s, const uint8_t *eticket, size_t eticklen,
+                        QUIC_SESSION **sess)
+{
+    HMAC_CTX *hctx = NULL;
+    EVP_CIPHER_CTX *ctx = NULL;
+    int ret = -1;
+
+    if (eticklen < TLSEXT_KEYNAME_LENGTH + EVP_MAX_IV_LENGTH) {
+        return -1;
+    }
+
+    hctx = HMAC_CTX_new();
+    if (hctx == NULL) {
+        goto end;
+    }
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (ctx == NULL) {
+        goto end;
+    }
+
+#if 0
+    if (memcmp(etick, tctx->ext.tick_key_name, TLSEXT_KEYNAME_LENGTH) != 0) {
+    }
+#endif
+
+    ret = 0;
+end:
+    EVP_CIPHER_CTX_free(ctx);
+    HMAC_CTX_free(hctx);
+
     return ret;
 }
 

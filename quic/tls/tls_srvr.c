@@ -5,6 +5,7 @@
 #include "tls.h"
 
 #include <assert.h>
+#include <openssl/rand.h>
 #include <tbquic/types.h>
 #include <tbquic/quic.h>
 
@@ -17,6 +18,8 @@
 #include "format.h"
 #include "session.h"
 #include "log.h"
+
+#define TICKET_NONCE_SIZE       8
 
 static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
 static QuicFlowReturn TlsSrvrCertProc(TLS *, void *);
@@ -107,7 +110,7 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     },
     [TLS_ST_SR_FINISHED] = {
         .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_HANDSHAKE_DONE,
+        .next_state = TLS_ST_SW_NEW_SESSION_TICKET,
         .msg_type = TLS_MT_FINISHED,
         .handler = TlsSrvrFinishedProc,
         .post_work = TlsServerReadFinishedPostWork,
@@ -319,7 +322,85 @@ static QuicFlowReturn TlsSrvrFinishedBuild(TLS *s, void *packet)
 
 static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
 {
-    return QUIC_FLOW_RET_FINISH;
+    WPacket *pkt = packet;
+    QuicSessionTicket *t = NULL;
+    QUIC_SESSION *sess = NULL;
+    RPacket tnonce = {};
+    union {
+        uint8_t age_add_c[sizeof(uint32_t)];
+        uint32_t age_add;
+    } age_add_u;
+    uint8_t ticket[QUIC_SESSION_TICKET_LEN] = {};
+    uint8_t tick_nonce[TICKET_NONCE_SIZE] = {};
+    uint64_t nonce = 0;
+    size_t nlen = 0;
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+    int i = 0;
+
+    if (RAND_bytes(age_add_u.age_add_c, sizeof(age_add_u)) <= 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RAND_bytes(ticket, sizeof(ticket)) <= 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    t = QuicSessionTicketNew(s->lifetime_hint, age_add_u.age_add,
+                        ticket, sizeof(ticket));
+    if (t == NULL) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    nonce = s->next_ticket_nonce;
+    for (i = TICKET_NONCE_SIZE; i > 0; i--) {
+        tick_nonce[i - 1] = (uint8_t)(nonce & 0xff);
+        nonce >>= 8;
+        if (nlen == 0 && tick_nonce[i - 1] != 0) {
+            nlen = i;
+        }
+    }
+
+    RPacketBufInit(&tnonce, tick_nonce, nlen);
+    if (QuicSessionMasterKeyGen(s, t, &tnonce) < 0) {
+        goto err;
+    }
+
+    if (WPacketPut4(pkt, t->lifetime_hint) < 0) {
+        goto err;
+    }
+
+    if (WPacketPut4(pkt, t->age_add) < 0) {
+        goto err;
+    }
+
+    if (WPacketSubMemcpyU8(pkt, RPacketData(&tnonce),
+                RPacketRemaining(&tnonce)) < 0) {
+        goto err;
+    }
+
+    if (WPacketSubMemcpyU16(pkt, ticket, sizeof(ticket)) < 0) {
+        goto err;
+    } 
+
+    if (TlsSrvrConstructExtensions(s, pkt, TLSEXT_NEW_SESSION_TICKET,
+                NULL, 0) < 0) {
+        goto err;
+    }
+
+    sess = TlsGetSession(s);
+    if (sess == NULL) {
+        goto err;
+    }
+
+    QuicSessionTicketAdd(sess, t);
+    t = NULL;
+    ret = QUIC_FLOW_RET_FINISH;
+    s->next_ticket_nonce++;
+
+err:
+    QuicSessionTicketFree(t);
+    QUIC_LOG("TTTTTTTTTTTTTTTTTTTTTTTTTTTTT\n");
+    return ret;
 }
 
 static int TlsSrvrServerHelloPostWork(TLS *s)

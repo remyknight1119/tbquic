@@ -11,6 +11,9 @@
 #include "tls.h"
 #include "packet_local.h"
 
+#define QUIC_SESSION_TICKET_LIFETIME_HINT_DEF   172800
+#define QUIC_SESSION_TICKET_LEN                 180
+
 typedef struct {
     struct list_head node;
      /* Session lifetime hint in seconds */

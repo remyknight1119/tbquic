@@ -53,6 +53,9 @@ static int TlsExtClntParseKeyShare(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntParseTlsExtQtp(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
+static int TlsExtClntParsePsk(TLS *s, RPacket *pkt, 
+                                uint32_t context, X509 *x,
+                                size_t chainidx);
 
 static const TlsExtConstruct client_ext_construct[] = {
     {
@@ -141,6 +144,11 @@ static const TlsExtParse client_ext_parse[] = {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_SERVER_HELLO,
         .parse = TlsExtClntParseTlsExtQtp,
+    },
+    {
+        .type = EXT_TYPE_PRE_SHARED_KEY,
+        .context = TLSEXT_SERVER_HELLO,
+        .parse = TlsExtClntParsePsk,
     },
 };
  
@@ -694,6 +702,27 @@ static int TlsExtClntParseTlsExtQtp(TLS *s, RPacket *pkt,
 {
     return TlsParseQtpExtension(s, pkt, client_transport_param,
                                     QUIC_TRANS_PARAM_NUM);
+}
+
+static int TlsExtClntParsePsk(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
+                                size_t chainidx)
+{
+    QUIC *quic = QuicTlsTrans(s);
+    uint32_t identity = 0;
+
+    if (RPacketGet2(pkt, &identity) < 0) {
+        return -1;
+    }
+
+    if (quic->session == NULL) {
+        return -1;
+    }
+
+    if (identity >= quic->session->tick_identity) {
+        return -1;
+    }
+
+    return 0;
 }
 
 static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,

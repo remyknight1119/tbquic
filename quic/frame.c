@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <openssl/rand.h>
 #include <tbquic/stream.h>
 
 #include "common.h"
@@ -61,6 +62,8 @@ static int QuicFrameDataBlockedBuild(QUIC *, WPacket *, QUIC_CRYPTO *,
                                         void *, long);
 static int QuicFrameStreamDataBlockedBuild(QUIC *, WPacket *, QUIC_CRYPTO *,
                                         void *, long);
+static int QuicFrameNewTokenBuild(QUIC *, WPacket *, QUIC_CRYPTO *,
+                                        void *, long);
 
 static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     [QUIC_FRAME_TYPE_PADDING] = {
@@ -86,6 +89,7 @@ static QuicFrameProcess frame_handler[QUIC_FRAME_TYPE_MAX] = {
     },
     [QUIC_FRAME_TYPE_NEW_TOKEN] = {
         .parser = QuicFrameNewTokenParser,
+        .builder = QuicFrameNewTokenBuild,
     },
     [QUIC_FRAME_TYPE_STREAM] = {
         .parser = QuicFrameStreamParser,
@@ -921,7 +925,27 @@ static int QuicFrameResetStreamBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
     }
 
     return 0;
+}
 
+static int QuicFrameNewTokenBuild(QUIC *quic, WPacket *pkt, QUIC_CRYPTO *c,
+                                        void *arg, long larg)
+{
+    uint8_t *token = NULL;
+    uint64_t tlen = QUIC_NEW_TOKEN_LEN;
+
+    if (QuicVariableLengthWrite(pkt, tlen) < 0) {
+        return -1;
+    }
+
+    if (WPacketAllocateBytes(pkt, tlen, &token) < 0) {
+        return -1;
+    }
+
+    if (RAND_bytes((unsigned char *)token, tlen) == 0) {
+        return -1;
+    }
+
+    return QuicDataCopy(&quic->token, token, tlen);
 }
 
 int QuicFrameAckSendCheck(QUIC_CRYPTO *c)
@@ -1369,6 +1393,21 @@ int QuicResetStreamFrameBuild(QUIC *quic, int64_t id, uint32_t pkt_type,
     }
 
     return 0;
+}
+
+int QuicDataHandshakeDoneFrameBuild(QUIC *quic, int64_t id, uint32_t pkt_type)
+{
+    QuicFrameNode frame[] = {
+        {
+            .type = QUIC_FRAME_TYPE_HANDSHAKE_DONE,
+        },
+        {
+            .type = QUIC_FRAME_TYPE_NEW_TOKEN,
+        },
+    };
+
+    return QuicFrameBuild(quic, pkt_type, frame, sizeof(frame)/sizeof(frame[0]),
+                            NULL);
 }
 
 

@@ -82,5 +82,6 @@ int QuicStreamFrameBuild(QUIC *, QUIC_STREAM_IOVEC *, size_t);
 int QuicAckFrameBuild(QUIC *, uint32_t);
 int QuicDataBlockedFrameBuild(QUIC *, int64_t, uint32_t);
 int QuicStreamDataBlockedFrameBuild(QUIC *, int64_t, uint32_t);
+int QuicDataHandshakeDoneFrameBuild(QUIC *, int64_t, uint32_t);
 
 #endif

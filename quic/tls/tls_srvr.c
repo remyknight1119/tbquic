@@ -118,10 +118,14 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     },
     [TLS_ST_SW_NEW_SESSION_TICKET] = {
         .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_HANDSHAKE_DONE,
+        .next_state = TLS_ST_SW_HANDSHAKE_DONE,
         .msg_type = TLS_MT_NEW_SESSION_TICKET,
         .handler = TlsSrvrNewSessionTicketBuild,
         .pkt_type = QUIC_PKT_TYPE_1RTT,
+    },
+    [TLS_ST_SW_HANDSHAKE_DONE] = {
+        .flow_state = QUIC_FLOW_FINISHED,
+        .next_state = TLS_ST_HANDSHAKE_DONE,
     },
     [TLS_ST_HANDSHAKE_DONE] = {
         .flow_state = QUIC_FLOW_FINISHED,
@@ -333,7 +337,6 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
     uint8_t ticket[QUIC_SESSION_TICKET_LEN] = {};
     uint8_t tick_nonce[TICKET_NONCE_SIZE] = {};
     uint64_t nonce = 0;
-    size_t nlen = 0;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int i = 0;
 
@@ -355,12 +358,9 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
     for (i = TICKET_NONCE_SIZE; i > 0; i--) {
         tick_nonce[i - 1] = (uint8_t)(nonce & 0xff);
         nonce >>= 8;
-        if (nlen == 0 && tick_nonce[i - 1] != 0) {
-            nlen = i;
-        }
     }
 
-    RPacketBufInit(&tnonce, tick_nonce, nlen);
+    RPacketBufInit(&tnonce, tick_nonce, sizeof(tick_nonce));
     if (QuicSessionMasterKeyGen(s, t, &tnonce) < 0) {
         goto err;
     }

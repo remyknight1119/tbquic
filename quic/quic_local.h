@@ -31,6 +31,8 @@
 #define QUIC_IS_READING(q) QUIC_STATEM_READING(q->rwstate)
 #define QUIC_IS_WRITNG(q) QUIC_STATEM_WRITNG(q->rwstate)
 
+#define QUIC_NEW_TOKEN_LEN  60
+
 struct QuicMethod {
     uint32_t version;
     bool alloc_rbuf;

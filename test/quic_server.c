@@ -57,6 +57,11 @@ static QuicTestData stream_data[] = {
 
 #define STREAM_DATA_NUM ARRAY_SIZE(stream_data)
 
+static uint8_t appdata1[] =
+    "\x00\x04\x19\x01\x80\x01\x00\x00\x06\x80\x02\x00\x00\x07\x40\x64"
+    "\xc0\x00\x00\x09\x03\x15\xe8\x23\xa8\x51\x09\x24\xc0\x00\x00\x04"
+    "\x2f\x0c\x7e\x1f\x02\xf6\x12";
+
 static TlsTestParam test_param[] = {
     {
         .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_UNI,
@@ -213,6 +218,8 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    QUIC_CTX_set_max_early_data(ctx, 0xFFFA);
+
     dis = QuicCreateDispenser(sockfd);
     if (dis == NULL) {
         printf("Create dispenser failed\n");
@@ -266,6 +273,14 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
                     //bzero(buf, sizeof(buf));
                     /* 接收客户端的消息 */
 
+                    h = QuicStreamOpen(quic, false);
+                    if (h < 0) {
+                        goto out;
+                    }
+
+                    if (QuicStreamSend(quic, h, appdata1, sizeof(appdata1) - 1) < 0) {
+                        goto out;
+                    }
 next:
                     AddEpollEvent(epfd, &ev, sockfd);
                     continue;

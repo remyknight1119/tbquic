@@ -24,12 +24,11 @@ TlsDoHandshake(TLS *tls)
     return tls->method->handshake(tls);
 }
 
-static void TlsFlowFinish(TLS *tls, TlsState prev_state,
-                                TlsState next_state)
+static void TlsFlowFinish(TLS *s, TlsState prev_state, TlsState next_state)
 {
     /* If proc not assign next_state, use default */
-    if (prev_state == tls->handshake_state) {
-        tls->handshake_state = next_state;
+    if (prev_state == s->handshake_state) {
+        s->handshake_state = next_state;
     }
 }
 
@@ -257,6 +256,7 @@ QuicFlowReturn
 TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
 {
     QUIC_BUFFER *buffer = &s->buffer;
+    QUIC *quic = QuicTlsTrans(s);
     RPacket rpkt = {};
     WPacket wpkt = {};
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
@@ -296,7 +296,7 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
         WPacketCleanup(&wpkt);
         QuicBufSetDataLength(buffer, wlen);
 
-        if (wlen != 0 && QuicCryptoFrameBuild(QuicTlsTrans(s), pkt_type) < 0) {
+        if (wlen != 0 && QuicCryptoFrameBuild(quic, pkt_type) < 0) {
             QUIC_LOG("Initial frame build failed\n");
             return QUIC_FLOW_RET_ERROR;
         }
@@ -304,6 +304,12 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
         if (ret != QUIC_FLOW_RET_WANT_WRITE) {
             break;
         }
+    }
+
+    if (s->handshake_state == TLS_ST_SW_HANDSHAKE_DONE) {
+        QuicDataHandshakeDoneFrameBuild(quic, 0, pkt_type);
+        QUIC_LOG("hhhhhhhhhhhhhhhhhhhhhhhhhhandshake done\n");
+        s->handshake_state = TLS_ST_HANDSHAKE_DONE;
     }
 
     return ret;

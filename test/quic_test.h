@@ -81,6 +81,7 @@ int QuicPktFormatTestServer(void);
 int QuicPktNumberEncodeTest(void);
 int QuicPktNumberDecodeTest(void);
 int QuicWPacketSubMemcpyVarTest(void);
+int QuicSessionAsn1Test(void);
 int TlsCipherListTest(void);
 int TlsClientHelloTest(void);
 int TlsClientExtensionTest(void);

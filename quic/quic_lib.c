@@ -5,6 +5,7 @@
 
 #include <string.h>
 #include <assert.h>
+#include <openssl/rand.h>
 #include <tbquic/quic.h>
 #include <tbquic/cipher.h>
 #include <tbquic/tls.h>
@@ -23,6 +24,7 @@
 QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 {
     QUIC_CTX *ctx = NULL;
+    TlsTicketKey *tk = NULL;
 
     ctx = QuicMemCalloc(sizeof(*ctx));
     if (ctx == NULL) {
@@ -36,6 +38,19 @@ QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
 
     ctx->cert = QuicCertNew();
     if (ctx->cert == NULL) {
+        goto out;
+    }
+
+    tk = &ctx->ext.ticket_key;
+    if (RAND_bytes(tk->tick_key_name, sizeof(tk->tick_key_name)) <= 0) {
+        goto out;
+    }
+
+    if (RAND_priv_bytes(tk->tick_hmac_key, sizeof(tk->tick_hmac_key)) <= 0) {
+        goto out;
+    }
+
+    if (RAND_priv_bytes(tk->tick_aes_key, sizeof(tk->tick_aes_key)) <= 0) {
         goto out;
     }
 

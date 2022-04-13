@@ -58,6 +58,7 @@ struct QuicCtx {
         QUIC_DATA alpn;
         QuicTransParams trans_param;
         QUIC_DATA supported_groups;
+        TlsTicketKey ticket_key;
     } ext;
 };
 

@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <openssl/rand.h>
+#include <openssl/hmac.h>
 #include <tbquic/types.h>
 #include <tbquic/quic.h>
 
@@ -16,6 +17,7 @@
 #include "tls_lib.h"
 #include "common.h"
 #include "format.h"
+#include "mem.h"
 #include "session.h"
 #include "log.h"
 
@@ -118,7 +120,7 @@ static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     },
     [TLS_ST_SW_NEW_SESSION_TICKET] = {
         .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SW_HANDSHAKE_DONE,
+        .next_state = TLS_ST_SW_NEW_SESSION_TICKET,
         .msg_type = TLS_MT_NEW_SESSION_TICKET,
         .handler = TlsSrvrNewSessionTicketBuild,
         .pkt_type = QUIC_PKT_TYPE_1RTT,
@@ -324,6 +326,80 @@ static QuicFlowReturn TlsSrvrFinishedBuild(TLS *s, void *packet)
     return QUIC_FLOW_RET_NEXT;
 }
 
+static int TlsConstructStatelessTicket(TLS *s, WPacket *pkt, uint32_t age_add,
+       RPacket *tick_nonce, QuicSessionTicket *t)
+{
+    EVP_CIPHER_CTX *ctx = NULL;
+    HMAC_CTX *hctx = NULL;
+    const EVP_CIPHER *cipher = EVP_aes_256_cbc();
+    TlsTicketKey *tk = &s->ext.ticket_key;
+    uint8_t iv[EVP_MAX_IV_LENGTH] = {};
+    uint8_t key_name[TLSEXT_KEYNAME_LENGTH] = {};
+    int iv_len = 0;
+    int err = -1;
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (ctx == NULL) {
+        goto err;
+    }
+
+    hctx = HMAC_CTX_new();
+    if (hctx == NULL) {
+        goto err;
+    }
+
+    iv_len = EVP_CIPHER_iv_length(cipher);
+    if (RAND_bytes(iv, iv_len) <= 0) { 
+        goto err;
+    }
+
+    if (!EVP_EncryptInit_ex(ctx, cipher, NULL, tk->tick_aes_key, iv)) {
+        goto err;
+    }
+
+    if (!HMAC_Init_ex(hctx, tk->tick_hmac_key, sizeof(tk->tick_hmac_key),
+                EVP_sha256(), NULL)) {
+        goto err;
+    }
+
+    QuicMemcpy(key_name, tk->tick_key_name, sizeof(tk->tick_key_name));
+
+    if (WPacketPut4(pkt, t->lifetime_hint) < 0) {
+        goto err;
+    }
+
+    if (WPacketPut4(pkt, t->age_add) < 0) {
+        goto err;
+    }
+
+    if (WPacketSubMemcpyU8(pkt, RPacketData(tick_nonce),
+                RPacketRemaining(tick_nonce)) < 0) {
+        goto err;
+    }
+
+    if (WPacketStartSubU16(pkt) < 0) {
+        goto err;
+    } 
+
+    if (WPacketMemcpy(pkt, key_name, sizeof(key_name)) < 0) {
+        goto err;
+    }
+
+    if (WPacketMemcpy(pkt, iv, iv_len) < 0) {
+        goto err;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        goto err;
+    }
+
+    err = 0;
+err:
+    HMAC_CTX_free(hctx);
+    EVP_CIPHER_CTX_free(ctx);
+    return err;
+}
+
 static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
@@ -337,6 +413,7 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
     uint8_t ticket[QUIC_SESSION_TICKET_LEN] = {};
     uint8_t tick_nonce[TICKET_NONCE_SIZE] = {};
     uint64_t nonce = 0;
+    uint32_t age_add = 0;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int i = 0;
 
@@ -348,8 +425,8 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    t = QuicSessionTicketNew(s->lifetime_hint, age_add_u.age_add,
-                        ticket, sizeof(ticket));
+    age_add = age_add_u.age_add,
+    t = QuicSessionTicketNew(s->lifetime_hint, age_add, ticket, sizeof(ticket));
     if (t == NULL) {
         return QUIC_FLOW_RET_ERROR;
     }
@@ -365,22 +442,9 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
         goto err;
     }
 
-    if (WPacketPut4(pkt, t->lifetime_hint) < 0) {
+    if (TlsConstructStatelessTicket(s, pkt, age_add, &tnonce, t) < 0) {
         goto err;
     }
-
-    if (WPacketPut4(pkt, t->age_add) < 0) {
-        goto err;
-    }
-
-    if (WPacketSubMemcpyU8(pkt, RPacketData(&tnonce),
-                RPacketRemaining(&tnonce)) < 0) {
-        goto err;
-    }
-
-    if (WPacketSubMemcpyU16(pkt, ticket, sizeof(ticket)) < 0) {
-        goto err;
-    } 
 
     if (TlsSrvrConstructExtensions(s, pkt, TLSEXT_NEW_SESSION_TICKET,
                 NULL, 0) < 0) {
@@ -400,6 +464,9 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
 err:
     QuicSessionTicketFree(t);
     QUIC_LOG("TTTTTTTTTTTTTTTTTTTTTTTTTTTTT\n");
+    if (s->next_ticket_nonce >= 2) {
+        s->handshake_state = TLS_ST_SW_HANDSHAKE_DONE;
+    }
     return ret;
 }
 

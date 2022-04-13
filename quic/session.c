@@ -70,6 +70,21 @@ QuicSessionTicket *QuicSessionTicketGet(QUIC_SESSION *sess, uint32_t *age_ms)
     return NULL;
 }
 
+QuicSessionTicket *QuicSessionTicketPickTail(QUIC_SESSION *sess)
+{
+    QuicSessionTicket *t = NULL;
+
+    struct list_head *head = &sess->ticket_queue;
+
+    if (list_empty(head)) {
+        QUIC_LOG("Ticket Queu empty\n");
+        return NULL;
+    }
+
+    t = list_last_entry(head, typeof(*t), node);
+    return t;
+}
+
 void QuicSessionTicketFree(QuicSessionTicket *t)
 {
     if (t == NULL) {
@@ -125,7 +140,6 @@ void QuicSessionDestroy(QUIC_SESSION *sess)
     QuicSessionTicket *t = NULL;
     QuicSessionTicket *n = NULL;
 
-    QUIC_LOG("destroy %p\n", sess);
     list_for_each_entry_safe(t, n, &sess->ticket_queue, node) {
         list_del(&t->node);
         QuicSessionTicketFree(t);

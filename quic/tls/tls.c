@@ -507,6 +507,8 @@ int TlsInit(TLS *s, QUIC_CTX *ctx)
         }
     }
 
+    s->ext.ticket_key = ctx->ext.ticket_key;
+
     INIT_HLIST_HEAD(&s->cipher_list);
 
     if (TlsCreateCipherList(&s->cipher_list, TLS_CIPHERS_DEF,

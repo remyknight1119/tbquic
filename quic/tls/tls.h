@@ -28,6 +28,7 @@
 #define TLS_VERSION_1_3         0x0304
 
 #define TLSEXT_KEYNAME_LENGTH  16
+#define TLSEXT_TICK_KEY_LENGTH 32
 
 #define TLS_IS_READING(t) QUIC_STATEM_READING(t->rwstate)
 #define TLS_IS_WRITING(t) QUIC_STATEM_WRITING(t->rwstate)
@@ -94,6 +95,12 @@ typedef enum {
 } TlsState;
 
 typedef struct {
+    uint8_t tick_hmac_key[TLSEXT_TICK_KEY_LENGTH];
+    uint8_t tick_aes_key[TLSEXT_TICK_KEY_LENGTH];
+    uint8_t tick_key_name[TLSEXT_KEYNAME_LENGTH];
+} TlsTicketKey;
+
+typedef struct {
     QuicFlowReturn (*handshake)(TLS *);
 } TlsMethod;
 
@@ -154,6 +161,7 @@ struct Tls {
         QUIC_DATA peer_supported_groups;
         QUIC_DATA peer_sigalgs;
         size_t key_share_max_group_idx;
+        TlsTicketKey ticket_key;
     } ext;
 };
 

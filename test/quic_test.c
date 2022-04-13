@@ -92,6 +92,10 @@ static QuicFuncTest test_funcs[] = {
         .test = TlsPskDoBinderTest,
         .err_msg = "TLS PSK Do Binder",
     },
+    {
+        .test = QuicSessionAsn1Test,
+        .err_msg = "Session ASN1",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)

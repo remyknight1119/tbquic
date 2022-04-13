@@ -318,17 +318,10 @@ static ExtReturn TlsExtSrvrConstructEarlyData(TLS *s, WPacket *pkt, uint32_t con
             return EXT_RETURN_NOT_SENT;
         }
         
-        if (WPacketStartSubU16(pkt) < 0) {
-            return EXT_RETURN_FAIL;
-        }
-
         if (WPacketPut4(pkt, s->max_early_data) < 0) {
             return EXT_RETURN_FAIL;
         }
 
-        if (WPacketClose(pkt) < 0) {
-            return EXT_RETURN_FAIL;
-        }
         return EXT_RETURN_SENT;
     }
 
@@ -605,6 +598,7 @@ static int TlsExtsrvrParsePsk(TLS *s, RPacket *pkt, uint32_t context,
         return -1;
     }
 
+    QUIC_LOG("innnnnnnnnnnnnnnnnnnnPSK\n");
     for (id = 0; RPacketRemaining(&identities) != 0; id++) {
         if (RPacketGetLengthPrefixed2(&identities, &identity) < 0) {
             return -1;
@@ -616,6 +610,7 @@ static int TlsExtsrvrParsePsk(TLS *s, RPacket *pkt, uint32_t context,
 
         if (TlsDecryptTicket(s, RPacketData(&identity),
                     RPacketRemaining(&identity), &sess) < 0) {
+            QUIC_LOG("Decrypt Ticket failed\n");
             return -1;
         }
     }

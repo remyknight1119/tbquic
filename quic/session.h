@@ -44,4 +44,11 @@ void QuicSessionTicketAdd(QUIC_SESSION *, QuicSessionTicket *);
 int QuicSessionMasterKeyGen(TLS *, QuicSessionTicket *, RPacket *);
 void QuicSessionTicketFree(QuicSessionTicket *);
 
+#ifdef QUIC_TEST
+extern uint8_t *(*QuicSessionTicketTest)(uint8_t *senc, int *slen);
+extern int (*QuicSessionTicketIvTest)(uint8_t *iv);
+int TlsConstructStatelessTicket(TLS *, QUIC_SESSION *, WPacket *, RPacket *,
+                    QuicSessionTicket *);
+#endif
+
 #endif

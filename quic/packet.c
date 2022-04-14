@@ -365,7 +365,7 @@ void WPacketStaticBufInit(WPacket *pkt, uint8_t *buf, size_t len)
     pkt->maxsize = len;
 }
 
-uint8_t *WPacket_get_curr(WPacket *pkt)
+uint8_t *WPacket_get_data(WPacket *pkt, size_t offset)
 {
     uint8_t *data = NULL;
 
@@ -375,7 +375,12 @@ uint8_t *WPacket_get_curr(WPacket *pkt)
         data = (void *)pkt->buf->data;
     }
 
-    return data + pkt->curr;
+    return data + offset;
+}
+
+uint8_t *WPacket_get_curr(WPacket *pkt)
+{
+    return WPacket_get_data(pkt, pkt->curr);
 }
 
 int WPacket_get_space(WPacket *pkt)

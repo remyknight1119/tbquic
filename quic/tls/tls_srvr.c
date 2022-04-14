@@ -19,9 +19,8 @@
 #include "format.h"
 #include "mem.h"
 #include "session.h"
+#include "asn1.h"
 #include "log.h"
-
-#define TICKET_NONCE_SIZE       8
 
 static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
 static QuicFlowReturn TlsSrvrCertProc(TLS *, void *);
@@ -326,18 +325,58 @@ static QuicFlowReturn TlsSrvrFinishedBuild(TLS *s, void *packet)
     return QUIC_FLOW_RET_NEXT;
 }
 
-static int TlsConstructStatelessTicket(TLS *s, WPacket *pkt, uint32_t age_add,
-       RPacket *tick_nonce, QuicSessionTicket *t)
+#ifdef QUIC_TEST
+uint8_t *(*QuicSessionTicketTest)(uint8_t *senc, int *slen);
+int (*QuicSessionTicketIvTest)(uint8_t *iv);
+#else
+static
+#endif
+int TlsConstructStatelessTicket(TLS *s, QUIC_SESSION *sess,
+        WPacket *pkt, RPacket *tick_nonce,
+        QuicSessionTicket *t)
 {
     EVP_CIPHER_CTX *ctx = NULL;
     HMAC_CTX *hctx = NULL;
     const EVP_CIPHER *cipher = EVP_aes_256_cbc();
     TlsTicketKey *tk = &s->ext.ticket_key;
+    uint8_t *encdata1 = NULL;
+    uint8_t *encdata2 = NULL;
+    uint8_t *macdata1 = NULL;
+    uint8_t *macdata2 = NULL;
+    uint8_t *senc = NULL;
+    uint8_t *p = NULL;
+    uint8_t *tkhead = NULL;
     uint8_t iv[EVP_MAX_IV_LENGTH] = {};
     uint8_t key_name[TLSEXT_KEYNAME_LENGTH] = {};
+    unsigned int hlen = 0;
+    size_t macoffset = 0;
+    size_t macendoffset = 0;
+    int slen = 0;
+    int len = 0;
+    int lenfinal = 0;
     int iv_len = 0;
     int err = -1;
 
+    slen = i2dQuicSession(sess, NULL);
+    if (slen <= 0) {
+        goto err;
+    }
+
+    senc = QuicMemMalloc(slen);
+    if (senc == NULL) {
+        goto err;
+    }
+
+    p = senc;
+    if (i2dQuicSession(sess, &p) <= 0) {
+        goto err;
+    }
+
+#ifdef QUIC_TEST
+    if (QuicSessionTicketTest != NULL) {
+        senc = QuicSessionTicketTest(senc, &slen);
+    }
+#endif
     ctx = EVP_CIPHER_CTX_new();
     if (ctx == NULL) {
         goto err;
@@ -353,6 +392,11 @@ static int TlsConstructStatelessTicket(TLS *s, WPacket *pkt, uint32_t age_add,
         goto err;
     }
 
+#ifdef QUIC_TEST
+    if (QuicSessionTicketIvTest != NULL) {
+        iv_len = QuicSessionTicketIvTest(iv);
+    }
+#endif
     if (!EVP_EncryptInit_ex(ctx, cipher, NULL, tk->tick_aes_key, iv)) {
         goto err;
     }
@@ -381,11 +425,72 @@ static int TlsConstructStatelessTicket(TLS *s, WPacket *pkt, uint32_t age_add,
         goto err;
     } 
 
+    macoffset = WPacket_get_written(pkt);
     if (WPacketMemcpy(pkt, key_name, sizeof(key_name)) < 0) {
         goto err;
     }
 
     if (WPacketMemcpy(pkt, iv, iv_len) < 0) {
+        goto err;
+    }
+
+    if (WPacketReserveBytes(pkt, slen + EVP_MAX_BLOCK_LENGTH, &encdata1) < 0) {
+        goto err;
+    }
+
+    if (EVP_EncryptUpdate(ctx, encdata1, &len, senc, slen) == 0) {
+        goto err;
+    }
+
+    if (WPacketAllocateBytes(pkt, len, &encdata2) < 0) {
+        goto err;
+    }
+
+    if (encdata1 != encdata2) {
+        goto err;
+    }
+
+    if (EVP_EncryptFinal(ctx, encdata1 + len, &lenfinal) == 0) {
+        goto err;
+    }
+
+    if (WPacketAllocateBytes(pkt, lenfinal, &encdata2) < 0) {
+        goto err;
+    }
+
+    if (encdata1 + len != encdata2) {
+        goto err;
+    }
+
+    if (len + lenfinal > slen + EVP_MAX_BLOCK_LENGTH) {
+        goto err;
+    }
+
+    tkhead = WPacket_get_data(pkt, macoffset);
+    macendoffset = WPacket_get_written(pkt);
+
+    assert(QUIC_GT(macendoffset, macoffset));
+    if (HMAC_Update(hctx, tkhead, macendoffset - macoffset) == 0) {
+        goto err;
+    }
+
+    if (WPacketReserveBytes(pkt, EVP_MAX_MD_SIZE, &macdata1) < 0) {
+        goto err;
+    }
+
+    if (HMAC_Final(hctx, macdata1, &hlen) == 0) {
+        goto err;
+    }
+
+    if (hlen > EVP_MAX_MD_SIZE) {
+        goto err;
+    }
+
+    if (WPacketAllocateBytes(pkt, hlen, &macdata2) < 0) {
+        goto err;
+    }
+
+    if (macdata1 != macdata2) {
         goto err;
     }
 
@@ -395,6 +500,7 @@ static int TlsConstructStatelessTicket(TLS *s, WPacket *pkt, uint32_t age_add,
 
     err = 0;
 err:
+    QuicMemFree(senc);
     HMAC_CTX_free(hctx);
     EVP_CIPHER_CTX_free(ctx);
     return err;
@@ -416,6 +522,11 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
     uint32_t age_add = 0;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int i = 0;
+
+    sess = TlsGetSession(s);
+    if (sess == NULL) {
+        goto err;
+    }
 
     if (RAND_bytes(age_add_u.age_add_c, sizeof(age_add_u)) <= 0) {
         return QUIC_FLOW_RET_ERROR;
@@ -442,17 +553,12 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
         goto err;
     }
 
-    if (TlsConstructStatelessTicket(s, pkt, age_add, &tnonce, t) < 0) {
+    if (TlsConstructStatelessTicket(s, sess, pkt, &tnonce, t) < 0) {
         goto err;
     }
 
     if (TlsSrvrConstructExtensions(s, pkt, TLSEXT_NEW_SESSION_TICKET,
                 NULL, 0) < 0) {
-        goto err;
-    }
-
-    sess = TlsGetSession(s);
-    if (sess == NULL) {
         goto err;
     }
 

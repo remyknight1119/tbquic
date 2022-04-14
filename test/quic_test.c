@@ -96,6 +96,10 @@ static QuicFuncTest test_funcs[] = {
         .test = QuicSessionAsn1Test,
         .err_msg = "Session ASN1",
     },
+    {
+        .test = QuicConstructStatelessTicket,
+        .err_msg = "Construct Stateless Ticket",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)

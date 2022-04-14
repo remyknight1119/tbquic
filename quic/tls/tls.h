@@ -30,6 +30,8 @@
 #define TLSEXT_KEYNAME_LENGTH  16
 #define TLSEXT_TICK_KEY_LENGTH 32
 
+#define TICKET_NONCE_SIZE       8
+
 #define TLS_IS_READING(t) QUIC_STATEM_READING(t->rwstate)
 #define TLS_IS_WRITING(t) QUIC_STATEM_WRITING(t->rwstate)
 #define TLS_HANDSHAKE_STATE(t, state) ((t)->handshake_state == state)

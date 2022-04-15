@@ -12,7 +12,7 @@
 #include "packet_local.h"
 
 #define QUIC_SESSION_TICKET_LIFETIME_HINT_DEF   172800
-#define QUIC_SESSION_TICKET_LEN                 180
+#define QUIC_SESSION_TICKET_LEN                 64
 
 typedef struct {
     struct list_head node;

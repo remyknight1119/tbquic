@@ -1336,14 +1336,17 @@ int TlsDecryptTicket(TLS *s, const uint8_t *etick, size_t eticklen,
 
     eticklen -= mlen;
     if (HMAC_Update(hctx, etick, eticklen) <= 0) {
+        QUIC_LOG("HMAC update failed\n");
         goto end;
     }
 
     if (HMAC_Final(hctx, tick_hmac, NULL) <= 0) {
+        QUIC_LOG("HMAC final failed\n");
         goto end;
     }
 
     if (QuicMemCmp(tick_hmac, etick + eticklen, mlen) != 0) {
+        QUIC_LOG("Compare HMAC failed\n");
         goto end;
     }
 
@@ -1371,11 +1374,11 @@ int TlsDecryptTicket(TLS *s, const uint8_t *etick, size_t eticklen,
 
     *sess = d2iQuicSession(&p, slen);
     if (*sess == NULL) {
+        QUIC_LOG("d2i Session failed\n");
         goto end;
     }
 
     QuicMemFree(sdec);
-    QUIC_LOG("Tick decrypt\n");
 
     ret = 0;
 end:

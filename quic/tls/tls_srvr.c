@@ -447,7 +447,6 @@ int TlsConstructStatelessTicket(TLS *s, QUIC_SESSION *sess,
         goto err;
     }
 
-    //QuicPrint(encdata1, len);
     if (WPacketAllocateBytes(pkt, len, &encdata2) < 0) {
         goto err;
     }
@@ -542,7 +541,7 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    age_add = age_add_u.age_add,
+    age_add = age_add_u.age_add;
     t = QuicSessionTicketNew(s->lifetime_hint, age_add, ticket, sizeof(ticket));
     if (t == NULL) {
         return QUIC_FLOW_RET_ERROR;

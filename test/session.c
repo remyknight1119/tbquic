@@ -148,7 +148,8 @@ static int QuicStatelessTicketTest(int enc)
     RPacket tick_nonce = {};
     size_t len = 0;
     uint8_t buf[1024];
-    uint8_t ticket[TICKET_NONCE_SIZE] = {};
+    uint8_t ticket_n[TICKET_NONCE_SIZE] = {};
+    uint8_t ticket[QUIC_SESSION_TICKET_LEN] = {};
     uint8_t res[sizeof(ticket_result)/2] = {};
     uint32_t lifetime_hint = 7200;
     uint32_t age_add = 277953238;
@@ -177,16 +178,19 @@ static int QuicStatelessTicketTest(int enc)
     if (enc) {
         QuicSessionTicketTest = QuicSessionAsn1;
         QuicSessionTicketIvTest = QuicSessionTicketIv;
+    } else {
+        QuicSessionTicketTest = NULL;
+        QuicSessionTicketIvTest = NULL;
     }
 
-    RPacketBufInit(&tick_nonce, ticket, TICKET_NONCE_SIZE);
+    RPacketBufInit(&tick_nonce, ticket_n, TICKET_NONCE_SIZE);
     if (TlsConstructStatelessTicket(&tls, sess, &pkt, &tick_nonce) < 0) {
         printf("Construct Ticket Failed\n");
         goto err;
     }
 
+    len = WPacket_get_written(&pkt);
     if (enc) {
-        len = WPacket_get_written(&pkt);
         if (len != sizeof(res)) {
             goto err;
         }
@@ -197,9 +201,8 @@ static int QuicStatelessTicketTest(int enc)
         }
     } else {
         offset = 4 + 4 + 1 + 8 + 2;
-
         if (TlsDecryptTicket(&tls, &buf[offset], len - offset, &rsess) < 0) {
-            printf("Decrypt ticket failed\n");
+            printf("Decrypt TLS ticket failed\n");
             goto err;
         }
     }

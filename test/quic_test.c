@@ -100,6 +100,10 @@ static QuicFuncTest test_funcs[] = {
         .test = QuicConstructStatelessTicket,
         .err_msg = "Construct Stateless Ticket",
     },
+    {
+        .test = QuicDecryptStatelessTicket,
+        .err_msg = "Decrypt Stateless Ticket",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)

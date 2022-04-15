@@ -332,11 +332,11 @@ int (*QuicSessionTicketIvTest)(uint8_t *iv);
 static
 #endif
 int TlsConstructStatelessTicket(TLS *s, QUIC_SESSION *sess,
-        WPacket *pkt, RPacket *tick_nonce,
-        QuicSessionTicket *t)
+        WPacket *pkt, RPacket *tick_nonce)
 {
     EVP_CIPHER_CTX *ctx = NULL;
     HMAC_CTX *hctx = NULL;
+    QuicSessionTicket *t = NULL;
     const EVP_CIPHER *cipher = EVP_aes_256_cbc();
     TlsTicketKey *tk = &s->ext.ticket_key;
     uint8_t *encdata1 = NULL;
@@ -356,6 +356,11 @@ int TlsConstructStatelessTicket(TLS *s, QUIC_SESSION *sess,
     int lenfinal = 0;
     int iv_len = 0;
     int err = -1;
+
+    t = QuicSessionTicketPickTail(sess);
+    if (t == NULL) {
+        goto err;
+    }
 
     slen = i2dQuicSession(sess, NULL);
     if (slen <= 0) {
@@ -442,6 +447,7 @@ int TlsConstructStatelessTicket(TLS *s, QUIC_SESSION *sess,
         goto err;
     }
 
+    //QuicPrint(encdata1, len);
     if (WPacketAllocateBytes(pkt, len, &encdata2) < 0) {
         goto err;
     }
@@ -553,7 +559,9 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
         goto err;
     }
 
-    if (TlsConstructStatelessTicket(s, sess, pkt, &tnonce, t) < 0) {
+    QuicSessionTicketAdd(sess, t);
+    t = NULL;
+    if (TlsConstructStatelessTicket(s, sess, pkt, &tnonce) < 0) {
         goto err;
     }
 
@@ -562,8 +570,6 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
         goto err;
     }
 
-    QuicSessionTicketAdd(sess, t);
-    t = NULL;
     ret = QUIC_FLOW_RET_FINISH;
     s->next_ticket_nonce++;
 

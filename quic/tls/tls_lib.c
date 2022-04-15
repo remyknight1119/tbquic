@@ -14,6 +14,7 @@
 
 #include "tls.h"
 #include "base.h"
+#include "asn1.h"
 #include "cert.h"
 #include "crypto.h"
 #include "quic_local.h"
@@ -1279,11 +1280,19 @@ err:
     return ret;
 }
 
-int TlsDecryptTicket(TLS *s, const uint8_t *eticket, size_t eticklen,
+int TlsDecryptTicket(TLS *s, const uint8_t *etick, size_t eticklen,
                         QUIC_SESSION **sess)
 {
+    TlsTicketKey *tk = &s->ext.ticket_key;
     HMAC_CTX *hctx = NULL;
     EVP_CIPHER_CTX *ctx = NULL;
+    const uint8_t *p = NULL;
+    uint8_t *sdec = NULL;
+    unsigned char tick_hmac[EVP_MAX_MD_SIZE];
+    size_t mlen = 0;
+    int iv_len = 0;
+    int declen = 0;
+    int slen = 0;
     int ret = -1;
 
     if (eticklen < TLSEXT_KEYNAME_LENGTH + EVP_MAX_IV_LENGTH) {
@@ -1300,10 +1309,73 @@ int TlsDecryptTicket(TLS *s, const uint8_t *eticket, size_t eticklen,
         goto end;
     }
 
-#if 0
-    if (memcmp(etick, tctx->ext.tick_key_name, TLSEXT_KEYNAME_LENGTH) != 0) {
+    if (QuicMemCmp(etick, tk->tick_key_name, TLSEXT_KEYNAME_LENGTH) != 0) {
+        QUIC_LOG("Tick Key Name invalid\n");
+        goto end;
     }
-#endif
+
+    if (!HMAC_Init_ex(hctx, tk->tick_hmac_key, sizeof(tk->tick_hmac_key),
+                EVP_sha256(), NULL)) {
+        goto end;
+    }
+
+    if (!EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, tk->tick_aes_key,
+                etick + TLSEXT_KEYNAME_LENGTH)) {
+        goto end;
+    }
+
+    mlen = HMAC_size(hctx);
+    if (mlen == 0) {
+        goto end;
+    }
+
+    iv_len = EVP_CIPHER_CTX_iv_length(ctx);
+    if (eticklen <= TLSEXT_KEYNAME_LENGTH + iv_len + mlen) {
+        goto end;
+    }
+
+    eticklen -= mlen;
+    if (HMAC_Update(hctx, etick, eticklen) <= 0) {
+        goto end;
+    }
+
+    if (HMAC_Final(hctx, tick_hmac, NULL) <= 0) {
+        goto end;
+    }
+
+    if (QuicMemCmp(tick_hmac, etick + eticklen, mlen) != 0) {
+        goto end;
+    }
+
+    p = etick + TLSEXT_KEYNAME_LENGTH + iv_len;
+    eticklen -= TLSEXT_KEYNAME_LENGTH + iv_len;
+    sdec = QuicMemMalloc(eticklen);
+    if (sdec == NULL) {
+        goto end;
+    }
+
+    if (EVP_DecryptUpdate(ctx, sdec, &slen, p, (int)eticklen) <= 0) {
+        QUIC_LOG("Decrypt update failed\n");
+        QuicMemFree(sdec);
+        goto end;
+    }
+
+    if (EVP_DecryptFinal(ctx, sdec + slen, &declen) <= 0) {
+        QUIC_LOG("Decrypt final failed\n");
+        QuicMemFree(sdec);
+        goto end;
+    }
+
+    slen += declen;
+    p = sdec;
+
+    *sess = d2iQuicSession(&p, slen);
+    if (*sess == NULL) {
+        goto end;
+    }
+
+    QuicMemFree(sdec);
+    QUIC_LOG("Tick decrypt\n");
 
     ret = 0;
 end:

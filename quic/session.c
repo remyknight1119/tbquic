@@ -77,7 +77,7 @@ QuicSessionTicket *QuicSessionTicketPickTail(QUIC_SESSION *sess)
     struct list_head *head = &sess->ticket_queue;
 
     if (list_empty(head)) {
-        QUIC_LOG("Ticket Queu empty\n");
+        QUIC_LOG("Ticket Queue empty\n");
         return NULL;
     }
 

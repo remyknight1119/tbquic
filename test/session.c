@@ -10,6 +10,7 @@
 #include "mem.h"
 #include "tls.h"
 #include "common.h"
+#include "tls_lib.h"
 
 static char ticket_iv[] = "7999f26550626926eaf65877bf4568f9";
 static char ticket_aes_key[] =
@@ -136,9 +137,10 @@ static int QuicSessionTicketIv(uint8_t *iv)
     return len;
 }
 
-int QuicConstructStatelessTicket(void)
+static int QuicStatelessTicketTest(int enc)
 {
     QUIC_SESSION *sess = NULL;
+    QUIC_SESSION *rsess = NULL;
     QuicSessionTicket *t = NULL;
     TlsTicketKey *tk = NULL;
     WPacket pkt;
@@ -150,6 +152,7 @@ int QuicConstructStatelessTicket(void)
     uint8_t res[sizeof(ticket_result)/2] = {};
     uint32_t lifetime_hint = 7200;
     uint32_t age_add = 277953238;
+    int offset = 0;
     int ret = -1;
 
     WPacketStaticBufInit(&pkt, buf, sizeof(buf));
@@ -171,28 +174,50 @@ int QuicConstructStatelessTicket(void)
 
     QuicSessionTicketAdd(sess, t);
 
-    QuicSessionTicketTest = QuicSessionAsn1;
-    QuicSessionTicketIvTest = QuicSessionTicketIv;
+    if (enc) {
+        QuicSessionTicketTest = QuicSessionAsn1;
+        QuicSessionTicketIvTest = QuicSessionTicketIv;
+    }
 
     RPacketBufInit(&tick_nonce, ticket, TICKET_NONCE_SIZE);
-    if (TlsConstructStatelessTicket(&tls, sess, &pkt, &tick_nonce, t) < 0) {
+    if (TlsConstructStatelessTicket(&tls, sess, &pkt, &tick_nonce) < 0) {
         printf("Construct Ticket Failed\n");
         goto err;
     }
 
-    len = WPacket_get_written(&pkt);
-    if (len != sizeof(res)) {
-        goto err;
-    }
+    if (enc) {
+        len = WPacket_get_written(&pkt);
+        if (len != sizeof(res)) {
+            goto err;
+        }
 
-    str2hex(res, ticket_result, len);
-    if (memcmp(buf, res, len) != 0) {
-        goto err;
+        str2hex(res, ticket_result, len);
+        if (memcmp(buf, res, len) != 0) {
+            goto err;
+        }
+    } else {
+        offset = 4 + 4 + 1 + 8 + 2;
+
+        if (TlsDecryptTicket(&tls, &buf[offset], len - offset, &rsess) < 0) {
+            printf("Decrypt ticket failed\n");
+            goto err;
+        }
     }
 
     ret = 0;
 err:
+    QuicSessionFree(rsess);
     QuicSessionFree(sess);
     return ret;
+}
+
+int QuicConstructStatelessTicket(void)
+{
+    return QuicStatelessTicketTest(1);
+}
+
+int QuicDecryptStatelessTicket(void)
+{
+    return QuicStatelessTicketTest(0);
 }
 

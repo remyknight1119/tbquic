@@ -16,6 +16,7 @@
 
 static int TlsExtSrvrCheckAlpn(TLS *);
 static int TlsExtSrvrCheckKeyShare(TLS *);
+static int TlsExtSrvrCheckPreSharedKey(TLS *);
 static ExtReturn TlsExtSrvrConstructSupportedVersion(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 static ExtReturn TlsExtSrvrConstructKeyShare(TLS *, WPacket *, uint32_t,
@@ -28,6 +29,9 @@ static ExtReturn TlsExtSrvrConstructQtp(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 static ExtReturn TlsExtSrvrConstructEarlyData(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
+static ExtReturn TlsExtSrvrConstructPreSharedKey(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
+
 static int TlsExtSrvrParseServerName(TLS *, RPacket *, uint32_t,
                                             X509 *, size_t);
 static int TlsExtSrvrParseSigAlgs(TLS *, RPacket *, uint32_t, X509 *,
@@ -79,6 +83,12 @@ static const TlsExtConstruct server_ext_construct[] = {
         .type = EXT_TYPE_EARLY_DATA, 
         .context = TLSEXT_NEW_SESSION_TICKET,
         .construct = TlsExtSrvrConstructEarlyData,
+    },
+    {
+        .type = EXT_TYPE_PRE_SHARED_KEY,
+        .context = TLSEXT_SERVER_HELLO,
+        .check = TlsExtSrvrCheckPreSharedKey,
+        .construct = TlsExtSrvrConstructPreSharedKey,
     },
 };
 
@@ -231,6 +241,15 @@ static int TlsExtSrvrCheckKeyShare(TLS *s)
     return 0;
 }
 
+static int TlsExtSrvrCheckPreSharedKey(TLS *s)
+{
+    if (!s->hit) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static ExtReturn
 TlsExtSrvrConstructKeyShare(TLS *s, WPacket *pkt, uint32_t context,
                                         X509 *x, size_t chainidx)
@@ -279,6 +298,17 @@ TlsExtSrvrConstructKeyShare(TLS *s, WPacket *pkt, uint32_t context,
 out:
     EVP_PKEY_free(skey);
     return err;
+}
+
+static ExtReturn TlsExtSrvrConstructPreSharedKey(TLS *s, WPacket *pkt,
+                                    uint32_t context, X509 *x,
+                                    size_t chainidx)
+{
+    if (WPacketPut2(pkt, s->ext.tick_identity) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    return EXT_RETURN_SENT;
 }
 
 static int TlsExtSrvrCheckAlpn(TLS *s)
@@ -588,9 +618,16 @@ static int TlsExtSrvrParseAlpn(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
 static int TlsExtsrvrParsePsk(TLS *s, RPacket *pkt, uint32_t context,
                                     X509 *x, size_t chainidx)
 {
+    QUIC *quic = QuicTlsTrans(s);
     QUIC_SESSION *sess = NULL;
+    QuicSessionTicket *t = NULL;
+    const EVP_MD *md = NULL;
     RPacket identities = {};
     RPacket identity = {};
+    RPacket binders = {};
+    RPacket binder = {};
+    size_t binder_offset = 0;
+    size_t i = 0;
     uint32_t ticket_agel = 0;
     uint32_t id = 0;
 
@@ -611,11 +648,62 @@ static int TlsExtsrvrParsePsk(TLS *s, RPacket *pkt, uint32_t context,
         if (TlsDecryptTicket(s, RPacketData(&identity),
                     RPacketRemaining(&identity), &sess) < 0) {
             QUIC_LOG("Decrypt Ticket failed\n");
-            return -1;
+            continue;
+        }
+
+        if (sess->cipher->digest != s->handshake_cipher->digest) {
+            QUIC_LOG("The ciphersuite is not compatible with this session\n");
+            continue;
+        }
+
+        break;
+    }
+
+    if (sess == NULL) {
+        return 0;
+    }
+
+    binder_offset = RPacketReadLen(pkt);
+    md = QuicMd(sess->cipher->digest);
+    if (RPacketGetLengthPrefixed2(pkt, &binders) < 0) {
+        QUIC_LOG("Get binders failed\n");
+        goto err;
+    }
+
+    for (i = 0; i <= id; i++) {
+        if (RPacketGetLengthPrefixed1(&binders, &binder) < 0) {
+            QUIC_LOG("Get binder failed\n");
+            goto err;
         }
     }
 
+    if (RPacketRemaining(&binder) != EVP_MD_size(md)) {
+        QUIC_LOG("Remaining binder size incorrect\n");
+        goto err;
+    }
+
+    t = QuicSessionTicketPickTail(sess);
+    if (t == NULL) {
+        QUIC_LOG("Get Session ticket failed\n");
+        goto err;
+    }
+
+    if (TlsPskDoBinder(s, md, (uint8_t *)RPacketHead(pkt), binder_offset,
+                (uint8_t *)RPacketData(&binder), t) < 0) {
+        QUIC_LOG("Do PSK Binder failed\n");
+        goto err;
+    }
+
+    QUIC_LOG("Parse PSK\n");
+    QuicSessionFree(quic->session);
+    quic->session = sess;
+    s->hit = 1;
+    s->ext.tick_identity = id;
+
     return 0;
+err:
+    QuicSessionFree(sess);
+    return -1;
 }
 
 int TlsSrvrParseExtensions(TLS *s, RPacket *pkt, uint32_t context, X509 *x,

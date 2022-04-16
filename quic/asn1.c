@@ -5,9 +5,11 @@
 #include "asn1.h"
 
 #include <tbquic/types.h>
+#include "mem.h"
 #include "log.h"
 
 ASN1_SEQUENCE(QUIC_SESSION_ASN1) = {
+    ASN1_SIMPLE(QUIC_SESSION_ASN1, master_key, ASN1_OCTET_STRING),
     ASN1_EXP_OPT_EMBED(QUIC_SESSION_ASN1, cipher_id, UINT32, 0),
     ASN1_EXP_OPT_EMBED(QUIC_SESSION_ASN1, tick_age_add, ZUINT32, 1),
     ASN1_EXP_OPT_EMBED(QUIC_SESSION_ASN1, tick_lifetime_hint, ZUINT64, 2),
@@ -25,11 +27,29 @@ static void QuicSessionOinit(ASN1_OCTET_STRING **dest, ASN1_OCTET_STRING *os,
     *dest = os;
 }
 
+static int QuicSessionMemcpy(uint8_t *dst, size_t *pdstlen,
+                ASN1_OCTET_STRING *src, size_t maxlen)
+{
+    if (src == NULL || src->length == 0) {
+        *pdstlen = 0;
+        return 0;
+    }
+
+    if (src->length < 0 || src->length > (int)maxlen) {
+        return -1;
+    }
+
+    QuicMemcpy(dst, src->data, src->length);
+    *pdstlen = src->length;
+    return 0;
+}
+
 int i2dQuicSession(QUIC_SESSION *in, uint8_t **pp)
 {
     QuicSessionTicket *t = NULL;
     QUIC_DATA *tk = NULL;
     ASN1_OCTET_STRING tlsext_tick;
+    ASN1_OCTET_STRING master_key;
     QUIC_SESSION_ASN1 as = {};
 
     if (in->cipher == NULL) {
@@ -50,6 +70,9 @@ int i2dQuicSession(QUIC_SESSION *in, uint8_t **pp)
         QuicSessionOinit(&as.tlsext_tick, &tlsext_tick, tk->data, tk->len);
     }
 
+    QuicSessionOinit(&as.master_key, &master_key, t->master_key,
+            t->master_key_length);
+
     return i2d_QUIC_SESSION_ASN1(&as, (unsigned char **)pp);
 }
 
@@ -59,6 +82,7 @@ QUIC_SESSION *d2iQuicSession(const uint8_t **pp, long length)
     QUIC_SESSION *sess = NULL;
     QuicSessionTicket *t = NULL;
     const uint8_t *p = *pp;
+    size_t master_key_len = 0;
 
     as = d2i_QUIC_SESSION_ASN1(NULL, &p, length);
     if (as == NULL) {
@@ -86,6 +110,13 @@ QUIC_SESSION *d2iQuicSession(const uint8_t **pp, long length)
         t->ticket.len = as->tlsext_tick->length;
         as->tlsext_tick->data = NULL;
     }
+
+    if (QuicSessionMemcpy(t->master_key, &master_key_len, as->master_key,
+                TLS_MAX_RESUMPTION_PSK_LENGTH) < 0) {
+        goto err;
+    }
+
+    t->master_key_length = master_key_len;
 
     QuicSessionTicketAdd(sess, t);
 

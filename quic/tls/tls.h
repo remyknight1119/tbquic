@@ -164,6 +164,7 @@ struct Tls {
         QUIC_DATA peer_sigalgs;
         size_t key_share_max_group_idx;
         TlsTicketKey ticket_key;
+        uint16_t tick_identity;
     } ext;
 };
 

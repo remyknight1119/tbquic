@@ -12,6 +12,7 @@ typedef struct {
     uint32_t tick_age_add;
     uint64_t tick_lifetime_hint;
     ASN1_OCTET_STRING *tlsext_tick;
+    ASN1_OCTET_STRING *master_key;
 } QUIC_SESSION_ASN1;
 
 int i2dQuicSession(QUIC_SESSION *in, uint8_t **pp);

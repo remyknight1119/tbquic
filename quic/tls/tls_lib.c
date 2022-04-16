@@ -634,7 +634,7 @@ out:
 #ifdef QUIC_TEST
 void (*QuicHandshakeSecretHook)(uint8_t *secret);
 #endif
-int TlsKeyDerive(TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
+int TlsKeyDerive(TLS *s, EVP_PKEY *privkey, EVP_PKEY *pubkey)
 {
     EVP_PKEY_CTX *pctx = NULL;
     const EVP_MD *md = NULL;
@@ -668,19 +668,19 @@ int TlsKeyDerive(TLS *tls, EVP_PKEY *privkey, EVP_PKEY *pubkey)
         goto out;
     }
 
-    md = TlsHandshakeMd(tls);
-    if (!tls->hit) {
-        ret = TlsGenerateSecret(md, NULL, NULL, 0, tls->early_secret);
+    md = TlsHandshakeMd(s);
+    if (!s->hit) {
+        ret = TlsGenerateSecret(md, NULL, NULL, 0, s->early_secret);
         if (ret < 0) {
             goto out;
         }
     }
 
-    ret = TlsGenerateSecret(md, tls->early_secret, pms, pmslen,
-                            tls->handshake_secret);
+    ret = TlsGenerateSecret(md, s->early_secret, pms, pmslen,
+                            s->handshake_secret);
 #ifdef QUIC_TEST
     if (QuicHandshakeSecretHook) {
-        QuicHandshakeSecretHook(tls->handshake_secret);
+        QuicHandshakeSecretHook(s->handshake_secret);
     }
 #endif
 out:
@@ -1212,8 +1212,10 @@ int TlsPskDoBinder(TLS *s, const EVP_MD *md, uint8_t *msgstart,
     size_t bindersize = 0;
     int ret = -1;
     
+    printf("ml = %d\n", (int)t->master_key_length);
     if (TlsGenerateSecret(md, NULL, t->master_key, t->master_key_length,
                             s->early_secret) < 0) {
+        QUIC_LOG("Generate Secret failed\n");
         return -1;
     }
 
@@ -1223,52 +1225,63 @@ int TlsPskDoBinder(TLS *s, const EVP_MD *md, uint8_t *msgstart,
     }
 
     if (EVP_DigestInit_ex(mctx, md, NULL) <= 0) {
+        QUIC_LOG("Init Digest failed\n");
         goto err;
     }
 
     if (EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
+        QUIC_LOG("Digest final failed\n");
         goto err;
     }
 
     if (TLS13HkdfExpandLabel(md, s->early_secret, hashsize, resumption_label,
                         sizeof(resumption_label) - 1, hash, hashsize, binderkey,
                         hashsize) < 0) {
+        QUIC_LOG("TLS HKDF Expand Label failed\n");
         goto err;
     }
 
     if (TlsDeriveFinishedKey(s, md, binderkey, finishedkey, hashsize) < 0) {
+        QUIC_LOG("TLS derive finished key failed\n");
         goto err;
     }
 
     if (EVP_DigestInit_ex(mctx, md, NULL) <= 0) {
+        QUIC_LOG("Init Digest failed\n");
         goto err;
     }
 
     if (EVP_DigestUpdate(mctx, msgstart, binder_offset) <= 0) {
+        QUIC_LOG("Digest update failed\n");
         goto err;
     }
 
     if (EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
+        QUIC_LOG("Digest final failed\n");
         goto err;
     }
 
     mackey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, finishedkey,
                                             hashsize);
     if (mackey == NULL) {
+        QUIC_LOG("New PKEY failed\n");
         goto err;
     }
 
     if (EVP_DigestSignInit(mctx, NULL, md, NULL, mackey) <= 0) {
+        QUIC_LOG("Digest sign init failed\n");
         goto err;
     }
 
     if (EVP_DigestSignUpdate(mctx, hash, hashsize) <= 0) {
+        QUIC_LOG("Digest sign update failed\n");
         goto err;
     }
 
     bindersize = hashsize;
     if (EVP_DigestSignFinal(mctx, binder, &bindersize) <= 0 ||
             bindersize != hashsize) {
+        QUIC_LOG("Digest sign final failed\n");
         goto err;
     }
 

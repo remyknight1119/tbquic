@@ -33,6 +33,7 @@ typedef struct {
 } WPacket;
 
 void RPacketBufInit(RPacket *, const uint8_t *, size_t);
+void RPacketHeadSet(RPacket *, const uint8_t *);
 void RPacketHeadSync(RPacket *);
 size_t RPacketTotalLen(const RPacket *);
 const uint8_t *RPacketHead(const RPacket *);

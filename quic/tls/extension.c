@@ -180,6 +180,7 @@ int TlsParseExtensions(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
             }
 
             RPacketBufInit(&ext_data, RPacketData(&tmp), len);
+            RPacketHeadSet(&ext_data, RPacketHead(&tmp));
             ret = thisexd->parse(s, &ext_data, context, x, chainidx);
             if (ret < 0) {
                 QUIC_LOG("Parse %u failed\n", type);

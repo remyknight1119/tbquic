@@ -1292,12 +1292,11 @@ int TlsPskDoBinder(TLS *s, const EVP_MD *md, uint8_t *msgstart,
     if (binder_in != NULL) {
         if (QuicMemCmp(binder_in, binder_out, hashsize) != 0) {
             QUIC_LOG("Compare binder failed\n");
-            QuicPrint(binder_in, hashsize);
-            QuicPrint(binder_out, hashsize);
-//            goto err;
+            goto err;
         }
     }
 
+    QuicPrint(binder_out, hashsize);
     ret = 0;
 
 err:

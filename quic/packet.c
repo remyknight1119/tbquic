@@ -15,6 +15,11 @@
 #define WPACKET_BUF_MAX_LEN    65535
 #define DEFAULT_BUF_SIZE    256
 
+void RPacketHeadSet(RPacket *pkt, const uint8_t *head)
+{
+    pkt->head = head;
+}
+
 void RPacketHeadSync(RPacket *pkt)
 {
     pkt->head = pkt->curr;

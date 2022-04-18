@@ -33,6 +33,9 @@ static QuicFlowReturn TlsClientFinishedProc(TLS *, void *);
 static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *, void *);
 static int TlsClientEncExtPostWork(TLS *);
 static int TlsClientFinishedPostWork(TLS *);
+static int TlsClientSkipCheckCertRequest(TLS *);
+static int TlsClientSkipCheckServerCert(TLS *);
+static int TlsClientSkipCheckCertVerify(TLS *);
 
 static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_OK] = {
@@ -67,7 +70,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .msg_type = TLS_MT_CERTIFICATE_REQUEST,
         .handler = TlsCertRequestProc,
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
-        .optional = 1,
+        .skip_check = TlsClientSkipCheckCertRequest,
     },
     [TLS_ST_CR_SERVER_CERTIFICATE] = {
         .flow_state = QUIC_FLOW_READING,
@@ -75,7 +78,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .msg_type = TLS_MT_CERTIFICATE,
         .handler = TlsServerCertProc,
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
-        .optional = 1,
+        .skip_check = TlsClientSkipCheckServerCert,
     },
     [TLS_ST_CR_CERT_VERIFY] = {
         .flow_state = QUIC_FLOW_READING,
@@ -83,7 +86,7 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
         .handler = TlsCertVerifyProc,
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
-        .optional = 1,
+        .skip_check = TlsClientSkipCheckCertVerify,
     },
     [TLS_ST_CR_FINISHED] = {
         .flow_state = QUIC_FLOW_READING,
@@ -532,5 +535,28 @@ static int TlsClientEncExtPostWork(TLS *s)
 static int TlsClientFinishedPostWork(TLS *s)
 {
     return QuicCreateAppDataClientEncoders(QuicTlsTrans(s));
+}
+
+static int TlsClientSkipCheckCertRequest(TLS *s)
+{
+    return 0;
+}
+
+static int TlsClientSkipCheckServerCert(TLS *s)
+{
+    if (!s->hit) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int TlsClientSkipCheckCertVerify(TLS *s)
+{
+    if (!s->hit) {
+        return -1;
+    }
+
+    return 0;
 }
 

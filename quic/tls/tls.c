@@ -54,7 +54,7 @@ TlsHandshakeMsgRetrans(TlsMessageType type, TlsState state,
 }
 
 static QuicFlowReturn
-TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt,
+TlsHandshakeRead(TLS *s, const TlsProcess *p, RPacket *pkt,
                     const TlsProcess *proc, size_t num)
 {
     RPacket packet = {};
@@ -81,12 +81,12 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt,
         return QUIC_FLOW_RET_WANT_READ;
     }
 
-    state = tls->handshake_state;
+    state = s->handshake_state;
     while (type != p->msg_type) {
-        if (p->optional) {
-            tls->handshake_state = p->next_state;
-            state = tls->handshake_state;
-            QUIC_LOG("Optional state, skip\n");
+        if (p->skip_check != NULL && p->skip_check(s) == 0) {
+            s->handshake_state = p->next_state;
+            state = s->handshake_state;
+            QUIC_LOG("Optional state %d, skip\n", state);
             p = &proc[state];
             continue;
         }
@@ -122,27 +122,27 @@ TlsHandshakeRead(TLS *tls, const TlsProcess *p, RPacket *pkt,
     }
  
     if (type == TLS_MT_FINISHED) {
-        if (TlsTakeMac(tls) < 0) {
+        if (TlsTakeMac(s) < 0) {
             return QUIC_FLOW_RET_ERROR;
         }
     }
 
     RPacketHeadPush(&msg, offset);
-    if (TlsFinishMac(tls, RPacketHead(&msg), RPacketTotalLen(&msg)) < 0) {
+    if (TlsFinishMac(s, RPacketHead(&msg), RPacketTotalLen(&msg)) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
-    ret = p->handler(tls, &msg);
+    ret = p->handler(s, &msg);
     if (ret == QUIC_FLOW_RET_ERROR) {
         return QUIC_FLOW_RET_ERROR;
     }
 
-    TlsFlowFinish(tls, state, p->next_state);
+    TlsFlowFinish(s, state, p->next_state);
     return ret;
 }
 
 static QuicFlowReturn
-TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
+TlsHandshakeWrite(TLS *s, const TlsProcess *p, WPacket *pkt)
 {
     uint8_t *msg = NULL;
     TlsState state = 0;
@@ -167,8 +167,8 @@ TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
         return QUIC_FLOW_RET_ERROR;
     }
  
-    state = tls->handshake_state;
-    ret = p->handler(tls, pkt);
+    state = s->handshake_state;
+    ret = p->handler(s, pkt);
     if (ret == QUIC_FLOW_RET_ERROR) {
         return QUIC_FLOW_RET_ERROR;
     }
@@ -180,17 +180,17 @@ TlsHandshakeWrite(TLS *tls, const TlsProcess *p, WPacket *pkt)
 
     msg_len = WPacket_get_written(pkt) - wlen;
     assert(QUIC_GT(msg_len, 0));
-    if (TlsFinishMac(tls, msg, msg_len) < 0) {
+    if (TlsFinishMac(s, msg, msg_len) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
-    TlsFlowFinish(tls, state, p->next_state);
+    TlsFlowFinish(s, state, p->next_state);
 
     return ret;
 }
 
 static QuicFlowReturn
-TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
+TlsHandshakeStatem(TLS *s, RPacket *rpkt, WPacket *wpkt,
                         const TlsProcess *proc, size_t num,
                         uint32_t *pkt_type)
 {
@@ -198,21 +198,21 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
     TlsState state = 0;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
 
-    state = tls->handshake_state;
+    state = s->handshake_state;
     assert(state >= 0 && state < num);
     p = &proc[state];
 
     while (!QUIC_FLOW_STATEM_FINISHED(p->flow_state)) {
         switch (p->flow_state) {
             case QUIC_FLOW_NOTHING:
-                tls->handshake_state = p->next_state;
+                s->handshake_state = p->next_state;
                 ret = QUIC_FLOW_RET_CONTINUE;
                 break;
             case QUIC_FLOW_READING:
-                ret = TlsHandshakeRead(tls, p, rpkt, proc, num);
+                ret = TlsHandshakeRead(s, p, rpkt, proc, num);
                 break;
             case QUIC_FLOW_WRITING:
-                ret = TlsHandshakeWrite(tls, p, wpkt);
+                ret = TlsHandshakeWrite(s, p, wpkt);
                 break;
             default:
                 QUIC_LOG("Unknown flow state(%d)\n", p->flow_state);
@@ -232,7 +232,7 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
             return ret;
         }
 
-        if (p->post_work != NULL && p->post_work(tls) < 0) {
+        if (p->post_work != NULL && p->post_work(s) < 0) {
             return QUIC_FLOW_RET_ERROR;
         }
 
@@ -240,7 +240,7 @@ TlsHandshakeStatem(TLS *tls, RPacket *rpkt, WPacket *wpkt,
             return ret;
         }
 
-        state = tls->handshake_state;
+        state = s->handshake_state;
         assert(state >= 0 && state < num);
         p = &proc[state];
     }
@@ -315,7 +315,7 @@ TlsHandshake(TLS *s, const TlsProcess *proc, size_t num)
     return ret;
 }
 
-int TlsHelloHeadParse(TLS *tls, RPacket *pkt, uint8_t *random,
+int TlsHelloHeadParse(TLS *s, RPacket *pkt, uint8_t *random,
                             size_t random_size)
 {
     uint32_t session_id_len = 0;

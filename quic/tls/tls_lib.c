@@ -1296,7 +1296,6 @@ int TlsPskDoBinder(TLS *s, const EVP_MD *md, uint8_t *msgstart,
         }
     }
 
-    QuicPrint(binder_out, hashsize);
     ret = 0;
 
 err:

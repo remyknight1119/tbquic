@@ -82,7 +82,7 @@ int QuicWritePkt(QUIC *quic, QuicStaticBuffer *buffer)
             return -1;
         }
 
-        QUIC_LOG("last = %d, data len = %lu\n", end, QBuffGetDataLen(qb));
+        //QUIC_LOG("last = %d, data len = %lu\n", end, QBuffGetDataLen(qb));
         ret = QBuffBuildPkt(quic, &pkt, qb, end);
         if (ret < 0) {
             QUIC_LOG("Build pkt failed\n");

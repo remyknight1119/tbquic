@@ -685,7 +685,7 @@ QuicDecryptPacket(QUIC_CRYPTO *c, RPacket *pkt, uint8_t *buf, size_t *len,
         return -1;
     }
 
-    QUIC_LOG("PKT number =%lu\n", pkt_num);
+    //QUIC_LOG("PKT number =%lu\n", pkt_num);
     if (QUIC_LT(c->largest_pn, pkt_num)) {
         c->largest_pn = pkt_num;
     } else if (c->largest_pn == pkt_num && pkt_num != 0) {

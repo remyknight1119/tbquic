@@ -22,6 +22,8 @@
 #include "asn1.h"
 #include "log.h"
 
+#define TLS_NEW_SESS_TICKET_NUM     2
+
 static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
 static QuicFlowReturn TlsSrvrCertProc(TLS *, void *);
 static QuicFlowReturn TlsSrvrCertVerifyProc(TLS *, void *);
@@ -578,8 +580,7 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
 
 err:
     QuicSessionTicketFree(t);
-    QUIC_LOG("TTTTTTTTTTTTTTTTTTTTTTTTTTTTT\n");
-    if (s->next_ticket_nonce >= 2) {
+    if (s->next_ticket_nonce >= TLS_NEW_SESS_TICKET_NUM) {
         s->handshake_state = TLS_ST_SW_HANDSHAKE_DONE;
     }
     return ret;

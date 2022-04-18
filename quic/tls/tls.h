@@ -174,8 +174,8 @@ typedef struct {
     TlsMessageType msg_type;
     QuicFlowReturn (*handler)(TLS *, void *);
     int (*post_work)(TLS *);
+    int (*skip_check)(TLS *);
     uint32_t pkt_type;
-    uint32_t optional;
 } TlsProcess;
 
 #ifdef QUIC_TEST

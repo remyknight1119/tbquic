@@ -14,3 +14,10 @@ void QuicTestStreamIovecInit(QUIC_STREAM_IOVEC *iov, QuicTestBuff *buf,
         iov[i].iov_len = sizeof(buf[i].buf);
     }
 }
+
+void QuicKeyLog(const QUIC *quic, const char *log)
+{
+    fprintf(stdout, "%s\n", log);
+}
+
+

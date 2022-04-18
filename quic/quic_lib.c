@@ -122,6 +122,11 @@ int QUIC_CTX_set_max_early_data(QUIC_CTX *ctx, uint32_t max_early_data)
     return 1;
 }
 
+void QUIC_CTX_set_keylog_callback(QUIC_CTX *ctx, QUIC_CTX_keylog_cb_func cb)
+{
+    ctx->keylog_callback = cb;
+}
+
 /*
  * QUIC_set_alpn_protos sets the ALPN protocol list on |quic| to |protos|.
  * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit

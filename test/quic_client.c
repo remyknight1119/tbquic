@@ -213,6 +213,7 @@ static int QuicClientDo(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    QUIC_CTX_set_keylog_callback(ctx, QuicKeyLog);
     if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
         goto out;
     }

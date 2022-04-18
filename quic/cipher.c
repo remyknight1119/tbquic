@@ -388,8 +388,13 @@ static int QuicInstallEncryptorDecryptor(TLS *s, const EVP_MD *md,
                     uint8_t *finsecret, size_t finsecretlen,
                     const char *log_label, int enc)
 {
+    QUIC *quic = QuicTlsTrans(s);
     uint8_t *sec = out_secret;
+    char *info = NULL;
     uint8_t secret[EVP_MAX_MD_SIZE];
+    size_t len = 0;
+    size_t i = 0;
+    int offset = 0;
     
     if (sec == NULL) {
         sec = secret;
@@ -400,21 +405,24 @@ static int QuicInstallEncryptorDecryptor(TLS *s, const EVP_MD *md,
         return -1;
     }
 
-#if QUIC_DEBUG
-    fprintf(stdout, "%s ", log_label);
-    int i = 0;
-
-    for (i = 0; i < sizeof(s->client_random); i++) {
-        fprintf(stdout, "%02X", s->client_random[i]);
+    if (quic->ctx->keylog_callback != NULL) {
+        len = strlen(log_label) + 1 + sizeof(s->client_random)*2;
+        len += EVP_MD_size(md)*2 + 2;
+        info = QuicMemMalloc(len);
+        if (info != NULL) {
+            offset = snprintf(info, len, "%s ", log_label);
+            for (i = 0; i < sizeof(s->client_random); i++) {
+                offset += snprintf(&info[offset], len - offset,
+                        "%02X", s->client_random[i]);
+            }
+            offset += snprintf(&info[offset], len - offset, " ");
+            for (i = 0; i < EVP_MD_size(md); i++) {
+                offset += snprintf(&info[offset], len - offset, "%02X", sec[i]);
+            }
+            quic->ctx->keylog_callback(quic, info);
+            QuicMemFree(info);
+        }
     }
-
-    fprintf(stdout, " ");
-    for (i = 0; i < EVP_MD_size(md); i++) {
-        fprintf(stdout, "%02X", sec[i]);
-    }
-    fprintf(stdout, "\n");
-
-#endif
 #ifdef QUIC_TEST
     if (QuicSecretTest != NULL) {
         QuicSecretTest(sec);

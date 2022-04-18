@@ -54,6 +54,7 @@ struct QuicCtx {
     uint32_t max_early_data;
     uint8_t cid_len;
     QuicCert *cert;
+    QUIC_CTX_keylog_cb_func keylog_callback;
     struct {
         QUIC_DATA alpn;
         QuicTransParams trans_param;

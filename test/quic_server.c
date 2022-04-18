@@ -213,6 +213,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
         goto out;
     }
 
+    QUIC_CTX_set_keylog_callback(ctx, QuicKeyLog);
     if (QuicCtxServerExtensionSet(ctx) < 0) {
         printf("Set Extension failed\n");
         goto out;

@@ -72,6 +72,7 @@ static inline void str2hex(uint8_t *dest, char *src, size_t len)
 extern char *quic_cert;
 extern char *quic_key;
 
+void QuicKeyLog(const QUIC *, const char *);
 void QuicTestStreamIovecInit(QUIC_STREAM_IOVEC *, QuicTestBuff *, size_t);
 int QuicVariableLengthDecodeTest(void);
 int QuicHkdfExtractExpandTest(void);

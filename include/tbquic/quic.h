@@ -39,6 +39,8 @@
 #define QUIC_TRANS_PARAM_RETRY_SOURCE_CONNECTION_ID             0x10
 #define QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE               0x20
 
+typedef void (*QUIC_CTX_keylog_cb_func)(const QUIC *, const char *);
+
 enum {
     QUIC_FILE_TYPE_ASN1,
     QUIC_FILE_TYPE_PEM,
@@ -71,6 +73,7 @@ extern int QUIC_CTX_set_alpn_protos(QUIC_CTX *ctx, const uint8_t *protos,
 extern int QUIC_set_alpn_protos(QUIC *quic, const uint8_t *protos,
                                     size_t protos_len);
 extern int QUIC_CTX_set_max_early_data(QUIC_CTX *ctx, uint32_t max_early_data);
+void QUIC_CTX_set_keylog_callback(QUIC_CTX *ctx, QUIC_CTX_keylog_cb_func cb);
 
 extern int QuicSendPacket(QUIC *quic);
 extern bool QuicWantRead(QUIC *quic);

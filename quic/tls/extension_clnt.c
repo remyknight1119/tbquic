@@ -442,7 +442,7 @@ static ExtReturn TlsExtClntConstructPreSharedKey(TLS *s, WPacket *pkt,
 
     msgstart = WPacket_get_curr(pkt) - WPacket_get_written(pkt);
     
-    if (TlsPskDoBinder(s, md, msgstart, binder_offset, binder, t) < 0) {
+    if (TlsPskDoBinder(s, md, msgstart, binder_offset, NULL, binder, t) < 0) {
         return EXT_RETURN_FAIL;
     }
 

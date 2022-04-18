@@ -57,7 +57,7 @@ size_t TlsFinalFinishMac(TLS *, const char *, size_t, uint8_t *);
 int TlsTakeMac(TLS *);
 QUIC_SESSION *TlsGetSession(TLS *s);
 int TlsPskDoBinder(TLS *, const EVP_MD *, uint8_t *, size_t, uint8_t *,
-                        QuicSessionTicket *);
+                        uint8_t *, QuicSessionTicket *);
 int TlsDecryptTicket(TLS *, const uint8_t *, size_t, QUIC_SESSION **);
 
 #endif

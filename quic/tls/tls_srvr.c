@@ -290,6 +290,10 @@ static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
+    if (s->hit) {
+        s->handshake_state = TLS_ST_SW_FINISHED;
+    }
+
     return QUIC_FLOW_RET_FINISH;
 }
 

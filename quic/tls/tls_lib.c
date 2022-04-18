@@ -1199,20 +1199,20 @@ int TlsTakeMac(TLS *s)
 }
 
 int TlsPskDoBinder(TLS *s, const EVP_MD *md, uint8_t *msgstart,
-                    size_t binder_offset, uint8_t *binder,
-                    QuicSessionTicket *t)
+                    size_t binder_offset, uint8_t *binder_in,
+                    uint8_t *binder_out, QuicSessionTicket *t)
 {
     EVP_MD_CTX *mctx = NULL;
     EVP_PKEY *mackey = NULL;
     static const uint8_t resumption_label[] = "res binder";
     uint8_t hash[EVP_MAX_MD_SIZE] = {};
+    uint8_t tmpbinder[EVP_MAX_MD_SIZE] = {};
     uint8_t binderkey[EVP_MAX_MD_SIZE] = {};
     uint8_t finishedkey[EVP_MAX_MD_SIZE] = {};
     size_t hashsize = EVP_MD_size(md);
     size_t bindersize = 0;
     int ret = -1;
     
-    printf("ml = %d\n", (int)t->master_key_length);
     if (TlsGenerateSecret(md, NULL, t->master_key, t->master_key_length,
                             s->early_secret) < 0) {
         QUIC_LOG("Generate Secret failed\n");
@@ -1278,11 +1278,24 @@ int TlsPskDoBinder(TLS *s, const EVP_MD *md, uint8_t *msgstart,
         goto err;
     }
 
+    if (binder_out == NULL) {
+        binder_out = tmpbinder;
+    }
+
     bindersize = hashsize;
-    if (EVP_DigestSignFinal(mctx, binder, &bindersize) <= 0 ||
+    if (EVP_DigestSignFinal(mctx, binder_out, &bindersize) <= 0 ||
             bindersize != hashsize) {
         QUIC_LOG("Digest sign final failed\n");
         goto err;
+    }
+
+    if (binder_in != NULL) {
+        if (QuicMemCmp(binder_in, binder_out, hashsize) != 0) {
+            QUIC_LOG("Compare binder failed\n");
+            QuicPrint(binder_in, hashsize);
+            QuicPrint(binder_out, hashsize);
+//            goto err;
+        }
     }
 
     ret = 0;

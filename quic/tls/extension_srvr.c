@@ -689,7 +689,7 @@ static int TlsExtsrvrParsePsk(TLS *s, RPacket *pkt, uint32_t context,
     }
 
     if (TlsPskDoBinder(s, md, (uint8_t *)RPacketHead(pkt), binder_offset,
-                (uint8_t *)RPacketData(&binder), t) < 0) {
+                (uint8_t *)RPacketData(&binder), NULL, t) < 0) {
         QUIC_LOG("Do PSK Binder failed\n");
         goto err;
     }

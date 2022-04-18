@@ -452,7 +452,7 @@ int TlsPskDoBinderTest(void)
     str2hex(p_binder, psk_binder, sizeof(p_binder));
     str2hex(early_secret, psk_early_secret, sizeof(early_secret));
 
-    if (TlsPskDoBinder(s, md, msg, binder_offset, binder, &t) < 0) {
+    if (TlsPskDoBinder(s, md, msg, binder_offset, p_binder, binder, &t) < 0) {
         printf("PSK do binder failed\n");
         goto out;
     }

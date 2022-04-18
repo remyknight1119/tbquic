@@ -496,7 +496,6 @@ static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    QuicPrint(ticket, ticket_len);
     t = QuicSessionTicketNew(ticket_lifetime_hint, age_add, ticket, ticket_len);
     if (t == NULL) {
         QUIC_LOG("New session ticket failed!\n");

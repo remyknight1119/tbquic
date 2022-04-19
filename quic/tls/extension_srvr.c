@@ -36,8 +36,8 @@ static int TlsExtSrvrParseServerName(TLS *, RPacket *, uint32_t,
                                             X509 *, size_t);
 static int TlsExtSrvrParseSigAlgs(TLS *, RPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtSrvrParseQtp(TLS *, RPacket *, uint32_t,
-                                        X509 *, size_t);
+static int TlsExtSrvrParseQtp(TLS *, RPacket *, uint32_t, X509 *, size_t);
+static int TlsExtSrvrParseEarlyData(TLS *, RPacket *, uint32_t, X509 *, size_t);
 static int TlsExtSrvrParseSupportedGroups(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtSrvrParseSupportedVersion(TLS *, RPacket *, uint32_t,
@@ -132,6 +132,11 @@ static const TlsExtParse server_ext_parse[] = {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_CLIENT_HELLO,
         .parse = TlsExtSrvrParseQtp,
+    },
+    {
+        .type = EXT_TYPE_EARLY_DATA,
+        .context = TLSEXT_CLIENT_HELLO,
+        .parse = TlsExtSrvrParseEarlyData,
     },
     {
         .type = EXT_TYPE_PRE_SHARED_KEY,
@@ -435,6 +440,16 @@ static int TlsExtSrvrParseQtp(TLS *s, RPacket *pkt, uint32_t context,
 {
     return TlsParseQtpExtension(s, pkt, server_transport_param,
                                 QUIC_SERVER_TRANS_PARAM_NUM);
+}
+
+static int TlsExtSrvrParseEarlyData(TLS *s, RPacket *pkt, uint32_t context,
+                                    X509 *x, size_t chainidx)
+{
+    if (RPacketRemaining(pkt) != 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 static int

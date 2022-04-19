@@ -487,6 +487,7 @@ int TlsInit(TLS *s, QUIC_CTX *ctx)
     s->lifetime_hint = QUIC_SESSION_TICKET_LIFETIME_HINT_DEF;
     s->max_early_data = ctx->max_early_data;
     s->method = ctx->method->tls_method;
+    s->early_data_state = TLS_EARLY_DATA_NONE;
     if (QuicBufInit(&s->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
         return -1;
     }

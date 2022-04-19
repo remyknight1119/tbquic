@@ -55,6 +55,7 @@ int QuicSessionAsn1Test(void)
     }
 
     sess->cipher = QuicGetTlsCipherById(TLS_CK_AES_256_GCM_SHA384); 
+    sess->max_early_data = 0x8D7F;
     RAND_bytes((void *)&arg, sizeof(arg));
     t = QuicSessionTicketNew(arg.lifetime_hint, arg.age_add, arg.ticket,
                             sizeof(arg.ticket));
@@ -101,6 +102,10 @@ int QuicSessionAsn1Test(void)
     }
 
     if (QuicDataEq(&t->ticket, &rt->ticket) == false) {
+        goto err;
+    }
+
+    if (sess->max_early_data != res->max_early_data) {
         goto err;
     }
 

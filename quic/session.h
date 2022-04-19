@@ -28,6 +28,7 @@ typedef struct {
 struct QuicSession {
     const TlsCipher *cipher;
     uint32_t tick_identity;
+    uint32_t max_early_data;
     int references;
     struct list_head ticket_queue;
 };

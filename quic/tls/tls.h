@@ -96,6 +96,22 @@ typedef enum {
     TLS_ST_MAX,
 } TlsState;
 
+typedef enum {
+    TLS_EARLY_DATA_NONE = 0,
+    TLS_EARLY_DATA_CONNECT_RETRY,
+    TLS_EARLY_DATA_CONNECTING,
+    TLS_EARLY_DATA_WRITE_RETRY,
+    TLS_EARLY_DATA_WRITING,
+    TLS_EARLY_DATA_WRITE_FLUSH,
+    TLS_EARLY_DATA_UNAUTH_WRITING,
+    TLS_EARLY_DATA_FINISHED_WRITING,
+    TLS_EARLY_DATA_ACCEPT_RETRY,
+    TLS_EARLY_DATA_ACCEPTING,
+    TLS_EARLY_DATA_READ_RETRY,
+    TLS_EARLY_DATA_READING,
+    TLS_EARLY_DATA_FINISHED_READING
+} TlsEarlyDataState;
+
 typedef struct {
     uint8_t tick_hmac_key[TLSEXT_TICK_KEY_LENGTH];
     uint8_t tick_aes_key[TLSEXT_TICK_KEY_LENGTH];
@@ -108,6 +124,7 @@ typedef struct {
 
 struct Tls {
     TlsState handshake_state;
+    TlsEarlyDataState early_data_state;
     const TlsMethod *method;
     uint64_t server:1;
     uint64_t alpn_sent:1;
@@ -165,6 +182,7 @@ struct Tls {
         size_t key_share_max_group_idx;
         TlsTicketKey ticket_key;
         uint16_t tick_identity;
+//        uint16_t early_data;
     } ext;
 };
 

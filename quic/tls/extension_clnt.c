@@ -42,19 +42,18 @@ static ExtReturn TlsExtClntConstructPreSharedKey(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 static ExtReturn TlsExtClntConstructUnknown(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
-static int TlsExtClntParseServerName(TLS *, RPacket *, uint32_t,
-                                        X509 *, size_t);
+static int TlsExtClntParseServerName(TLS *, RPacket *, uint32_t, X509 *,
+                                        size_t);
 static int TlsExtClntParseAlpn(TLS *, RPacket *, uint32_t, X509 *, size_t);
 static int TlsExtClntParsePreSharedKey(TLS *, RPacket *, uint32_t, X509 *,
                                         size_t);
 static int TlsExtClntParseSupportedVersion(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
-static int TlsExtClntParseKeyShare(TLS *, RPacket *, uint32_t,
-                                        X509 *, size_t);
-static int TlsExtClntParseTlsExtQtp(TLS *, RPacket *, uint32_t,
-                                        X509 *, size_t);
-static int TlsExtClntParsePsk(TLS *s, RPacket *pkt, 
-                                uint32_t context, X509 *x,
+static int TlsExtClntParseKeyShare(TLS *, RPacket *, uint32_t, X509 *, size_t);
+static int TlsExtClntParseTlsExtQtp(TLS *, RPacket *, uint32_t, X509 *, size_t);
+static int TlsExtClntParseEarlyData(TLS *s, RPacket *pkt, uint32_t context,
+                                X509 *x, size_t chainidx);
+static int TlsExtClntParsePsk(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
                                 size_t chainidx);
 
 static const TlsExtConstruct client_ext_construct[] = {
@@ -144,6 +143,11 @@ static const TlsExtParse client_ext_parse[] = {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_SERVER_HELLO,
         .parse = TlsExtClntParseTlsExtQtp,
+    },
+    {
+        .type = EXT_TYPE_EARLY_DATA, 
+        .context = TLSEXT_NEW_SESSION_TICKET,
+        .parse = TlsExtClntParseEarlyData,
     },
     {
         .type = EXT_TYPE_PRE_SHARED_KEY,
@@ -720,6 +724,24 @@ static int TlsExtClntParsePsk(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
 
     if (identity >= quic->session->tick_identity) {
         return -1;
+    }
+
+    return 0;
+}
+
+static int TlsExtClntParseEarlyData(TLS *s, RPacket *pkt, uint32_t context,
+                                X509 *x, size_t chainidx)
+{
+    QUIC *quic = QuicTlsTrans(s);
+    uint32_t max_early_data = 0;
+
+    if (context == TLSEXT_NEW_SESSION_TICKET) {
+        if (RPacketGet4(pkt, &max_early_data) < 0) {
+            return -1;
+        }
+
+        quic->session->max_early_data = max_early_data;
+        return 0;
     }
 
     return 0;

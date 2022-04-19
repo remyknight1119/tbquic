@@ -14,6 +14,7 @@ ASN1_SEQUENCE(QUIC_SESSION_ASN1) = {
     ASN1_EXP_OPT_EMBED(QUIC_SESSION_ASN1, tick_age_add, ZUINT32, 1),
     ASN1_EXP_OPT_EMBED(QUIC_SESSION_ASN1, tick_lifetime_hint, ZUINT64, 2),
     ASN1_EXP_OPT(QUIC_SESSION_ASN1, tlsext_tick, ASN1_OCTET_STRING, 3),
+    ASN1_EXP_OPT_EMBED(QUIC_SESSION_ASN1, max_early_data, ZUINT32, 4),
 } static_ASN1_SEQUENCE_END(QUIC_SESSION_ASN1)
 
 IMPLEMENT_STATIC_ASN1_ENCODE_FUNCTIONS(QUIC_SESSION_ASN1)
@@ -64,6 +65,7 @@ int i2dQuicSession(QUIC_SESSION *in, uint8_t **pp)
     as.cipher_id = in->cipher->id;
     as.tick_lifetime_hint = t->lifetime_hint;
     as.tick_age_add = t->age_add;
+    as.max_early_data = in->max_early_data;
 
     tk = &t->ticket;
     if (!QuicDataIsEmpty(tk)) {
@@ -99,6 +101,8 @@ QUIC_SESSION *d2iQuicSession(const uint8_t **pp, long length)
     if (sess->cipher == NULL) {
         goto err;
     }
+
+    sess->max_early_data = as->max_early_data;
 
     t = QuicSessionTicketNew(as->tick_lifetime_hint, as->tick_age_add, NULL, 0);
     if (t == NULL) {

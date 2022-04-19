@@ -507,8 +507,8 @@ static QuicFlowReturn TlsClntNewSessionTicketProc(TLS *s, void *packet)
 
     QuicSessionTicketAdd(quic->session, t);
 
-    if (TlsClntParseExtensions(s, pkt, TLSEXT_NEW_SESSION_TICKET,
-                                NULL, 0) < 0) {
+    if (TlsClntParseExtensions(s, pkt, TLSEXT_NEW_SESSION_TICKET, NULL,
+                0) < 0) {
         QUIC_LOG("Parse Extension failed!\n");
         return QUIC_FLOW_RET_ERROR;
     }

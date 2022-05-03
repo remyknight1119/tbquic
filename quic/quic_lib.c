@@ -41,6 +41,19 @@ QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
         goto out;
     }
 
+    ctx->cert_store = X509_STORE_new();
+    if (ctx->cert_store == NULL) {
+        goto out;
+    }
+
+    if ((ctx->ca_names = sk_X509_NAME_new_null()) == NULL) {
+        goto out;
+    }
+
+    if ((ctx->client_ca_names = sk_X509_NAME_new_null()) == NULL) {
+        goto out;
+    }
+
     tk = &ctx->ext.ticket_key;
     if (RAND_bytes(tk->tick_key_name, sizeof(tk->tick_key_name)) <= 0) {
         goto out;
@@ -64,7 +77,12 @@ void QuicCtxFree(QUIC_CTX *ctx)
 {
     QuicDataFree(&ctx->ext.alpn);
     QuicDataFree(&ctx->ext.supported_groups);
+    X509_VERIFY_PARAM_free(ctx->param);
+    sk_X509_NAME_pop_free(ctx->client_ca_names, X509_NAME_free);
+    sk_X509_NAME_pop_free(ctx->ca_names, X509_NAME_free);
+    X509_STORE_free(ctx->cert_store);
     QuicCertFree(ctx->cert);
+
     QuicMemFree(ctx);
 }
 
@@ -125,6 +143,41 @@ int QUIC_CTX_set_max_early_data(QUIC_CTX *ctx, uint32_t max_early_data)
 void QUIC_CTX_set_keylog_callback(QUIC_CTX *ctx, QUIC_CTX_keylog_cb_func cb)
 {
     ctx->keylog_callback = cb;
+}
+
+void QUIC_CTX_set_verify(QUIC_CTX *ctx, uint32_t mode,
+                    QUIC_CTX_verify_callback_func cb)
+{
+    ctx->verify_mode = mode;
+    ctx->verify_callback = cb;
+}
+
+void QUIC_CTX_set_verify_depth(QUIC_CTX *ctx, int depth)
+{
+    X509_VERIFY_PARAM_set_depth(ctx->param, depth);
+}
+
+int QuicCtxLoadVerifyLocations(QUIC_CTX *ctx, const char *CAfile,
+        const char *CApath)
+{
+    return X509_STORE_load_locations(ctx->cert_store, CAfile, CApath);
+}
+
+static void Set0_CA_list(STACK_OF(X509_NAME) **ca_list,
+        STACK_OF(X509_NAME) *name_list)
+{
+    sk_X509_NAME_pop_free(*ca_list, X509_NAME_free);
+    *ca_list = name_list;
+}
+
+void QUIC_CTX_set0_CA_list(QUIC_CTX *ctx, STACK_OF(X509_NAME) *name_list)
+{
+    Set0_CA_list(&ctx->ca_names, name_list);
+}
+
+void QUIC_CTX_set_client_CA_list(QUIC_CTX *ctx, STACK_OF(X509_NAME) *name_list)
+{
+    Set0_CA_list(&ctx->client_ca_names, name_list);
 }
 
 /*
@@ -229,6 +282,11 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     quic->send_fd = -1;
     quic->tls.ext.trans_param = ctx->ext.trans_param;
     quic->ctx = ctx;
+    quic->param = X509_VERIFY_PARAM_new();
+    if (quic->param == NULL) {
+        goto out;
+    }
+    X509_VERIFY_PARAM_inherit(quic->param, ctx->param);
 
     if (QuicConnInit(&quic->conn) < 0) {
         goto out;
@@ -337,6 +395,7 @@ int QuicDoHandshake(QUIC *quic)
 
 void QuicFree(QUIC *quic)
 {
+    X509_VERIFY_PARAM_free(quic->param);
     QuicStreamConfDeInit(&quic->stream);
     list_del(&quic->node);
 

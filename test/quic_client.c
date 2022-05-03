@@ -33,6 +33,7 @@ static const struct option long_opts[] = {
     {"address", 0, 0, 'a'},
     {"port", 0, 0, 'p'},
     {"certificate", 0, 0, 'c'},
+    {"verify-ca", 0, 0, 'v'},
     {"key", 0, 0, 'k'},
     {0, 0, 0, 0}
 };
@@ -41,6 +42,7 @@ static const char *options[] = {
     "--address      		-a	IP address for QUIC communication\n",	
     "--port         		-p	Port for QUIC communication\n",	
     "--certificate  		-c	certificate file\n",	
+    "--verify-ca  		    -v	CA cert which used for verify\n",	
     "--key      		    -k	key file\n",	
     "--help         		-H	Print help information\n",	
 };
@@ -127,8 +129,6 @@ static void help(void)
     }
 }
 
-static const char *optstring = "Ha:p:c:k:";
-
 static int QuicTlsCtxClientExtensionSet(QUIC_CTX *ctx)
 {
     const uint8_t alpn[] = "h3";
@@ -182,9 +182,37 @@ out:
     return ret;
 }
 
+static int QuicVerifyCallback(bool ok, X509_STORE_CTX *ctx)
+{
+    return 1;
+}
+
+static void 
+QuicSetVerify(void *ctx, int mode, char *peer_cf)
+{
+    STACK_OF(X509_NAME)  *list = NULL;
+
+    QUIC_CTX_set_verify(ctx, mode, QuicVerifyCallback);
+    QUIC_CTX_set_verify_depth(ctx, 6);
+
+    if (QuicCtxLoadVerifyLocations(ctx, peer_cf, NULL) == 0) {
+        fprintf(stderr, "Load verify locations %s failed\n", peer_cf);
+        exit(1);
+    }
+    
+    list = QuicLoadClientCaFile(peer_cf);
+    if (list == NULL) {
+        fprintf(stderr, "Load client ca file %s failed\n", peer_cf);
+        exit(1);
+    }
+
+    QUIC_CTX_set_client_CA_list(ctx, list);
+}
+
 QUIC_SESSION *session;
 
-static int QuicClientDo(struct sockaddr_in *addr, char *cert, char *key)
+static int QuicClientDo(struct sockaddr_in *addr, char *cert,
+                            char *key, char *ca)
 {
     QUIC_CTX *ctx = NULL;
     QUIC *quic = NULL;
@@ -214,6 +242,11 @@ static int QuicClientDo(struct sockaddr_in *addr, char *cert, char *key)
     }
 
     QUIC_CTX_set_keylog_callback(ctx, QuicKeyLog);
+
+    if (ca != NULL) {
+        QuicSetVerify(ctx, QUIC_TLS_VERIFY_PEER, ca);
+    }
+
     if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
         goto out;
     }
@@ -318,12 +351,14 @@ out:
     return 0;
 }
 
-static int QuicClient(struct sockaddr_in *addr, char *cert, char *key)
+static int QuicClient(struct sockaddr_in *addr, char *cert, char *key, char *ca)
 {
-    QuicClientDo(addr, cert, key);
+    QuicClientDo(addr, cert, key, ca);
 
-    return QuicClientDo(addr, cert, key);
+    return QuicClientDo(addr, cert, key, ca);
 }
+
+static const char *optstring = "Ha:p:c:k:v:";
 
 int main(int argc, char **argv)  
 {
@@ -331,6 +366,7 @@ int main(int argc, char **argv)
     char *port = NULL;
     char *cert = NULL;
     char *key = NULL;
+    char *ca = NULL;
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
     };
@@ -353,7 +389,9 @@ int main(int argc, char **argv)
             case 'k':
                 key = optarg;
                 break;
-
+            case 'v':
+                ca = optarg;
+                break;
             default:
                 help();
                 return -1;
@@ -375,5 +413,5 @@ int main(int argc, char **argv)
     addr.sin_port = htons(atoi(port));
     addr.sin_addr.s_addr = inet_addr(ip);
 
-    return QuicClient(&addr, cert, key);
+    return QuicClient(&addr, cert, key, ca);
 }

@@ -4,6 +4,8 @@
 
 #include "cert.h"
 
+#include <openssl/pem.h>
+
 #include "quic_local.h"
 #include "mem.h"
 #include "cipher.h"
@@ -246,3 +248,96 @@ int QuicSetCert(QuicCert *c, X509 *x)
     return 0;
 }
 
+static int XnameCmp(const X509_NAME *a, const X509_NAME *b)
+{
+    unsigned char *abuf = NULL, *bbuf = NULL;
+    int alen, blen, ret;
+
+    /* X509_NAME_cmp() itself casts away constness in this way, so
+     * assume it's safe:
+     */
+    alen = i2d_X509_NAME((X509_NAME *)a, &abuf);
+    blen = i2d_X509_NAME((X509_NAME *)b, &bbuf);
+
+    if (alen < 0 || blen < 0) {
+        ret = -2;
+    } else if (alen != blen) {
+        ret = alen - blen;
+    } else {/* alen == blen */
+        ret = QuicMemCmp(abuf, bbuf, alen);
+    }
+
+    OPENSSL_free(abuf);
+    OPENSSL_free(bbuf);
+
+    return ret;
+}
+
+static unsigned long XnameHash(const X509_NAME *a)
+{
+    return X509_NAME_hash((X509_NAME *)a);
+}
+
+STACK_OF(X509_NAME) *QuicLoadClientCaFile(const char *file)
+{
+    BIO *in = NULL;
+    X509 *x = NULL;
+    X509_NAME *xn = NULL;
+    LHASH_OF(X509_NAME) *name_hash = NULL;
+    STACK_OF(X509_NAME) *ret = NULL;
+
+    in = BIO_new(BIO_s_file());
+    if (in == NULL) {
+        goto err;
+    }
+
+    name_hash = lh_X509_NAME_new(XnameHash, XnameCmp);
+    if (name_hash == NULL) {
+        goto err;
+    }
+
+    if (!BIO_read_filename(in, file)) {
+        goto err;
+    }
+
+    for (;;) {
+        if (PEM_read_bio_X509(in, &x, NULL, NULL) == NULL) {
+            break;
+        }
+        if (ret == NULL) {
+            ret = sk_X509_NAME_new_null();
+            if (ret == NULL) {
+                goto err;
+            }
+        }
+        if ((xn = X509_get_subject_name(x)) == NULL) {
+            goto err;
+        }
+        /* check for duplicates */
+        xn = X509_NAME_dup(xn);
+        if (xn == NULL) {
+            goto err;
+        }
+        if (lh_X509_NAME_retrieve(name_hash, xn) != NULL) {
+            /* Duplicate. */
+            X509_NAME_free(xn);
+            xn = NULL;
+        } else {
+            lh_X509_NAME_insert(name_hash, xn);
+            if (!sk_X509_NAME_push(ret, xn)) {
+                goto err;
+            }
+        }
+    }
+    goto done;
+
+err:
+    X509_NAME_free(xn);
+    sk_X509_NAME_pop_free(ret, X509_NAME_free);
+    ret = NULL;
+done:
+    BIO_free(in);
+    X509_free(x);
+    lh_X509_NAME_free(name_hash);
+    return ret;
+}

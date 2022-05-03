@@ -40,6 +40,7 @@
 #define QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE               0x20
 
 typedef void (*QUIC_CTX_keylog_cb_func)(const QUIC *, const char *);
+typedef int (*QUIC_CTX_verify_callback_func)(bool, X509_STORE_CTX *);
 
 enum {
     QUIC_FILE_TYPE_ASN1,
@@ -73,7 +74,16 @@ extern int QUIC_CTX_set_alpn_protos(QUIC_CTX *ctx, const uint8_t *protos,
 extern int QUIC_set_alpn_protos(QUIC *quic, const uint8_t *protos,
                                     size_t protos_len);
 extern int QUIC_CTX_set_max_early_data(QUIC_CTX *ctx, uint32_t max_early_data);
-void QUIC_CTX_set_keylog_callback(QUIC_CTX *ctx, QUIC_CTX_keylog_cb_func cb);
+extern void QUIC_CTX_set_keylog_callback(QUIC_CTX *ctx,
+                        QUIC_CTX_keylog_cb_func cb);
+extern void QUIC_CTX_set_verify(QUIC_CTX *ctx, uint32_t mode,
+                        QUIC_CTX_verify_callback_func cb);
+extern void QUIC_CTX_set_verify_depth(QUIC_CTX *ctx, int depth);
+extern int QuicCtxLoadVerifyLocations(QUIC_CTX *ctx, const char *CAfile,
+                        const char *CApath);
+extern STACK_OF(X509_NAME) *QuicLoadClientCaFile(const char *file);
+extern void QUIC_CTX_set_client_CA_list(QUIC_CTX *ctx,
+                        STACK_OF(X509_NAME) *name_list);
 
 extern int QuicSendPacket(QUIC *quic);
 extern bool QuicWantRead(QUIC *quic);

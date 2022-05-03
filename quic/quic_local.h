@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include <openssl/bio.h>
+#include <openssl/lhash.h>
 #include <tbquic/quic.h>
 
 #include "base.h"
@@ -54,6 +55,11 @@ struct QuicCtx {
     uint32_t max_early_data;
     uint8_t cid_len;
     QuicCert *cert;
+    X509_VERIFY_PARAM *param;
+    X509_STORE *cert_store;
+    STACK_OF(X509_NAME) *ca_names;
+    STACK_OF(X509_NAME) *client_ca_names;
+    QUIC_CTX_verify_callback_func verify_callback;
     QUIC_CTX_keylog_cb_func keylog_callback;
     struct {
         QUIC_DATA alpn;
@@ -105,6 +111,7 @@ struct Quic {
     uint64_t dcid_inited:1;
     uint64_t scid_inited:1;
     const QUIC_CTX *ctx;
+    X509_VERIFY_PARAM *param;
     const QUIC_METHOD *method;
     BIO *rbio;
     BIO *wbio;
@@ -128,6 +135,8 @@ struct Quic {
     QBuffQueueHead rx_queue;
     QBuffQueueHead tx_queue;
 };
+
+DEFINE_LHASH_OF(X509_NAME);
 
 static inline QUIC *QuicTlsTrans(TLS *s)
 {

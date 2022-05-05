@@ -9,4 +9,4 @@ cer=$dir/cert/rsa.pem
 key=$dir/cert/rsa.pem
 
 openssl verify -CAfile $cacer $cer
-./$dir/quic_test -c $cer -k $key 
+sudo ./$dir/quic_test -c $cer -k $key -a $cacer

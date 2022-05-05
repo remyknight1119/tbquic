@@ -19,8 +19,6 @@
 
 #include "common.h"
 
-#define TEST_EVENT_MAX_NUM   10
-#define QUIC_RECORD_MSS_LEN  1250
 #define SEVER_TEST_IOV_NUM 10
 
 static QuicTestBuff QuicServerIovBuf[SEVER_TEST_IOV_NUM];
@@ -62,48 +60,6 @@ static uint8_t appdata1[] =
     "\xc0\x00\x00\x09\x03\x15\xe8\x23\xa8\x51\x09\x24\xc0\x00\x00\x04"
     "\x2f\x0c\x7e\x1f\x02\xf6\x12";
 
-static TlsTestParam test_param[] = {
-    {
-        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_UNI,
-        .value = 0x600000,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE,
-        .value = 0x600000,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_UNI,
-        .value = 103,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_INITIAL_MAX_DATA,
-        .value = 15728640,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT,
-        .value = 600000,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_MAX_UDP_PAYLOAD_SIZE,
-        .value = 1472,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE,
-        .value = 65536,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAMS_BIDI,
-        .value = 100,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL,
-        .value = 6291456,
-    },
-    {
-        .type = QUIC_TRANS_PARAM_INITIAL_SOURCE_CONNECTION_ID,
-    },
-};
-
 static void help(void)
 {
     int     index;
@@ -118,37 +74,7 @@ static void help(void)
 
 static const char *optstring = "Ha:p:c:k:";
 
-static void AddEpollEvent(int epfd, struct epoll_event *ev, int fd)
-{
-    ev->data.fd = fd;
-    ev->events = EPOLLIN;
-    epoll_ctl(epfd, EPOLL_CTL_ADD, fd, ev);
-}
 
-static int QuicCtxServerExtensionSet(QUIC_CTX *ctx)
-{
-    TlsTestParam *p = NULL;
-    const uint8_t alpn[] = "h3";
-    size_t i = 0;
-    int ret = -1;
-
-    for (i = 0; i < ARRAY_SIZE(test_param); i++) {
-        p = &test_param[i];
-        if (p->value == 0) {
-            continue;
-        }
-        QUIC_CTX_set_transport_parameter(ctx, p->type, &p->value, 0);
-    }
-
-    if (QUIC_CTX_set_alpn_protos(ctx, alpn, sizeof(alpn) - 1) < 0) {
-        goto out;
-    }
-
-    ret = 0;
-out:
-    return ret;
-}
- 
 static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
 {
     QUIC_CTX *ctx = NULL;
@@ -157,7 +83,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     QuicTestData *data = stream_data;
     QUIC_STREAM_HANDLE h = -1;
     struct epoll_event ev = {};
-    struct epoll_event events[TEST_EVENT_MAX_NUM] = {};
+    struct epoll_event events[QUIC_TEST_EVENT_MAX_NUM] = {};
     QUIC_STREAM_IOVEC iov[SEVER_TEST_IOV_NUM] = {};
     bool new = false;
     uint32_t mss = QUIC_RECORD_MSS_LEN;
@@ -228,7 +154,7 @@ static int QuicServer(struct sockaddr_in *addr, char *cert, char *key)
     }
 
     while (1) {
-        nfds = epoll_wait(epfd, events, TEST_EVENT_MAX_NUM, -1);
+        nfds = epoll_wait(epfd, events, QUIC_TEST_EVENT_MAX_NUM, -1);
         for (i = 0; i < nfds; i++) {
             if (events[i].events & EPOLLIN) {
                 if ((efd = events[i].data.fd) < 0) {

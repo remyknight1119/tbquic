@@ -46,6 +46,11 @@ QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
         goto out;
     }
 
+    ctx->param = X509_VERIFY_PARAM_new();
+    if (ctx->param == NULL) {
+        goto out;
+    }
+
     if ((ctx->ca_names = sk_X509_NAME_new_null()) == NULL) {
         goto out;
     }
@@ -77,9 +82,9 @@ void QuicCtxFree(QUIC_CTX *ctx)
 {
     QuicDataFree(&ctx->ext.alpn);
     QuicDataFree(&ctx->ext.supported_groups);
-    X509_VERIFY_PARAM_free(ctx->param);
     sk_X509_NAME_pop_free(ctx->client_ca_names, X509_NAME_free);
     sk_X509_NAME_pop_free(ctx->ca_names, X509_NAME_free);
+    X509_VERIFY_PARAM_free(ctx->param);
     X509_STORE_free(ctx->cert_store);
     QuicCertFree(ctx->cert);
 

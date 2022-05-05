@@ -22,6 +22,7 @@ typedef struct FuncTest {
 
 char *quic_cert;
 char *quic_key;
+char *quic_ca;
 
 static QuicFuncTest test_funcs[] = {
     {
@@ -104,6 +105,10 @@ static QuicFuncTest test_funcs[] = {
         .test = QuicDecryptStatelessTicket,
         .err_msg = "Decrypt Stateless Ticket",
     },
+    {
+        .test = QuicHandshakeTest,
+        .err_msg = "QUIC Handshake",
+    },
 };
 
 #define QUIC_FUNC_TEST_NUM QUIC_NELEM(test_funcs)
@@ -153,12 +158,14 @@ static const struct option long_opts[] = {
     {"help", 0, 0, 'H'},
     {"certificate", 0, 0, 'c'},
     {"key", 0, 0, 'k'},
+    {"ca", 0, 0, 'a'},
     {0, 0, 0, 0}
 };
 
 static const char *options[] = {
     "--certificate  		-c	certificate file\n",	
     "--key      		    -k	key file\n",	
+    "--ca      		        -a	ca certificate file\n",	
     "--help         		-H	Print help information\n",	
 };
 
@@ -174,7 +181,7 @@ static void help(void)
     }
 }
 
-static const char *optstring = "Ha:p:c:k:";
+static const char *optstring = "Ha:c:k:";
 
 
 int main(int argc, char **argv)
@@ -196,7 +203,9 @@ int main(int argc, char **argv)
             case 'k':
                 quic_key = optarg;
                 break;
-
+            case 'a':
+                quic_ca = optarg;
+                break;
             default:
                 help();
                 return -1;
@@ -210,6 +219,11 @@ int main(int argc, char **argv)
 
     if (quic_key == NULL) {
         fprintf(stderr, "please input key file by -k\n");
+        return -1;
+    }
+
+    if (quic_ca == NULL) {
+        fprintf(stderr, "please input ca certificate file by -a\n");
         return -1;
     }
 

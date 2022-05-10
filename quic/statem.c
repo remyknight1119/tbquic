@@ -118,6 +118,69 @@ QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
     return 0;
 }
 
+static QuicFlowReturn
+QuicHandshakeRead(QUIC *quic, const QuicStatemMachine *sm)
+{
+    return QUIC_FLOW_RET_FINISH;
+}
+
+static QuicFlowReturn
+QuicHandshakeWrite(QUIC *quic, const QuicStatemMachine *sm)
+{
+    return QUIC_FLOW_RET_FINISH;
+}
+
+int
+QuicDoStateMachine(QUIC *quic, const QuicStatemMachine *statem, size_t num)
+{
+    QUIC_STATEM *st = &quic->statem;
+    const QuicStatemMachine *sm = NULL;
+    QuicStatem state = QUIC_STATEM_INITIAL;
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+
+    while (st->state != QUIC_STATEM_HANDSHAKE_DONE) {
+        state = st->state;
+        sm = &statem[state];
+        switch (sm->rw_state) {
+            case QUIC_NOTHING:
+                ret = QUIC_FLOW_RET_FINISH;
+                break;
+            case QUIC_READING:
+                ret = QuicHandshakeRead(quic, sm);
+                break;
+            case QUIC_WRITING:
+                ret = QuicHandshakeWrite(quic, sm);
+                break;
+            default:
+                QUIC_LOG("Unknown state(%d)\n", sm->rw_state);
+                return -1;
+        }
+
+        if (ret == QUIC_FLOW_RET_STOP) {
+            st->rwstate = sm->rw_state;
+            return -1;
+        }
+
+        if (ret == QUIC_FLOW_RET_ERROR) {
+            goto err;
+        }
+
+        if (sm->post_work != NULL && sm->post_work(quic) < 0) {
+            goto err;
+        }
+
+        if (state == st->state) {
+            st->state = sm->next_state;
+        }
+        assert(st->state >= 0 && st->state < num);
+    }
+
+    return 0;
+err:
+    st->rwstate = QUIC_NOTHING;
+    return -1;
+}
+
 static int
 QuicLongPktParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags, uint8_t type,
                     QUIC_DATA *new_dcid, bool *update_dcid)

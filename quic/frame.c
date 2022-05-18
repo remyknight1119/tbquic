@@ -1309,6 +1309,7 @@ int QuicCryptoFrameBuild(QUIC *quic, uint32_t pkt_type)
     }
 
     if (WPacket_get_written(&pkt)) {
+            QUIC_LOG("Add frame queue\n");
         if (QuicFrameAddQueue(quic, &pkt, qb) < 0) {
             QUIC_LOG("Add frame queue failed\n");
             goto out;

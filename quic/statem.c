@@ -14,6 +14,7 @@
 #include "q_buff.h"
 #include "mem.h"
 #include "common.h"
+#include "frame.h"
 #include "log.h"
 
 int QuicStatemReadBytes(QUIC *quic, RPacket *pkt)
@@ -29,6 +30,47 @@ int QuicStatemReadBytes(QUIC *quic, RPacket *pkt)
 
     RPacketBufInit(pkt, buf->data, rlen);
     return 0;
+}
+
+static int QuicPktParse(QUIC *quic, RPacket *pkt)
+{
+    const uint8_t *stateless_reset_token = NULL;
+    QUIC_DATA new_dcid = {};
+    QuicPacketFlags flags;
+    bool update_dcid = false;
+    uint64_t offset = 0;
+    uint32_t type = 0;
+
+    if (QuicGetPktFlags(&flags, pkt) < 0) {
+        return -1;
+    }
+
+    offset = RPacketRemaining(pkt) - QUIC_STATELESS_RESET_TOKEN_LEN;
+    if (QUIC_GT(offset, 0)) {
+        stateless_reset_token = RPacketData(pkt) + offset;
+    }
+
+    if (QuicPktHeaderParse(quic, pkt, flags, &type, &new_dcid,
+                            &update_dcid) < 0) {
+        QUIC_LOG("Header parse failed\n");
+        goto err;
+    }
+
+    if (QuicPktBodyParse(quic, pkt, type) < 0) {
+        QUIC_LOG("Body parse failed\n");
+        goto err;
+    }
+
+    if (update_dcid && QuicUpdateDcid(quic, &new_dcid, type) < 0) {
+        QUIC_LOG("Update DCID failed\n");
+        return -1;
+    }
+
+    return 0;
+err:
+
+    QuicCheckStatelessResetToken(quic, stateless_reset_token);
+    return -1;
 }
 
 static int
@@ -118,47 +160,156 @@ QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
     return 0;
 }
 
-static QuicFlowReturn
-QuicHandshakeRead(QUIC *quic, const QuicStatemMachine *sm)
+static void
+QuicInitTlsReadBuffer(QUIC *quic, RPacket *pkt)
 {
+    QUIC_BUFFER *buffer = QUIC_TLS_BUFFER(quic);
+    size_t data_len = 0;
+
+    /*
+     * Read buffer:
+     *                                       second
+     * |------------ first read -----------| read  |
+     * ---------------------------------------------
+     * | prev message | new message seg 1  | seg 2 |
+     * ---------------------------------------------
+     * |--- offset ---|
+     * |------------- total data len --------------|
+     *                |--- new message data len ---|
+     */
+    data_len = QuicBufGetDataLength(buffer) - QuicBufGetOffset(buffer);
+    assert(QUIC_GE(data_len, 0));
+    RPacketBufInit(pkt, QuicBufMsg(buffer), data_len);
+}
+
+static void
+QuicInitTlsWriteBuffer(QUIC *quic, WPacket *pkt)
+{
+    QUIC_BUFFER *buffer = QUIC_TLS_BUFFER(quic);
+
+    WPacketBufInit(pkt, buffer->buf);
+}
+
+static QuicFlowReturn
+QuicRecvPacket(QUIC *quic)
+{
+    RPacket pkt = {};
+    int rlen = 0;
+
+    rlen = quic->method->read_bytes(quic, &pkt);
+    if (rlen < 0) {
+        return QUIC_FLOW_RET_STOP;
+    }
+
+    if (QuicPktParse(quic, &pkt) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
     return QUIC_FLOW_RET_FINISH;
 }
 
 static QuicFlowReturn
-QuicHandshakeWrite(QUIC *quic, const QuicStatemMachine *sm)
+QuicHandshakeRead(QUIC *quic, QuicStatem *st, const QuicStatemMachine *statem,
+                    size_t num, RPacket *pkt, bool *skip)
 {
-    return QUIC_FLOW_RET_FINISH;
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+
+    while (1) {
+        if (RPacketRemaining(pkt) == 0) {
+            ret = QuicRecvPacket(quic);
+            if (ret != QUIC_FLOW_RET_FINISH) {
+                return ret;
+            }
+
+            QuicInitTlsReadBuffer(quic, pkt);
+            if (RPacketRemaining(pkt) == 0) {
+                continue;
+            }
+        } else {
+            RPacketUpdate(pkt);
+        }
+
+        ret = TlsHandshakeMsgRead(&quic->tls, st, statem, num, pkt, skip);
+        if (ret != QUIC_FLOW_RET_WANT_READ) {
+            return ret;
+        }
+    }
+
+    return ret;
+}
+
+static QuicFlowReturn
+QuicHandshakeWrite(QUIC *quic, const QuicStatemMachine *sm, WPacket *pkt)
+{
+    QUIC_BUFFER *buffer = QUIC_TLS_BUFFER(quic);
+    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+
+    ret = TlsHandshakeMsgWrite(&quic->tls, sm, pkt);
+    if (ret == QUIC_FLOW_RET_NEXT) {
+        QuicBufSetDataLength(buffer, WPacket_get_written(pkt));
+        WPacketCleanup(pkt);
+        if (QuicCryptoFrameBuild(quic, sm->pkt_type) < 0) {
+            return QUIC_FLOW_RET_ERROR;
+        }
+    }
+
+    return ret;
 }
 
 int
-QuicDoStateMachine(QUIC *quic, const QuicStatemMachine *statem, size_t num)
+QuicHandshakeStatem(QUIC *quic, const QuicStatemMachine *statem, size_t num)
 {
     QUIC_STATEM *st = &quic->statem;
     const QuicStatemMachine *sm = NULL;
+    RPacket rpkt = {};
+    WPacket wpkt = {};
+    bool skip_state = false;
     QuicStatem state = QUIC_STATEM_INITIAL;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+    int res = -1;
 
-    while (st->state != QUIC_STATEM_HANDSHAKE_DONE) {
+    QuicInitTlsReadBuffer(quic, &rpkt);
+    QuicInitTlsWriteBuffer(quic, &wpkt);
+
+    while (st->state < QUIC_STATEM_HANDSHAKE_DONE) {
         state = st->state;
+        assert(state >= 0 && state < num);
+
+        QUIC_LOG("state = %d\n", state);
         sm = &statem[state];
+        skip_state = false;
+
+        if (sm->pre_work != NULL && sm->pre_work(quic) < 0) {
+            goto err;
+        }
+
         switch (sm->rw_state) {
             case QUIC_NOTHING:
                 ret = QUIC_FLOW_RET_FINISH;
                 break;
             case QUIC_READING:
-                ret = QuicHandshakeRead(quic, sm);
+                ret = QuicHandshakeRead(quic, &st->state, statem, num,
+                                            &rpkt, &skip_state);
                 break;
             case QUIC_WRITING:
-                ret = QuicHandshakeWrite(quic, sm);
+                ret = QuicHandshakeWrite(quic, sm, &wpkt);
                 break;
+            case QUIC_FINISHED:
+                res = 0;
+                goto out;
             default:
                 QUIC_LOG("Unknown state(%d)\n", sm->rw_state);
                 return -1;
         }
 
+        if (ret == QUIC_FLOW_RET_CONT) {
+            continue;
+        }
+
+        sm = &statem[st->state];
         if (ret == QUIC_FLOW_RET_STOP) {
             st->rwstate = sm->rw_state;
-            return -1;
+            goto out;
         }
 
         if (ret == QUIC_FLOW_RET_ERROR) {
@@ -169,13 +320,21 @@ QuicDoStateMachine(QUIC *quic, const QuicStatemMachine *statem, size_t num)
             goto err;
         }
 
-        if (state == st->state) {
+        if (state == st->state || skip_state) {
             st->state = sm->next_state;
         }
-        assert(st->state >= 0 && st->state < num);
     }
 
-    return 0;
+    res = 0;
+out:
+
+    if (st->state == QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE) {
+        QuicDataHandshakeDoneFrameBuild(quic, 0, QUIC_PKT_TYPE_1RTT);
+        QUIC_LOG("hhhhhhhhhhhhhhhhhhhhhhhhhhandshake done\n");
+        st->state = QUIC_STATEM_HANDSHAKE_DONE;
+    }
+
+    return res;
 err:
     st->rwstate = QUIC_NOTHING;
     return -1;
@@ -238,6 +397,21 @@ int QuicInitialSend(QUIC *quic)
     }
 
     return 0;
+}
+
+int QuicInitialPktBuild(QUIC *quic)
+{
+    return QuicCryptoFrameBuild(quic, QUIC_PKT_TYPE_INITIAL);
+}
+
+int QuicHandshakePktBuild(QUIC *quic)
+{
+    return QuicCryptoFrameBuild(quic, QUIC_PKT_TYPE_HANDSHAKE);
+}
+
+int QuicOneRttPktBuild(QUIC *quic)
+{
+    return QuicCryptoFrameBuild(quic, QUIC_PKT_TYPE_1RTT);
 }
 
 QuicFlowReturn QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)

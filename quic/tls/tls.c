@@ -53,6 +53,7 @@ TlsHandshakeMsgRetrans(TlsMessageType type, TlsState state,
     return false;
 }
 
+
 static QuicFlowReturn
 TlsHandshakeRead(TLS *s, const TlsProcess *p, RPacket *pkt,
                     const TlsProcess *proc, size_t num)
@@ -141,6 +142,148 @@ TlsHandshakeRead(TLS *s, const TlsProcess *p, RPacket *pkt,
     return ret;
 }
 
+static bool
+TlsHandshakeRetransMsg(TlsMessageType type, QuicStatem state,
+                const QuicStatemMachine *statem, size_t num)
+{
+    const QuicStatemMachine *sm = NULL;
+    size_t i = 0;
+
+    for (i = 0; i < state; i++) {
+        sm = &statem[i];
+        if (sm->rw_state != QUIC_READING) {
+            continue;
+        }
+        
+        if (sm->msg_type == type) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+QuicFlowReturn
+TlsHandshakeMsgRead(TLS *s, QuicStatem *state, const QuicStatemMachine *statem,
+                    size_t num, RPacket *pkt, bool *skip)
+{
+    const QuicStatemMachine *sm = NULL;
+    RPacket packet = {};
+    RPacket msg = {};
+    size_t remain = 0;
+    uint32_t type = 0;
+    uint32_t len = 0;
+    int offset = 0;
+
+    sm = &statem[*state];
+    if (sm->handshake == NULL) {
+        QUIC_LOG("No handler func found\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    packet = *pkt;
+    if (RPacketGet1(pkt, &type) < 0) {
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    *skip = false;
+    while (type != sm->msg_type) {
+        if (sm->skip_check != NULL && sm->skip_check(s) == 0) {
+            *state = sm->next_state;
+            sm = &statem[*state];
+            QUIC_LOG("Optional state %d, skip\n", *state);
+            *skip = true;
+            continue;
+        }
+        QUIC_LOG("type not match(%u : %u)\n", sm->msg_type, type);
+        if (TlsHandshakeRetransMsg(type, *state, statem, num)) {
+            QUIC_LOG("retrans\n");
+            if (RPacketGet3(pkt, &len) < 0) {
+                return QUIC_FLOW_RET_ERROR;
+            }
+
+            if (RPacketPull(pkt, len) < 0) {
+                return QUIC_FLOW_RET_ERROR;
+            }
+
+            return QUIC_FLOW_RET_WANT_READ;
+        }
+
+        QuicPrint(RPacketData(pkt), RPacketRemaining(pkt));
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGet3(pkt, &len) < 0) {
+        *pkt = packet;
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+
+    offset = remain - RPacketRemaining(pkt);
+    assert(offset > 0);
+
+    if (RPacketTransfer(&msg, pkt, len) < 0) {
+        *pkt = packet;
+        return QUIC_FLOW_RET_WANT_READ;
+    }
+ 
+    if (type == TLS_MT_FINISHED) {
+        if (TlsTakeMac(s) < 0) {
+            return QUIC_FLOW_RET_ERROR;
+        }
+    }
+
+    RPacketHeadPush(&msg, offset);
+    if (TlsFinishMac(s, RPacketHead(&msg), RPacketTotalLen(&msg)) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return sm->handshake(s, &msg);
+}
+
+QuicFlowReturn
+TlsHandshakeMsgWrite(TLS *s, const QuicStatemMachine *sm, WPacket *pkt)
+{
+    uint8_t *msg = NULL;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
+    size_t msg_len = 0;
+    size_t wlen = 0;
+
+    if (sm->handshake == NULL) {
+        QUIC_LOG("No handler func found\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    msg = WPacket_get_curr(pkt);
+    wlen = WPacket_get_written(pkt);
+    if (WPacketPut1(pkt, sm->msg_type) < 0) {
+        QUIC_LOG("Put Message type failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    /* TLS handshake message length 3 byte */
+    if (WPacketStartSubU24(pkt) < 0) { 
+        return QUIC_FLOW_RET_ERROR;
+    }
+ 
+    ret = sm->handshake(s, pkt);
+    if (ret == QUIC_FLOW_RET_ERROR) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    msg_len = WPacket_get_written(pkt) - wlen;
+    assert(QUIC_GT(msg_len, 0));
+    if (TlsFinishMac(s, msg, msg_len) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return ret;
+}
+
 static QuicFlowReturn
 TlsHandshakeWrite(TLS *s, const TlsProcess *p, WPacket *pkt)
 {
@@ -206,7 +349,7 @@ TlsHandshakeStatem(TLS *s, RPacket *rpkt, WPacket *wpkt,
         switch (p->flow_state) {
             case QUIC_FLOW_NOTHING:
                 s->handshake_state = p->next_state;
-                ret = QUIC_FLOW_RET_CONTINUE;
+                ret = QUIC_FLOW_RET_CONT;
                 break;
             case QUIC_FLOW_READING:
                 ret = TlsHandshakeRead(s, p, rpkt, proc, num);

@@ -20,7 +20,7 @@ typedef enum {
     QUIC_FLOW_RET_NEXT,
     QUIC_FLOW_RET_WANT_READ,
     QUIC_FLOW_RET_WANT_WRITE,
-    QUIC_FLOW_RET_CONTINUE,
+    QUIC_FLOW_RET_CONT,
     QUIC_FLOW_RET_FINISH,
     QUIC_FLOW_RET_DROP,
     QUIC_FLOW_RET_END,
@@ -112,15 +112,14 @@ typedef enum {
 } TlsMessageType;
 
 typedef struct {
-    QuicStatem state;
     QuicStatem next_state;
     QuicReadWriteState rw_state;
     TlsMessageType msg_type;
-    QuicFlowReturn (*handler)(QUIC *, void *);
     QuicFlowReturn (*handshake)(TLS *, void *);
+    int (*pre_work)(QUIC *);
     int (*post_work)(QUIC *);
-    int (*skip_check)(QUIC *);
-    QuicFlowReturn (*pkt_proc)(QUIC *);
+    int (*skip_check)(TLS *);
+    uint32_t pkt_type;
 } QuicStatemMachine;
 
 typedef struct {
@@ -134,8 +133,12 @@ QuicFlowReturn QuicPacketDrainingRecv(QUIC *, RPacket *, QuicPacketFlags);
 QuicFlowReturn QuicPacketRead(QUIC *, RPacket *, QuicPacketFlags);
 int QuicInitialSend(QUIC *);
 int QuicStateMachineAct(QUIC *, const QuicStatemFlow *, size_t);
+int QuicHandshakeStatem(QUIC *, const QuicStatemMachine *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
 int QuicStatemReadBytes(QUIC *, RPacket *);
+int QuicInitialPktBuild(QUIC *);
+int QuicHandshakePktBuild(QUIC *);
+int QuicOneRttPktBuild(QUIC *);
 
 #endif

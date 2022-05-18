@@ -184,6 +184,11 @@ QuicFlowReturn TlsDoHandshake(TLS *);
 int TlsDoProcess(TLS *, RPacket *, WPacket *, const TlsProcess *,
                         size_t);
 QuicFlowReturn TlsHandshake(TLS *, const TlsProcess *, size_t);
+QuicFlowReturn TlsHandshakeMsgRead(TLS *, QuicStatem *,
+                    const QuicStatemMachine *, size_t,
+                    RPacket *, bool *);
+QuicFlowReturn TlsHandshakeMsgWrite(TLS *, const QuicStatemMachine *,
+                    WPacket *);
 int TlsGenRandom(uint8_t *, size_t, WPacket *);
 
 int TlsHelloHeadParse(TLS *, RPacket *, uint8_t *, size_t);
@@ -192,9 +197,21 @@ int TlsPutCipherList(TLS *, WPacket *);
 int TlsPutCompressionMethod(WPacket *);
 int TlsConstructCertVerify(TLS *, WPacket *);
 int TlsFinishedCheck(TLS *, RPacket *);
+QuicFlowReturn TlsServerHelloProc(TLS *, void *);
+QuicFlowReturn TlsClntEncExtProc(TLS *, void *);
+QuicFlowReturn TlsCertRequestProc(TLS *, void *);
+QuicFlowReturn TlsServerCertProc(TLS *, void *);
+QuicFlowReturn TlsCertVerifyProc(TLS *, void *);
+QuicFlowReturn TlsClntFinishedProc(TLS *, void *);
 QuicFlowReturn TlsCertChainBuild(TLS *s, WPacket *, QuicCertPkey *,
                                 TlsExtConstructor);
 QuicFlowReturn TlsCertVerifyBuild(TLS *s, WPacket *pkt);
+QuicFlowReturn TlsClntHelloBuild(TLS *, void *);
 QuicFlowReturn TlsFinishedBuild(TLS *, void *);
+QuicFlowReturn TlsClntFinishedBuild(TLS *, void *);
+QuicFlowReturn TlsClntNewSessionTicketProc(TLS *, void *);
+int TlsClntSkipCheckCertRequest(TLS *);
+int TlsClntSkipCheckServerCert(TLS *);
+int TlsClntSkipCheckCertVerify(TLS *);
 
 #endif

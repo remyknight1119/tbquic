@@ -82,7 +82,7 @@ static int QuicClientDo(struct sockaddr_in *addr, char *cert,
     QUIC_STREAM_IOVEC iov[CLIENT_TEST_IOV_NUM] = {};
     int sockfd = 0;
     int i = 0;
-    int ret = 0;
+    int ret = -1;
     int cnt = 0;
     int err = 0;
 
@@ -204,18 +204,22 @@ static int QuicClientDo(struct sockaddr_in *addr, char *cert,
     if (cnt < 0) {
     }
 
+    ret = 0;
 out:
     QuicFree(quic);
     QuicCtxFree(ctx);
     close(sockfd);
 
-    return 0;
+    return ret;
 }
 
 static int QuicClient(struct sockaddr_in *addr, char *cert, char *key, char *ca)
 {
-    QuicClientDo(addr, cert, key, ca);
+    if (QuicClientDo(addr, cert, key, ca) < 0) {
+        return -1;
+    }
 
+    printf("=========================Session reuse=========================\n");
     return QuicClientDo(addr, cert, key, ca);
 }
 

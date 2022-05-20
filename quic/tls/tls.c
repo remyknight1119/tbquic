@@ -181,21 +181,22 @@ TlsHandshakeMsgRead(TLS *s, QuicStatem *state, const QuicStatemMachine *statem,
         return QUIC_FLOW_RET_ERROR;
     }
 
+    remain = RPacketRemaining(pkt);
     packet = *pkt;
     if (RPacketGet1(pkt, &type) < 0) {
         return QUIC_FLOW_RET_WANT_READ;
     }
 
-    *skip = false;
     while (type != sm->msg_type) {
         if (sm->skip_check != NULL && sm->skip_check(s) == 0) {
+            QUIC_LOG("Skip optional state \"%s\"\n", QuicStatStrGet(*state));
             *state = sm->next_state;
             sm = &statem[*state];
-            QUIC_LOG("Optional state %d, skip\n", *state);
             *skip = true;
+            QUIC_LOG("Enter state \"%s\"\n", QuicStatStrGet(*state));
             continue;
         }
-        QUIC_LOG("type not match(%u : %u)\n", sm->msg_type, type);
+        QUIC_LOG("type not match(target : %u, msg: %u)\n", sm->msg_type, type);
         if (TlsHandshakeRetransMsg(type, *state, statem, num)) {
             QUIC_LOG("retrans\n");
             if (RPacketGet3(pkt, &len) < 0) {
@@ -215,6 +216,7 @@ TlsHandshakeMsgRead(TLS *s, QuicStatem *state, const QuicStatemMachine *statem,
 
     if (RPacketGet3(pkt, &len) < 0) {
         *pkt = packet;
+        QUIC_LOG("Read len failed\n");
         return QUIC_FLOW_RET_WANT_READ;
     }
 

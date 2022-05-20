@@ -31,7 +31,7 @@ typedef int (*QuicStatemPreWork)(QUIC *);
 
 typedef enum {
 	QUIC_STATEM_INITIAL = 0,
-    QUIC_STATEM_TLS_ST_OK,
+    QUIC_STATEM_TLS_ST_OK = 0,
     QUIC_STATEM_TLS_ST_CW_CLIENT_HELLO,
     QUIC_STATEM_TLS_ST_CW_CLIENT_CERTIFICATE,
     QUIC_STATEM_TLS_ST_CW_CERT_VERIFY,
@@ -140,5 +140,6 @@ int QuicStatemReadBytes(QUIC *, RPacket *);
 int QuicInitialPktBuild(QUIC *);
 int QuicHandshakePktBuild(QUIC *);
 int QuicOneRttPktBuild(QUIC *);
+const char *QuicStatStrGet(QuicStatem);
 
 #endif

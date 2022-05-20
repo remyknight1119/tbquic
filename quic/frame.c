@@ -197,7 +197,7 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c,
         QuicAckFrameBuild(quic, pkt_type);
     }
 
-    if (crypto_found) {
+    if (crypto_found && quic->quic_server) {
         if (quic->tls.handshake_state != TLS_ST_HANDSHAKE_DONE) {
             ret = TlsDoHandshake(&quic->tls);
             if (ret == QUIC_FLOW_RET_ERROR) {
@@ -1309,7 +1309,6 @@ int QuicCryptoFrameBuild(QUIC *quic, uint32_t pkt_type)
     }
 
     if (WPacket_get_written(&pkt)) {
-            QUIC_LOG("Add frame queue\n");
         if (QuicFrameAddQueue(quic, &pkt, qb) < 0) {
             QUIC_LOG("Add frame queue failed\n");
             goto out;

@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "mem.h"
 #include "common.h"
@@ -25,17 +26,26 @@ void RPacketHeadSync(RPacket *pkt)
     pkt->head = pkt->curr;
 }
 
-void RPacketBufInit(RPacket *pkt, const uint8_t *buf, size_t len)
+static void RPacketInit(RPacket *pkt, const uint8_t *buf, size_t len, bool init)
 {
     pkt->curr = buf;
     pkt->total_len = len;
     pkt->remaining = len;
 
     RPacketHeadSync(pkt);
+    if (init) {
+        pkt->origin = buf;
+    }
+}
+
+void RPacketBufInit(RPacket *pkt, const uint8_t *buf, size_t len)
+{
+    RPacketInit(pkt, buf, len, true);
 }
 
 size_t RPacketReadLen(const RPacket *pkt)
 {
+    return (pkt->curr - pkt->origin);
     return (pkt->curr - pkt->head);
 }
 
@@ -76,7 +86,7 @@ const uint8_t *RPacketData(const RPacket *pkt)
 
 void RPacketUpdate(RPacket *pkt)
 {
-    RPacketBufInit(pkt, RPacketData(pkt), RPacketRemaining(pkt));
+    RPacketInit(pkt, RPacketData(pkt), RPacketRemaining(pkt), false);
 }
 
 int RPacketPull(RPacket *pkt, size_t len)
@@ -246,7 +256,7 @@ int RPacketTransfer(RPacket *child, RPacket *parent, size_t len)
         return -1;
     }
 
-    RPacketBufInit(child, RPacketData(parent), len);
+    RPacketInit(child, RPacketData(parent), len, false);
     RPacketForward(parent, len);
 
     return 0;

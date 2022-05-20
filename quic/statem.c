@@ -17,6 +17,55 @@
 #include "frame.h"
 #include "log.h"
 
+static const char *QuicStateStr[QUIC_STATEM_MAX] = {
+    [QUIC_STATEM_TLS_ST_OK] = "TLS State OK",
+    [QUIC_STATEM_TLS_ST_CW_CLIENT_HELLO] = "Client Write ClientHello",
+    [QUIC_STATEM_TLS_ST_CW_CLIENT_CERTIFICATE] = "Client Write Client Cert",
+    [QUIC_STATEM_TLS_ST_CW_CERT_VERIFY] = "Client Write Cert Verify",
+    [QUIC_STATEM_TLS_ST_CW_FINISHED] = "Client Write Finished",
+    [QUIC_STATEM_TLS_ST_CR_SERVER_HELLO] = "Client Read ServerHello",
+    [QUIC_STATEM_TLS_ST_CR_ENCRYPTED_EXTENSIONS] = "Client Read Enc Ext",
+    [QUIC_STATEM_TLS_ST_CR_CERT_REQUEST] = "Client Read Cert Request",
+    [QUIC_STATEM_TLS_ST_CR_SERVER_CERTIFICATE] = "Client Read Server Cert",
+    [QUIC_STATEM_TLS_ST_CR_CERT_VERIFY] = "Client Read Cert Verify",
+    [QUIC_STATEM_TLS_ST_CR_FINISHED] = "Client Read Finished",
+    [QUIC_STATEM_TLS_ST_CR_NEW_SESSION_TICKET] = "Client Read New Sess ticket",
+#if 0
+    QUIC_STATEM_TLS_ST_SR_CLIENT_HELLO,
+    QUIC_STATEM_TLS_ST_SR_CLIENT_CERTIFICATE,
+    QUIC_STATEM_TLS_ST_SR_CERT_VERIFY,
+    QUIC_STATEM_TLS_ST_SR_FINISHED,
+    QUIC_STATEM_TLS_ST_SW_SERVER_HELLO,
+    QUIC_STATEM_TLS_ST_SW_ENCRYPTED_EXTENSIONS,
+    QUIC_STATEM_TLS_ST_SW_CERT_REQUEST,
+    QUIC_STATEM_TLS_ST_SW_SERVER_CERTIFICATE,
+    QUIC_STATEM_TLS_ST_SW_CERT_VERIFY,
+    QUIC_STATEM_TLS_ST_SW_FINISHED,
+    QUIC_STATEM_TLS_ST_SW_NEW_SESSION_TICKET,
+    QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE,
+	QUIC_STATEM_HANDSHAKE_DONE,
+	QUIC_STATEM_CLOSING,
+	QUIC_STATEM_DRAINING,
+	QUIC_STATEM_CLOSED,
+#endif
+};
+
+const char *QuicStatStrGet(QuicStatem state)
+{
+    const char *str = NULL;
+
+    if (state < 0 || state >= QUIC_STATEM_MAX) {
+        return "";
+    }
+
+    str = QuicStateStr[state];
+    if (str == NULL) {
+        str = "";
+    }
+
+    return str;
+}
+
 int QuicStatemReadBytes(QUIC *quic, RPacket *pkt)
 {
     QUIC_DATA *buf = quic->read_buf;
@@ -191,17 +240,20 @@ QuicInitTlsWriteBuffer(QUIC *quic, WPacket *pkt)
 }
 
 static QuicFlowReturn
-QuicRecvPacket(QUIC *quic)
+QuicRecvPacket(QUIC *quic, RPacket *pkt)
 {
-    RPacket pkt = {};
     int rlen = 0;
 
-    rlen = quic->method->read_bytes(quic, &pkt);
-    if (rlen < 0) {
-        return QUIC_FLOW_RET_STOP;
+    if (RPacketRemaining(pkt) == 0) {
+        rlen = quic->method->read_bytes(quic, pkt);
+        if (rlen < 0) {
+            return QUIC_FLOW_RET_STOP;
+        }
+    } else {
+        RPacketUpdate(pkt);
     }
 
-    if (QuicPktParse(quic, &pkt) < 0) {
+    if (QuicPktParse(quic, pkt) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
@@ -209,14 +261,19 @@ QuicRecvPacket(QUIC *quic)
 }
 
 static QuicFlowReturn
-QuicHandshakeRead(QUIC *quic, QuicStatem *st, const QuicStatemMachine *statem,
-                    size_t num, RPacket *pkt, bool *skip)
+QuicHandshakeRead(QUIC *quic, QuicStatem *state, const QuicStatemMachine *statem,
+                    size_t num, RPacket *pkt, RPacket *qpkt, bool *skip)
 {
-    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
+    QUIC_BUFFER *buffer = QUIC_TLS_BUFFER(quic);
+    bool missing_data = false;
+    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
 
-    while (1) {
-        if (RPacketRemaining(pkt) == 0) {
-            ret = QuicRecvPacket(quic);
+    while (*state < QUIC_STATEM_HANDSHAKE_DONE) {
+        if (RPacketRemaining(pkt) == 0 || missing_data) {
+            if (RPacketRemaining(pkt) == 0) {
+                QuicBufResetDataLength(buffer);
+            }
+            ret = QuicRecvPacket(quic, qpkt);
             if (ret != QUIC_FLOW_RET_FINISH) {
                 return ret;
             }
@@ -225,11 +282,22 @@ QuicHandshakeRead(QUIC *quic, QuicStatem *st, const QuicStatemMachine *statem,
             if (RPacketRemaining(pkt) == 0) {
                 continue;
             }
+            missing_data = false;
         } else {
             RPacketUpdate(pkt);
         }
 
-        ret = TlsHandshakeMsgRead(&quic->tls, st, statem, num, pkt, skip);
+        ret = TlsHandshakeMsgRead(&quic->tls, state, statem, num, pkt, skip);
+        if ((ret == QUIC_FLOW_RET_WANT_READ || ret == QUIC_FLOW_RET_NEXT) &&
+                RPacketRemaining(pkt)) {
+            if (QuicBufAddOffset(buffer, RPacketReadLen(pkt)) < 0) {
+                return QUIC_FLOW_RET_ERROR;
+            }
+            missing_data = true;
+        } else {
+            QuicBufResetOffset(buffer);
+        }
+
         if (ret != QUIC_FLOW_RET_WANT_READ) {
             return ret;
         }
@@ -245,12 +313,19 @@ QuicHandshakeWrite(QUIC *quic, const QuicStatemMachine *sm, WPacket *pkt)
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
 
     ret = TlsHandshakeMsgWrite(&quic->tls, sm, pkt);
-    if (ret == QUIC_FLOW_RET_NEXT) {
-        QuicBufSetDataLength(buffer, WPacket_get_written(pkt));
-        WPacketCleanup(pkt);
-        if (QuicCryptoFrameBuild(quic, sm->pkt_type) < 0) {
-            return QUIC_FLOW_RET_ERROR;
-        }
+    if (ret != QUIC_FLOW_RET_NEXT) {
+        return ret;
+    }
+
+    QuicBufSetDataLength(buffer, WPacket_get_written(pkt));
+    WPacketCleanup(pkt);
+    if (QuicCryptoFrameBuild(quic, sm->pkt_type) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    QuicInitTlsWriteBuffer(quic, pkt);
+    if (QuicSendPacket(quic) < 0) {
+        return QUIC_FLOW_RET_ERROR;
     }
 
     return ret;
@@ -262,6 +337,7 @@ QuicHandshakeStatem(QUIC *quic, const QuicStatemMachine *statem, size_t num)
     QUIC_STATEM *st = &quic->statem;
     const QuicStatemMachine *sm = NULL;
     RPacket rpkt = {};
+    RPacket qpkt = {};
     WPacket wpkt = {};
     bool skip_state = false;
     QuicStatem state = QUIC_STATEM_INITIAL;
@@ -275,7 +351,6 @@ QuicHandshakeStatem(QUIC *quic, const QuicStatemMachine *statem, size_t num)
         state = st->state;
         assert(state >= 0 && state < num);
 
-        QUIC_LOG("state = %d\n", state);
         sm = &statem[state];
         skip_state = false;
 
@@ -289,7 +364,7 @@ QuicHandshakeStatem(QUIC *quic, const QuicStatemMachine *statem, size_t num)
                 break;
             case QUIC_READING:
                 ret = QuicHandshakeRead(quic, &st->state, statem, num,
-                                            &rpkt, &skip_state);
+                                            &rpkt, &qpkt, &skip_state);
                 break;
             case QUIC_WRITING:
                 ret = QuicHandshakeWrite(quic, sm, &wpkt);
@@ -336,6 +411,7 @@ out:
 
     return res;
 err:
+    QUIC_LOG("Error: state = %s\n", QuicStatStrGet(state));
     st->rwstate = QUIC_NOTHING;
     return -1;
 }

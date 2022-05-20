@@ -20,30 +20,10 @@
 #include "session.h"
 #include "log.h"
 
-static QuicFlowReturn TlsClntCertBuild(TLS *, void *);
-static QuicFlowReturn TlsClntCertVerifyBuild(TLS *, void *);
 static int TlsClntEncExtPostWork(TLS *);
 static int TlsClntFinishedPostWork(TLS *);
 
-static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
-    [TLS_ST_OK] = {
-        .flow_state = QUIC_FLOW_NOTHING,
-        .next_state = TLS_ST_CW_CLIENT_HELLO,
-    },
-    [TLS_ST_CW_CLIENT_HELLO] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_CR_SERVER_HELLO,
-        .msg_type = TLS_MT_CLIENT_HELLO,
-        .handler = TlsClntHelloBuild,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-    },
-    [TLS_ST_CR_SERVER_HELLO] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CR_ENCRYPTED_EXTENSIONS,
-        .msg_type = TLS_MT_SERVER_HELLO,
-        .handler = TlsServerHelloProc,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-    },
+const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     [TLS_ST_CR_ENCRYPTED_EXTENSIONS] = {
         .flow_state = QUIC_FLOW_READING,
         .next_state = TLS_ST_CR_CERT_REQUEST,
@@ -118,11 +98,6 @@ static const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
     },
 };
 
-QuicFlowReturn TlsConnect(TLS *tls)
-{
-    return TlsHandshake(tls, client_proc, QUIC_NELEM(client_proc));
-}
-
 QuicFlowReturn TlsClntHelloBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
@@ -165,12 +140,12 @@ QuicFlowReturn TlsClntHelloBuild(TLS *s, void *packet)
     return QUIC_FLOW_RET_NEXT;
 }
 
-static QuicFlowReturn TlsClntCertBuild(TLS *s, void *packet)
+QuicFlowReturn TlsClntCertBuild(TLS *s, void *packet)
 {
     return QUIC_FLOW_RET_NEXT;
 }
 
-static QuicFlowReturn TlsClntCertVerifyBuild(TLS *s, void *packet)
+QuicFlowReturn TlsClntCertVerifyBuild(TLS *s, void *packet)
 {
     return QUIC_FLOW_RET_NEXT;
 }

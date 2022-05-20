@@ -6,6 +6,7 @@
 typedef struct WPacketSub WPACKET_SUB;
 
 typedef struct {
+    const uint8_t *origin;
     const uint8_t *head;
     /* Pointer to where we are currently reading from */
     const uint8_t *curr;

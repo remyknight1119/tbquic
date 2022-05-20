@@ -534,6 +534,7 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int i = 0;
 
+    QUIC_LOG("Build\n");
     sess = TlsGetSession(s);
     if (sess == NULL) {
         goto err;

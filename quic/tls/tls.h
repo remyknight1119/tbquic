@@ -178,7 +178,6 @@ extern uint8_t *quic_random_test;
 
 int TlsInit(TLS *, QUIC_CTX *);
 void TlsFree(TLS *);
-QuicFlowReturn TlsConnect(TLS *tls);
 QuicFlowReturn TlsAccept(TLS *tls);
 QuicFlowReturn TlsDoHandshake(TLS *);
 int TlsDoProcess(TLS *, RPacket *, WPacket *, const TlsProcess *,
@@ -209,6 +208,8 @@ QuicFlowReturn TlsCertVerifyBuild(TLS *s, WPacket *pkt);
 QuicFlowReturn TlsClntHelloBuild(TLS *, void *);
 QuicFlowReturn TlsFinishedBuild(TLS *, void *);
 QuicFlowReturn TlsClntFinishedBuild(TLS *, void *);
+QuicFlowReturn TlsClntCertBuild(TLS *, void *);
+QuicFlowReturn TlsClntCertVerifyBuild(TLS *, void *);
 QuicFlowReturn TlsClntNewSessionTicketProc(TLS *, void *);
 int TlsClntSkipCheckCertRequest(TLS *);
 int TlsClntSkipCheckServerCert(TLS *);

@@ -45,16 +45,19 @@ int QuicPktBodyParse(QUIC *quic, RPacket *pkt, uint32_t type)
     QuicPacketParse parser = NULL;
 
     if (QUIC_GE(type, QUIC_PKT_TYPE_MAX)) {
+        QUIC_LOG("Type(%u) invalid\n", type);
         return -1;
     }
 
     parser = QuicPacketsParser[type];
     if (parser == NULL) {
+        QUIC_LOG("Get parser for type(%u) failed\n", type);
         return -1;
     }
 
     c = QuicCryptoGet(quic, type);
     if (c == NULL) {
+        QUIC_LOG("Get Crypto for type(%u) failed\n", type);
         return -1;
     }
 
@@ -728,6 +731,7 @@ int QuicInitPacketParse(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c)
     RPacketForward(pkt, token_len);
 
     if (QuicLengthParse(&msg, pkt) < 0) {
+        QUIC_LOG("Length parse failed\n");
         return -1;
     }
 

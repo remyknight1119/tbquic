@@ -275,7 +275,7 @@ QUIC *QuicNew(QUIC_CTX *ctx)
         return NULL;
     }
 
-    quic->statem.state = QUIC_STATEM_INITIAL;
+    quic->statem.state = QUIC_STATEM_TLS_ST_OK;
     quic->statem.rwstate = QUIC_NOTHING; 
     quic->method = ctx->method;
     quic->mss = ctx->mss;

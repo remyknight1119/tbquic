@@ -274,7 +274,7 @@ int QuicPktFormatTestServer(void)
     ret = QuicDoHandshake(quic);
     if (ret < 0) {
         err = QUIC_get_error(quic, ret);
-        if (err != QUIC_ERROR_WANT_WRITE) {
+        if (err != QUIC_ERROR_WANT_READ) {
             printf("Do Server Handshake failed(%d)\n", err);
             goto out;
         }

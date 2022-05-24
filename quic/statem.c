@@ -240,7 +240,6 @@ QuicHandshakeWrite(QUIC *quic, const QuicStatemMachine *sm, WPacket *pkt)
     if (QuicSendPacket(quic) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
-
     return ret;
 }
 
@@ -253,7 +252,7 @@ QuicHandshakeStatem(QUIC *quic, const QuicStatemMachine *statem, size_t num)
     RPacket qpkt = {};
     WPacket wpkt = {};
     bool skip_state = false;
-    QuicStatem state = QUIC_STATEM_INITIAL;
+    QuicStatem state = QUIC_STATEM_TLS_ST_OK;
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     int res = -1;
 
@@ -264,7 +263,6 @@ QuicHandshakeStatem(QUIC *quic, const QuicStatemMachine *statem, size_t num)
         state = st->state;
         assert(state >= 0 && state < num);
 
-    QUIC_LOG("state = \"%s\"\n", QuicStatStrGet(state));
         sm = &statem[state];
         skip_state = false;
 
@@ -321,6 +319,9 @@ out:
         QuicDataHandshakeDoneFrameBuild(quic, 0, QUIC_PKT_TYPE_1RTT);
         QUIC_LOG("hhhhhhhhhhhhhhhhhhhhhhhhhhandshake done\n");
         st->state = QUIC_STATEM_HANDSHAKE_DONE;
+        if (QuicSendPacket(quic) < 0) {
+            goto err;
+        }
     }
 
     return res;

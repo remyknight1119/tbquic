@@ -4,7 +4,8 @@
 #include <string.h>
 #include "quic_test.h"
 
-static const char *TlsFindServerHello(const char *start, size_t total_len)
+static inline const char *TlsFindServerHello(const char *start,
+                                            size_t total_len)
 {
     char *sub_str = "010000";
     const char *curr = start;

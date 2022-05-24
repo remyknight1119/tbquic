@@ -78,10 +78,6 @@ static QuicFuncTest test_funcs[] = {
         .err_msg = "TLS Generate Server Secret",
     },
     {
-        .test = TlsClientHandshakeReadTest,
-        .err_msg = "TLS Client Handshake Read",
-    },
-    {
         .test = TlsGenerateMasterSecretTest,
         .err_msg = "TLS Generate Master Secret",
     },

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -51,6 +52,7 @@ static int QuicTlsClientMain(void)
         goto out;
     }
 
+    //fcntl(sockfd, F_SETFL, O_NONBLOCK);
     ctx = QuicCtxNew(QuicClientMethod());
     if (ctx == NULL) {
         goto out;

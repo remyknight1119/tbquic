@@ -51,7 +51,6 @@ TlsHandshakeMsgRead(TLS *s, QuicStatem *state, const QuicStatemMachine *statem,
     uint32_t len = 0;
     int offset = 0;
 
-    QUIC_LOG("in\n");
     sm = &statem[*state];
     if (sm->handshake == NULL) {
         QUIC_LOG("No handler func found\n");

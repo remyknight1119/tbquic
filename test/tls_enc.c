@@ -93,7 +93,7 @@ static void QuicHandshakeSecretComp(uint8_t *secret)
     if (memcmp(secret, hsecret, len) == 0) {
         handshake_secret_cmp_ok = 1;
     } else {
-        QuicPrint(secret, len);
+//        QuicPrint(secret, len);
         handshake_secret_cmp_ok = 0;
     }
 }

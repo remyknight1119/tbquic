@@ -311,15 +311,15 @@ int QuicStreamSendEarlyData(QUIC *quic, QUIC_STREAM_HANDLE *h, bool uni,
         .iov_len = len,
         .data_len = len,
     };
-    TlsState handshake_state;
+    QuicStatem state;
     int64_t id = 0;
     int ret = 0;
 
     ret = QuicDoHandshake(quic);
-    handshake_state = quic->tls.handshake_state; 
-    if (handshake_state == TLS_ST_SR_FINISHED ||
-            handshake_state == TLS_ST_HANDSHAKE_DONE) {
-            QUIC_LOG("Build Stream frame\n");
+    state = QUIC_STATE_GET(quic);
+    if (state == QUIC_STATEM_TLS_ST_SR_FINISHED ||
+            state == QUIC_STATEM_HANDSHAKE_DONE) {
+        QUIC_LOG("Build Stream frame\n");
         id = QuicStreamOpen(quic, uni);
         if (id < 0) {
             QUIC_LOG("Open Stream failed\n");
@@ -446,6 +446,10 @@ static int QuicStreamRecvNew(QUIC *quic)
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
     uint32_t flag = 0;
     int err = 0;
+
+    if (QUIC_STATE_GET(quic) < QUIC_STATEM_HANDSHAKE_DONE) {
+        return QuicDoHandshake(quic);
+    }
 
     err = quic->method->read_bytes(quic, &pkt);
     if (err < 0) {

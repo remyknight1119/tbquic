@@ -157,10 +157,8 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c,
                         uint32_t pkt_type, void *buf)
 {
     QuicFrameParser parser = NULL;
-    QuicFlowReturn ret;
     uint64_t type = 0;
     uint64_t flags = 0;
-    bool crypto_found = false;
     bool ack_eliciting = false;
 
     while (QuicVariableLengthDecode(pkt, &type) >= 0) {
@@ -187,29 +185,10 @@ int QuicFrameDoParser(QUIC *quic, RPacket *pkt, QUIC_CRYPTO *c,
         if (QUIC_FRAM_IS_ACK_ELICITING(type)) {
             ack_eliciting = true;
         }
-
-        if (type == QUIC_FRAME_TYPE_CRYPTO) {
-            crypto_found = true;
-        }
     }
 
     if (ack_eliciting) {
         QuicAckFrameBuild(quic, pkt_type);
-    }
-
-    if (crypto_found && quic->quic_server) {
-        if (quic->tls.handshake_state != TLS_ST_HANDSHAKE_DONE) {
-            ret = TlsDoHandshake(&quic->tls);
-            if (ret == QUIC_FLOW_RET_ERROR) {
-                QUIC_LOG("TLS Hadshake failed!\n");
-                return -1;
-            }
-        }
-
-        if (quic->tls.handshake_state == TLS_ST_HANDSHAKE_DONE) {
-            QUIC_LOG("TLS handshake done\n");
-            quic->statem.state = QUIC_STATEM_HANDSHAKE_DONE;
-        }
     }
 
     return 0;

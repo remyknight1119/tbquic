@@ -24,124 +24,7 @@
 
 #define TLS_NEW_SESS_TICKET_NUM     2
 
-static QuicFlowReturn TlsClientHelloProc(TLS *, void *);
-static QuicFlowReturn TlsSrvrCertProc(TLS *, void *);
-static QuicFlowReturn TlsSrvrCertVerifyProc(TLS *, void *);
-static QuicFlowReturn TlsSrvrFinishedProc(TLS *, void *);
-static QuicFlowReturn TlsServerHelloBuild(TLS *, void *);
-static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *, void *);
-static QuicFlowReturn TlsSrvrCertRequestBuild(TLS *, void *);
-static QuicFlowReturn TlsSrvrServerCertBuild(TLS *, void *);
-static QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *, void *);
-static QuicFlowReturn TlsSrvrFinishedBuild(TLS *, void *);
-static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *, void *);
-static int TlsSrvrClientHelloPostWork(TLS *);
-static int TlsSrvrServerHelloPostWork(TLS *);
-static int TlsServerWriteFinishedPostWork(TLS *);
-static int TlsServerReadFinishedPostWork(TLS *);
-
-static const TlsProcess server_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
-    [TLS_ST_OK] = {
-        .flow_state = QUIC_FLOW_NOTHING,
-        .next_state = TLS_ST_SR_CLIENT_HELLO,
-    },
-    [TLS_ST_SR_CLIENT_HELLO] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_SW_SERVER_HELLO,
-        .msg_type = TLS_MT_CLIENT_HELLO,
-        .handler = TlsClientHelloProc,
-        .post_work = TlsSrvrClientHelloPostWork,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-    },
-    [TLS_ST_SW_SERVER_HELLO] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SW_ENCRYPTED_EXTENSIONS,
-        .msg_type = TLS_MT_SERVER_HELLO,
-        .handler = TlsServerHelloBuild,
-        .post_work = TlsSrvrServerHelloPostWork,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-    },
-    [TLS_ST_SW_ENCRYPTED_EXTENSIONS] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SW_SERVER_CERTIFICATE,
-        .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
-        .handler = TlsSrvrEncryptedExtBuild,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_SW_CERT_REQUEST] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SW_SERVER_CERTIFICATE,
-        .msg_type = TLS_MT_CERTIFICATE_REQUEST,
-        .handler = TlsSrvrCertRequestBuild,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_SW_SERVER_CERTIFICATE] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SW_CERT_VERIFY,
-        .msg_type = TLS_MT_CERTIFICATE,
-        .handler = TlsSrvrServerCertBuild,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_SW_CERT_VERIFY] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SW_FINISHED,
-        .msg_type = TLS_MT_CERTIFICATE_VERIFY,
-        .handler = TlsSrvrCertVerifyBuild,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_SW_FINISHED] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SR_FINISHED,
-        .msg_type = TLS_MT_FINISHED,
-        .handler = TlsSrvrFinishedBuild,
-        .post_work = TlsServerWriteFinishedPostWork,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_SR_CLIENT_CERTIFICATE] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_SR_CERT_VERIFY,
-        .msg_type = TLS_MT_CERTIFICATE,
-        .handler = TlsSrvrCertProc,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_SR_CERT_VERIFY] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_SR_FINISHED,
-        .msg_type = TLS_MT_CERTIFICATE_VERIFY,
-        .handler = TlsSrvrCertVerifyProc,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_SR_FINISHED] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_SW_NEW_SESSION_TICKET,
-        .msg_type = TLS_MT_FINISHED,
-        .handler = TlsSrvrFinishedProc,
-        .post_work = TlsServerReadFinishedPostWork,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_SW_NEW_SESSION_TICKET] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_SW_NEW_SESSION_TICKET,
-        .msg_type = TLS_MT_NEW_SESSION_TICKET,
-        .handler = TlsSrvrNewSessionTicketBuild,
-        .pkt_type = QUIC_PKT_TYPE_1RTT,
-    },
-    [TLS_ST_SW_HANDSHAKE_DONE] = {
-        .flow_state = QUIC_FLOW_FINISHED,
-        .next_state = TLS_ST_HANDSHAKE_DONE,
-    },
-    [TLS_ST_HANDSHAKE_DONE] = {
-        .flow_state = QUIC_FLOW_FINISHED,
-        .next_state = TLS_ST_HANDSHAKE_DONE,
-    },
-};
-
-QuicFlowReturn TlsAccept(TLS *tls)
-{
-    return TlsHandshake(tls, server_proc, QUIC_NELEM(server_proc));
-}
-
-static QuicFlowReturn TlsClientHelloProc(TLS *s, void *packet)
+QuicFlowReturn TlsClientHelloProc(TLS *s, void *packet)
 {
     RPacket *pkt = packet;
     const TlsCipher *cipher = NULL;
@@ -216,19 +99,19 @@ static QuicFlowReturn TlsClientHelloProc(TLS *s, void *packet)
     return QUIC_FLOW_RET_FINISH;
 }
 
-static QuicFlowReturn TlsSrvrCertProc(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrCertProc(TLS *s, void *packet)
 {
     QUIC_LOG("In\n");
     return QUIC_FLOW_RET_FINISH;
 }
 
-static QuicFlowReturn TlsSrvrCertVerifyProc(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrCertVerifyProc(TLS *s, void *packet)
 {
     QUIC_LOG("In\n");
     return QUIC_FLOW_RET_FINISH;
 }
 
-static QuicFlowReturn TlsSrvrFinishedProc(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrFinishedProc(TLS *s, void *packet)
 {
     RPacket *pkt = packet;
     QUIC *quic = QuicTlsTrans(s);
@@ -246,7 +129,7 @@ static QuicFlowReturn TlsSrvrFinishedProc(TLS *s, void *packet)
     return QUIC_FLOW_RET_FINISH;
 }
 
-static QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
+QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
 
@@ -284,7 +167,7 @@ static QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
     return QUIC_FLOW_RET_NEXT;
 }
 
-static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
 {
     if (TlsSrvrConstructExtensions(s, packet, TLSEXT_ENCRYPTED_EXT, NULL,
                 0) < 0) {
@@ -293,18 +176,18 @@ static QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
     }
 
     if (s->hit) {
-        s->handshake_state = TLS_ST_SW_FINISHED;
+        QUIC_TLS_STATE_SET(s, QUIC_STATEM_TLS_ST_SW_FINISHED);
     }
 
     return QUIC_FLOW_RET_FINISH;
 }
 
-static QuicFlowReturn TlsSrvrCertRequestBuild(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrCertRequestBuild(TLS *s, void *packet)
 {
     return QUIC_FLOW_RET_FINISH;
 }
 
-static QuicFlowReturn TlsSrvrServerCertBuild(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrServerCertBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
     QuicCertPkey *cpk = s->tmp.cert;
@@ -317,12 +200,12 @@ static QuicFlowReturn TlsSrvrServerCertBuild(TLS *s, void *packet)
     return TlsCertChainBuild(s, pkt, cpk, TlsSrvrConstructExtensions);
 }
 
-static QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *s, void *packet)
 {
     return TlsCertVerifyBuild(s, packet);
 }
 
-static QuicFlowReturn TlsSrvrFinishedBuild(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrFinishedBuild(TLS *s, void *packet)
 {
     if (TlsFinishedBuild(s, packet) == QUIC_FLOW_RET_ERROR) {
         return QUIC_FLOW_RET_ERROR;
@@ -517,7 +400,7 @@ err:
     return err;
 }
 
-static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
+QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
     QuicSessionTicket *t = NULL;
@@ -582,20 +465,9 @@ static QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *s, void *packet)
 err:
     QuicSessionTicketFree(t);
     if (s->next_ticket_nonce >= TLS_NEW_SESS_TICKET_NUM) {
-        s->handshake_state = TLS_ST_SW_HANDSHAKE_DONE;
+        QUIC_TLS_STATE_SET(s, QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE);
     }
     return ret;
-}
-
-static int TlsSrvrServerHelloPostWork(TLS *s)
-{
-    QUIC *quic = QuicTlsTrans(s);
-
-    if (QuicCreateHandshakeServerEncoders(quic) < 0) {
-        return -1;
-    }
-
-    return 0;
 }
 
 static int TlsEarlyPostProcessClientHello(TLS *s)
@@ -607,9 +479,9 @@ static int TlsEarlyPostProcessClientHello(TLS *s)
     return 0;
 }
 
-static int TlsSrvrClientHelloPostWork(TLS *s)
+int TlsSrvrClientHelloPostWork(QUIC *quic)
 {
-    QUIC *quic = QuicTlsTrans(s);
+    TLS *s = &quic->tls;
     
     if (TlsEarlyPostProcessClientHello(s) < 0) {
         return -1;
@@ -623,28 +495,6 @@ static int TlsSrvrClientHelloPostWork(TLS *s)
         return -1;
     }
 
-    return 0;
-}
-
-static int TlsServerWriteFinishedPostWork(TLS *s)
-{
-    QUIC *quic = QuicTlsTrans(s);
-    size_t secret_size = 0;
-
-    if (TlsGenerateMasterSecret(s, s->master_secret, s->handshake_secret,
-                                    &secret_size) < 0) {
-        return -1;
-    }
-
-    if (QuicCreateHandshakeClientDecoders(quic) < 0) {
-        return -1;
-    }
-
-    return QuicCreateAppDataServerEncoders(quic);
-}
-
-static int TlsServerReadFinishedPostWork(TLS *s)
-{
     return 0;
 }
 

@@ -324,10 +324,6 @@ int TlsClientHandshakeReadTest(void)
 
     QuicSecretTest = QuicHandshakeSecretComp;
     QuicHandshakeSecretHook = TlsSetHandshakeSecret;
-    if (TlsDoHandshake(tls) == QUIC_FLOW_RET_ERROR) {
-        printf("TLS Hadshake failed!\n");
-        goto out;
-    }
 
     if (server_handshake_secret_cmp_ok == 0) {
         printf("Server Handshake secret compare failed\n");

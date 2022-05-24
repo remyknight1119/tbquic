@@ -252,7 +252,7 @@ QuicTlsServer(int pipefd)
                     }
                     err = QUIC_get_error(quic, ret);
                     if (err != QUIC_ERROR_WANT_READ) {
-                        printf("err = %d, state = %d\n", err, quic->tls.handshake_state);
+                        printf("err = %d, state = %d\n", err, quic->statem.state);
                         goto err;
                     }
 next:

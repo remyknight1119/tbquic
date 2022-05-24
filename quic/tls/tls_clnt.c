@@ -20,84 +20,6 @@
 #include "session.h"
 #include "log.h"
 
-static int TlsClntEncExtPostWork(TLS *);
-static int TlsClntFinishedPostWork(TLS *);
-
-const TlsProcess client_proc[TLS_MT_MESSAGE_TYPE_MAX] = {
-    [TLS_ST_CR_ENCRYPTED_EXTENSIONS] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CR_CERT_REQUEST,
-        .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
-        .handler = TlsClntEncExtProc,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-        .post_work = TlsClntEncExtPostWork,
-    },
-    [TLS_ST_CR_CERT_REQUEST] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CR_SERVER_CERTIFICATE,
-        .msg_type = TLS_MT_CERTIFICATE_REQUEST,
-        .handler = TlsCertRequestProc,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-        .skip_check = TlsClntSkipCheckCertRequest,
-    },
-    [TLS_ST_CR_SERVER_CERTIFICATE] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CR_CERT_VERIFY,
-        .msg_type = TLS_MT_CERTIFICATE,
-        .handler = TlsServerCertProc,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-        .skip_check = TlsClntSkipCheckServerCert,
-    },
-    [TLS_ST_CR_CERT_VERIFY] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CR_FINISHED,
-        .msg_type = TLS_MT_CERTIFICATE_VERIFY,
-        .handler = TlsCertVerifyProc,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-        .skip_check = TlsClntSkipCheckCertVerify,
-    },
-    [TLS_ST_CR_FINISHED] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CW_FINISHED,
-        .msg_type = TLS_MT_FINISHED,
-        .handler = TlsClntFinishedProc,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-    },
-    [TLS_ST_CW_CLIENT_CERTIFICATE] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_CW_CERT_VERIFY,
-        .msg_type = TLS_MT_CERTIFICATE,
-        .handler = TlsClntCertBuild,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-    },
-    [TLS_ST_CW_CERT_VERIFY] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_CW_FINISHED,
-        .msg_type = TLS_MT_CERTIFICATE_VERIFY,
-        .handler = TlsClntCertVerifyBuild,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
-    },
-    [TLS_ST_CW_FINISHED] = {
-        .flow_state = QUIC_FLOW_WRITING,
-        .next_state = TLS_ST_CR_NEW_SESSION_TICKET,
-        .msg_type = TLS_MT_FINISHED,
-        .handler = TlsClntFinishedBuild,
-        .post_work = TlsClntFinishedPostWork,
-        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
-    },
-    [TLS_ST_CR_NEW_SESSION_TICKET] = {
-        .flow_state = QUIC_FLOW_READING,
-        .next_state = TLS_ST_CR_NEW_SESSION_TICKET,
-        .msg_type = TLS_MT_NEW_SESSION_TICKET,
-        .handler = TlsClntNewSessionTicketProc,
-        .pkt_type = QUIC_PKT_TYPE_1RTT,
-    },
-    [TLS_ST_HANDSHAKE_DONE] = {
-        .flow_state = QUIC_FLOW_FINISHED,
-        .next_state = TLS_ST_HANDSHAKE_DONE,
-    },
-};
-
 QuicFlowReturn TlsClntHelloBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
@@ -482,22 +404,6 @@ QuicFlowReturn TlsClntNewSessionTicketProc(TLS *s, void *packet)
 
     QUIC_LOG("innn\n");
     return QUIC_FLOW_RET_FINISH;
-}
-
-static int TlsClntEncExtPostWork(TLS *s)
-{
-    QUIC *quic = QuicTlsTrans(s);
-
-    if (QuicStreamInit(quic) < 0) {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int TlsClntFinishedPostWork(TLS *s)
-{
-    return QuicCreateAppDataClientEncoders(QuicTlsTrans(s));
 }
 
 int TlsClntSkipCheckCertRequest(TLS *s)

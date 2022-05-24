@@ -29,21 +29,21 @@ static const char *QuicStateStr[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_TLS_ST_CR_SERVER_CERTIFICATE] = "Client Read Server Cert",
     [QUIC_STATEM_TLS_ST_CR_CERT_VERIFY] = "Client Read Cert Verify",
     [QUIC_STATEM_TLS_ST_CR_FINISHED] = "Client Read Finished",
-    [QUIC_STATEM_TLS_ST_CR_NEW_SESSION_TICKET] = "Client Read New Sess ticket",
+    [QUIC_STATEM_TLS_ST_CR_NEW_SESSION_TICKET] = "Client Read New Sess Ticket",
+    [QUIC_STATEM_TLS_ST_SR_CLIENT_HELLO] = "Server Read ClientHello",
+    [QUIC_STATEM_TLS_ST_SR_CLIENT_CERTIFICATE] = "Server Read Client Cert",
+    [QUIC_STATEM_TLS_ST_SR_CERT_VERIFY] = "Server Cert Verify",
+    [QUIC_STATEM_TLS_ST_SR_FINISHED] = "Server Read Finished",
+    [QUIC_STATEM_TLS_ST_SW_SERVER_HELLO] = "Server Write ServerHello",
+    [QUIC_STATEM_TLS_ST_SW_ENCRYPTED_EXTENSIONS] = "Server Write Enc Ext",
+    [QUIC_STATEM_TLS_ST_SW_CERT_REQUEST] = "Server Write Cert Request",
+    [QUIC_STATEM_TLS_ST_SW_SERVER_CERTIFICATE] = "Server Write Server Cert",
+    [QUIC_STATEM_TLS_ST_SW_CERT_VERIFY] = "Server Write Cert Verify",
+    [QUIC_STATEM_TLS_ST_SW_FINISHED] = "Server Write Finished",
+    [QUIC_STATEM_TLS_ST_SW_NEW_SESSION_TICKET] = "Server Write New Sess Ticket",
+    [QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE] = "Server ",
+	[QUIC_STATEM_HANDSHAKE_DONE] = "Server ",
 #if 0
-    QUIC_STATEM_TLS_ST_SR_CLIENT_HELLO,
-    QUIC_STATEM_TLS_ST_SR_CLIENT_CERTIFICATE,
-    QUIC_STATEM_TLS_ST_SR_CERT_VERIFY,
-    QUIC_STATEM_TLS_ST_SR_FINISHED,
-    QUIC_STATEM_TLS_ST_SW_SERVER_HELLO,
-    QUIC_STATEM_TLS_ST_SW_ENCRYPTED_EXTENSIONS,
-    QUIC_STATEM_TLS_ST_SW_CERT_REQUEST,
-    QUIC_STATEM_TLS_ST_SW_SERVER_CERTIFICATE,
-    QUIC_STATEM_TLS_ST_SW_CERT_VERIFY,
-    QUIC_STATEM_TLS_ST_SW_FINISHED,
-    QUIC_STATEM_TLS_ST_SW_NEW_SESSION_TICKET,
-    QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE,
-	QUIC_STATEM_HANDSHAKE_DONE,
 	QUIC_STATEM_CLOSING,
 	QUIC_STATEM_DRAINING,
 	QUIC_STATEM_CLOSED,
@@ -120,93 +120,6 @@ err:
 
     QuicCheckStatelessResetToken(quic, stateless_reset_token);
     return -1;
-}
-
-static int
-QuicReadStateMachine(QUIC *quic, const QuicStatemFlow *statem, size_t num)
-{
-    const QuicStatemFlow *sm = NULL;
-    QUIC_STATEM *st = &quic->statem;
-    RPacket pkt = {};
-    QuicPacketFlags flags;
-    QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
-    int rlen = 0;
-
-    st->read_state = QUIC_WANT_DATA;
-    while (ret != QUIC_FLOW_RET_FINISH || RPacketRemaining(&pkt)) {
-        if (st->read_state == QUIC_WANT_DATA && !RPacketRemaining(&pkt)) {
-            rlen = quic->method->read_bytes(quic, &pkt);
-            if (rlen < 0) {
-                return -1;
-            }
-
-            st->read_state = QUIC_DATA_READY;
-        } else {
-            RPacketUpdate(&pkt);
-        }
-
-        assert(st->state >= 0 && st->state < num);
-        sm = &statem[st->state];
-
-        if (QuicGetPktFlags(&flags, &pkt) < 0) {
-            return -1;
-        }
-
-        ret = sm->recv(quic, &pkt, flags);
-        switch (ret) {
-            case QUIC_FLOW_RET_WANT_READ:
-                st->read_state = QUIC_WANT_DATA;
-                continue;
-            case QUIC_FLOW_RET_FINISH:
-                break;
-            default:
-                return -1;
-        }
-    }
-
-    return 0;
-}
-
-int
-QuicStateMachineAct(QUIC *quic, const QuicStatemFlow *statem, size_t num)
-{
-    const QuicStatemFlow *sm = NULL;
-    QUIC_STATEM *st = &quic->statem;
-    int ret = 0;
-
-    do {
-        sm = &statem[st->state];
-        if (sm->pre_work != NULL) {
-            ret = sm->pre_work(quic);
-        }
-
-        if (QuicSendPacket(quic) < 0) {
-            return -1;
-        }
-
-        if (QuicWantWrite(quic)) {
-            return -1;
-        }
-
-        if (ret < 0) {
-            return -1;
-        }
-
-        ret = QuicReadStateMachine(quic, statem, num);
-        if (QuicSendPacket(quic) < 0) {
-            return -1;
-        }
-
-        if (QuicWantWrite(quic)) {
-            return -1;
-        }
-
-        if (ret < 0) {
-            return -1;
-        }
-    } while (st->state != QUIC_STATEM_HANDSHAKE_DONE);
-
-    return 0;
 }
 
 static void
@@ -351,6 +264,7 @@ QuicHandshakeStatem(QUIC *quic, const QuicStatemMachine *statem, size_t num)
         state = st->state;
         assert(state >= 0 && state < num);
 
+    QUIC_LOG("state = \"%s\"\n", QuicStatStrGet(state));
         sm = &statem[state];
         skip_state = false;
 
@@ -411,7 +325,7 @@ out:
 
     return res;
 err:
-    QUIC_LOG("Error: state = %s\n", QuicStatStrGet(state));
+    QUIC_LOG("Error: state = \"%s\"\n", QuicStatStrGet(state));
     st->rwstate = QUIC_NOTHING;
     return -1;
 }
@@ -460,19 +374,6 @@ QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
     }
 
     return QUIC_FLOW_RET_FINISH;
-}
-
-int QuicInitialSend(QUIC *quic)
-{
-    QuicFlowReturn ret = QUIC_FLOW_RET_FINISH; 
-
-    ret = TlsDoHandshake(&quic->tls);
-    if (ret == QUIC_FLOW_RET_ERROR) {
-        QUIC_LOG("TLS handshake failed\n");
-        return -1;
-    }
-
-    return 0;
 }
 
 int QuicInitialPktBuild(QUIC *quic)

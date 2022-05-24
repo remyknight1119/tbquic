@@ -981,18 +981,8 @@ int TlsGetCertVerifyData(TLS *s, uint8_t *tbs, void **hdata, size_t *hdatalen)
 
     /* Set the first 64 bytes of to-be-signed data to octet 32 */
     memset(tbs, 32, TLS_TBS_START_SIZE);
-    if (s->server) {
-        state = s->handshake_state;
-        /* This copies the 33 bytes of context plus the 0 separator byte */
-        if (s->handshake_state == TLS_ST_CR_CERT_VERIFY
-                || s->handshake_state == TLS_ST_SW_CERT_VERIFY) {
-            strcpy((char *)tbs + TLS_TBS_START_SIZE, servercontext);
-        } else {
-            strcpy((char *)tbs + TLS_TBS_START_SIZE, clientcontext);
-        }
-    } else {
-        state = st->state;
-    }
+
+    state = st->state;
 
     /* This copies the 33 bytes of context plus the 0 separator byte */
     if (state == QUIC_STATEM_TLS_ST_CR_CERT_VERIFY ||

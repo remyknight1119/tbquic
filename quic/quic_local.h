@@ -31,6 +31,12 @@
 #define QUIC_IS_SERVER(q) (q->quic_server)
 #define QUIC_IS_READING(q) QUIC_STATEM_READING(q->rwstate)
 #define QUIC_IS_WRITNG(q) QUIC_STATEM_WRITNG(q->rwstate)
+#define QUIC_STATE_GET(q) q->statem.state
+#define QUIC_TLS_STATE_SET(s, st) \
+    do { \
+        QUIC *q = QuicTlsTrans(s); \
+        q->statem.state = st; \
+    } while (0)
 
 #define QUIC_NEW_TOKEN_LEN  60
 
@@ -43,7 +49,6 @@ struct QuicMethod {
     int (*parse_scid)(QUIC *, RPacket *, size_t);
     int (*read_bytes)(QUIC *, RPacket *);
     int (*write_bytes)(QUIC *, uint8_t *, size_t);
-    const TlsMethod *tls_method;
 };
 
 struct QuicCtx {
@@ -89,7 +94,6 @@ struct QuicCrypto {
 
 typedef struct {
     QuicStatem state;
-    QuicReadState read_state;
     QuicReadWriteState rwstate;
 } QUIC_STATEM;
 

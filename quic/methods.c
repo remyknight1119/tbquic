@@ -9,10 +9,6 @@
 #include "datagram.h"
 #include "dispenser.h"
 
-static const TlsMethod QuicTlsServerMeth = {
-    .handshake = TlsAccept,
-}; 
-
 static QUIC_METHOD QuicClientMeth = {
     .version = QUIC_VERSION_1,
     .alloc_rbuf = true,
@@ -31,7 +27,6 @@ static QUIC_METHOD QuicServerMeth = {
     .parse_scid = QuicSrvrParseScid,
     .read_bytes = QuicStatemReadBytes,
     .write_bytes = QuicDatagramSendBytes,
-    .tls_method = &QuicTlsServerMeth,
 }; 
 
 static QUIC_METHOD QuicDispenserMeth = {
@@ -42,7 +37,6 @@ static QUIC_METHOD QuicDispenserMeth = {
     .parse_scid = QuicSrvrParseScid,
     .read_bytes = QuicDispenserReadBytes,
     .write_bytes = QuicDispenserWriteBytes,
-    .tls_method = &QuicTlsServerMeth,
 }; 
 
 QUIC_METHOD *QuicClientMethod(void)

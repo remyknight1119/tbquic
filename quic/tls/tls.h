@@ -34,43 +34,12 @@
 
 #define TLS_IS_READING(t) QUIC_STATEM_READING(t->rwstate)
 #define TLS_IS_WRITING(t) QUIC_STATEM_WRITING(t->rwstate)
-#define TLS_HANDSHAKE_STATE(t, state) ((t)->handshake_state == state)
 #define TLS_HANDSHAKE_DONE(t) TLS_HANDSHAKE_STATE(t, TLS_ST_HANDSHAKE_DONE)
 #define TLS_USE_PSS(s) \
     (s->peer_sigalg != NULL && s->peer_sigalg->sig == EVP_PKEY_RSA_PSS)
 #define TLS_EXT_TRANS_PARAM(tls) (tls)->ext.trans_param 
 
 typedef int (*TlsExtConstructor)(TLS *, WPacket *, uint32_t, X509 *, size_t);
-
-typedef enum {
-    TLS_ST_OK,
-    TLS_ST_CW_CLIENT_HELLO,
-    TLS_ST_CW_CLIENT_CERTIFICATE,
-    TLS_ST_CW_CERT_VERIFY,
-    TLS_ST_CW_FINISHED,
-    /*Read state must in order */
-    TLS_ST_CR_SERVER_HELLO,
-    TLS_ST_CR_ENCRYPTED_EXTENSIONS,
-    TLS_ST_CR_CERT_REQUEST,
-    TLS_ST_CR_SERVER_CERTIFICATE,
-    TLS_ST_CR_CERT_VERIFY,
-    TLS_ST_CR_FINISHED,
-    TLS_ST_CR_NEW_SESSION_TICKET,
-    TLS_ST_SR_CLIENT_HELLO,
-    TLS_ST_SR_CLIENT_CERTIFICATE,
-    TLS_ST_SR_CERT_VERIFY,
-    TLS_ST_SR_FINISHED,
-    TLS_ST_SW_SERVER_HELLO,
-    TLS_ST_SW_ENCRYPTED_EXTENSIONS,
-    TLS_ST_SW_CERT_REQUEST,
-    TLS_ST_SW_SERVER_CERTIFICATE,
-    TLS_ST_SW_CERT_VERIFY,
-    TLS_ST_SW_FINISHED,
-    TLS_ST_SW_NEW_SESSION_TICKET,
-    TLS_ST_SW_HANDSHAKE_DONE,
-    TLS_ST_HANDSHAKE_DONE,
-    TLS_ST_MAX,
-} TlsState;
 
 typedef enum {
     TLS_EARLY_DATA_NONE = 0,
@@ -94,14 +63,8 @@ typedef struct {
     uint8_t tick_key_name[TLSEXT_KEYNAME_LENGTH];
 } TlsTicketKey;
 
-typedef struct {
-    QuicFlowReturn (*handshake)(TLS *);
-} TlsMethod;
-
 struct Tls {
-    TlsState handshake_state;
     TlsEarlyDataState early_data_state;
-    const TlsMethod *method;
     uint64_t server:1;
     uint64_t alpn_sent:1;
     uint64_t hit:1; //reusing a session
@@ -162,27 +125,12 @@ struct Tls {
     } ext;
 };
 
-typedef struct {
-    QuicFlowState flow_state;
-    TlsState next_state;
-    TlsMessageType msg_type;
-    QuicFlowReturn (*handler)(TLS *, void *);
-    int (*post_work)(TLS *);
-    int (*skip_check)(TLS *);
-    uint32_t pkt_type;
-} TlsProcess;
-
 #ifdef QUIC_TEST
 extern uint8_t *quic_random_test;
 #endif
 
 int TlsInit(TLS *, QUIC_CTX *);
 void TlsFree(TLS *);
-QuicFlowReturn TlsAccept(TLS *tls);
-QuicFlowReturn TlsDoHandshake(TLS *);
-int TlsDoProcess(TLS *, RPacket *, WPacket *, const TlsProcess *,
-                        size_t);
-QuicFlowReturn TlsHandshake(TLS *, const TlsProcess *, size_t);
 QuicFlowReturn TlsHandshakeMsgRead(TLS *, QuicStatem *,
                     const QuicStatemMachine *, size_t,
                     RPacket *, bool *);
@@ -202,6 +150,11 @@ QuicFlowReturn TlsCertRequestProc(TLS *, void *);
 QuicFlowReturn TlsServerCertProc(TLS *, void *);
 QuicFlowReturn TlsCertVerifyProc(TLS *, void *);
 QuicFlowReturn TlsClntFinishedProc(TLS *, void *);
+QuicFlowReturn TlsClientHelloProc(TLS *, void *);
+QuicFlowReturn TlsSrvrCertProc(TLS *, void *);
+QuicFlowReturn TlsSrvrCertVerifyProc(TLS *, void *);
+QuicFlowReturn TlsSrvrFinishedProc(TLS *, void *);
+QuicFlowReturn TlsClntNewSessionTicketProc(TLS *, void *);
 QuicFlowReturn TlsCertChainBuild(TLS *s, WPacket *, QuicCertPkey *,
                                 TlsExtConstructor);
 QuicFlowReturn TlsCertVerifyBuild(TLS *s, WPacket *pkt);
@@ -210,7 +163,14 @@ QuicFlowReturn TlsFinishedBuild(TLS *, void *);
 QuicFlowReturn TlsClntFinishedBuild(TLS *, void *);
 QuicFlowReturn TlsClntCertBuild(TLS *, void *);
 QuicFlowReturn TlsClntCertVerifyBuild(TLS *, void *);
-QuicFlowReturn TlsClntNewSessionTicketProc(TLS *, void *);
+QuicFlowReturn TlsServerHelloBuild(TLS *, void *);
+QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *, void *);
+QuicFlowReturn TlsSrvrCertRequestBuild(TLS *, void *);
+QuicFlowReturn TlsSrvrServerCertBuild(TLS *, void *);
+QuicFlowReturn TlsSrvrCertVerifyBuild(TLS *, void *);
+QuicFlowReturn TlsSrvrFinishedBuild(TLS *, void *);
+QuicFlowReturn TlsSrvrNewSessionTicketBuild(TLS *, void *);
+int TlsSrvrClientHelloPostWork(QUIC *);
 int TlsClntSkipCheckCertRequest(TLS *);
 int TlsClntSkipCheckServerCert(TLS *);
 int TlsClntSkipCheckCertVerify(TLS *);

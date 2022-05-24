@@ -277,7 +277,6 @@ QUIC *QuicNew(QUIC_CTX *ctx)
 
     quic->statem.state = QUIC_STATEM_INITIAL;
     quic->statem.rwstate = QUIC_NOTHING; 
-    quic->statem.read_state = QUIC_WANT_DATA; 
     quic->method = ctx->method;
     quic->mss = ctx->mss;
     quic->verify_mode = ctx->verify_mode;

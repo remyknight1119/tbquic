@@ -9,42 +9,142 @@
 #include "datagram.h"
 #include "format.h"
 #include "packet_local.h"
+#include "tls.h"
+#include "tls_lib.h"
 #include "log.h"
 
-static QuicFlowReturn QuicServerInitialRecv(QUIC *, RPacket *, QuicPacketFlags);
+static int QuicTlsSrvrServerHelloPostWork(QUIC *);
+static int QuicTlsServerReadFinishedPostWork(QUIC *);
+static int QuicTlsServerWriteFinishedPostWork(QUIC *);
 
-static QuicStatemFlow server_statem[QUIC_STATEM_MAX] = {
-    [QUIC_STATEM_INITIAL] = {
-        .recv = QuicServerInitialRecv,
+static const QuicStatemMachine server_statem[QUIC_STATEM_MAX] = {
+    [QUIC_STATEM_TLS_ST_OK] = {
+        .next_state = QUIC_STATEM_TLS_ST_SR_CLIENT_HELLO,
+        .rw_state = QUIC_NOTHING,
     },
-    [QUIC_STATEM_HANDSHAKE] = {
-        .pre_work = QuicInitialSend,
-        .recv = QuicPacketRead,
+    [QUIC_STATEM_TLS_ST_SR_CLIENT_HELLO] = {
+        .next_state = QUIC_STATEM_TLS_ST_SW_SERVER_HELLO,
+        .rw_state = QUIC_READING,
+        .msg_type = TLS_MT_CLIENT_HELLO,
+        .handshake = TlsClientHelloProc,
+        .post_work = TlsSrvrClientHelloPostWork,
+        .pkt_type = QUIC_PKT_TYPE_INITIAL,
+    },
+    [QUIC_STATEM_TLS_ST_SW_SERVER_HELLO] = {
+        .next_state = QUIC_STATEM_TLS_ST_SW_ENCRYPTED_EXTENSIONS,
+        .rw_state = QUIC_WRITING,
+        .msg_type = TLS_MT_SERVER_HELLO,
+        .handshake = TlsServerHelloBuild,
+        .post_work = QuicTlsSrvrServerHelloPostWork,
+        .pkt_type = QUIC_PKT_TYPE_INITIAL,
+    },
+    [QUIC_STATEM_TLS_ST_SW_ENCRYPTED_EXTENSIONS] = {
+        .next_state = QUIC_STATEM_TLS_ST_SW_SERVER_CERTIFICATE,
+        .rw_state = QUIC_WRITING,
+        .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
+        .handshake = TlsSrvrEncryptedExtBuild,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [QUIC_STATEM_TLS_ST_SW_CERT_REQUEST] = {
+        .next_state = QUIC_STATEM_TLS_ST_SW_SERVER_CERTIFICATE,
+        .rw_state = QUIC_WRITING,
+        .msg_type = TLS_MT_CERTIFICATE_REQUEST,
+        .handshake = TlsSrvrCertRequestBuild,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [QUIC_STATEM_TLS_ST_SW_SERVER_CERTIFICATE] = {
+        .next_state = QUIC_STATEM_TLS_ST_SW_CERT_VERIFY,
+        .rw_state = QUIC_WRITING,
+        .msg_type = TLS_MT_CERTIFICATE,
+        .handshake = TlsSrvrServerCertBuild,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [QUIC_STATEM_TLS_ST_SW_CERT_VERIFY] = {
+        .next_state = QUIC_STATEM_TLS_ST_SW_FINISHED,
+        .rw_state = QUIC_WRITING,
+        .msg_type = TLS_MT_CERTIFICATE_VERIFY,
+        .handshake = TlsSrvrCertVerifyBuild,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [QUIC_STATEM_TLS_ST_SW_FINISHED] = {
+        .next_state = QUIC_STATEM_TLS_ST_SR_FINISHED,
+        .rw_state = QUIC_WRITING,
+        .msg_type = TLS_MT_FINISHED,
+        .handshake = TlsSrvrFinishedBuild,
+        .post_work = QuicTlsServerWriteFinishedPostWork,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [QUIC_STATEM_TLS_ST_SR_CLIENT_CERTIFICATE] = {
+        .next_state = QUIC_STATEM_TLS_ST_SR_CERT_VERIFY,
+        .rw_state = QUIC_READING,
+        .msg_type = TLS_MT_CERTIFICATE,
+        .handshake = TlsSrvrCertProc,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [QUIC_STATEM_TLS_ST_SR_CERT_VERIFY] = {
+        .next_state = QUIC_STATEM_TLS_ST_SR_FINISHED,
+        .rw_state = QUIC_READING,
+        .msg_type = TLS_MT_CERTIFICATE_VERIFY,
+        .handshake = TlsSrvrCertVerifyProc,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [QUIC_STATEM_TLS_ST_SR_FINISHED] = {
+        .next_state = QUIC_STATEM_TLS_ST_SW_NEW_SESSION_TICKET,
+        .rw_state = QUIC_READING,
+        .msg_type = TLS_MT_FINISHED,
+        .handshake = TlsSrvrFinishedProc,
+        .post_work = QuicTlsServerReadFinishedPostWork,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
+    },
+    [QUIC_STATEM_TLS_ST_SW_NEW_SESSION_TICKET] = {
+        .next_state = QUIC_STATEM_TLS_ST_SW_NEW_SESSION_TICKET,
+        .rw_state = QUIC_WRITING,
+        .msg_type = TLS_MT_NEW_SESSION_TICKET,
+        .handshake = TlsSrvrNewSessionTicketBuild,
+        .pkt_type = QUIC_PKT_TYPE_1RTT,
+    },
+    [QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE] = {
+        .rw_state = QUIC_FINISHED,
+        .next_state = QUIC_STATEM_HANDSHAKE_DONE,
     },
     [QUIC_STATEM_HANDSHAKE_DONE] = {
-        .recv = QuicPacketRead,
-    },
-    [QUIC_STATEM_CLOSING] = {
-        .recv = QuicPacketClosingRecv,
-    },
-    [QUIC_STATEM_DRAINING] = {
-        .recv = QuicPacketDrainingRecv,
+        .rw_state = QUIC_FINISHED,
+        .next_state = QUIC_STATEM_HANDSHAKE_DONE,
     },
 };
-
-static QuicFlowReturn
-QuicServerInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
+ 
+static int QuicTlsSrvrServerHelloPostWork(QUIC *quic)
 {
-    QuicFlowReturn ret;
-    ret = QuicInitialRecv(quic, pkt, flags); 
-    if (ret != QUIC_FLOW_RET_ERROR) {
-        quic->statem.state = QUIC_STATEM_HANDSHAKE;
+    if (QuicCreateHandshakeServerEncoders(quic) < 0) {
+        return -1;
     }
-    QuicBufClear(QUIC_TLS_BUFFER(quic));
-    return ret;
+
+    return 0;
+}
+
+static int QuicTlsServerReadFinishedPostWork(QUIC *quic)
+{
+    return 0;
+}
+
+static int QuicTlsServerWriteFinishedPostWork(QUIC *quic)
+{
+    TLS *s = &quic->tls;
+    size_t secret_size = 0;
+
+    if (TlsGenerateMasterSecret(s, s->master_secret, s->handshake_secret,
+                                    &secret_size) < 0) {
+        return -1;
+    }
+
+    if (QuicCreateHandshakeClientDecoders(quic) < 0) {
+        return -1;
+    }
+
+    return QuicCreateAppDataServerEncoders(quic);
 }
 
 int QuicAccept(QUIC *quic)
 {
-    return QuicStateMachineAct(quic, server_statem, QUIC_NELEM(server_statem));
+    return QuicHandshakeStatem(quic, server_statem, QUIC_NELEM(server_statem));
 }

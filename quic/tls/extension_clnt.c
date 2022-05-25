@@ -56,7 +56,7 @@ static int TlsExtClntParseEarlyData(TLS *s, RPacket *pkt, uint32_t context,
 static int TlsExtClntParsePsk(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
                                 size_t chainidx);
 
-static const TlsExtConstruct client_ext_construct[] = {
+static const TlsExtConstruct kClientExtConstruct[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_CLIENT_HELLO,
@@ -113,7 +113,7 @@ static const TlsExtConstruct client_ext_construct[] = {
     },
 };
 
-static const TlsExtParse client_ext_parse[] = {
+static const TlsExtParse kClientExtParse[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_SERVER_HELLO,
@@ -169,7 +169,7 @@ static int TlsExtQtpParseStatelessResetToken(TLS *tls,
                                 QuicTransParams *param, size_t offset,
                                 RPacket *pkt, uint64_t len);
 
-static TlsExtQtpDefinition client_transport_param[] = {
+static TlsExtQtpDefinition kClientTransportParam[] = {
     {
         .type = QUIC_TRANS_PARAM_STATELESS_RESET_TOKEN,
         .parse = TlsExtQtpParseStatelessResetToken,
@@ -248,7 +248,7 @@ static TlsExtQtpDefinition client_transport_param[] = {
     },
 };
 
-#define QUIC_TRANS_PARAM_NUM QUIC_NELEM(client_transport_param)
+#define QUIC_TRANS_PARAM_NUM QUIC_NELEM(kClientTransportParam)
 
 static int TlsExtClntQtpCheckStatelessResetToken(TLS *,
                                 QuicTransParams *, size_t)
@@ -604,7 +604,7 @@ static ExtReturn TlsExtClntConstructUnknown(TLS *tls, WPacket *pkt,
 static ExtReturn TlsExtClntConstructTlsExtQtp(TLS *tls, WPacket *pkt,
                             uint32_t context, X509 *x, size_t chainidx)
 {
-    return TlsConstructQtpExtension(tls, pkt, client_transport_param,
+    return TlsConstructQtpExtension(tls, pkt, kClientTransportParam,
                                     QUIC_TRANS_PARAM_NUM);
 }
 
@@ -612,8 +612,8 @@ int TlsClntConstructExtensions(TLS *tls, WPacket *pkt, uint32_t context,
                              X509 *x, size_t chainidx)
 {
     return TlsConstructExtensions(tls, pkt, context, x, chainidx,
-                                    client_ext_construct,
-                                    QUIC_NELEM(client_ext_construct));
+                                    kClientExtConstruct,
+                                    QUIC_NELEM(kClientExtConstruct));
 }
 
 static int TlsExtClntParseServerName(TLS *tls, RPacket *pkt,
@@ -704,7 +704,7 @@ static int TlsExtClntParseTlsExtQtp(TLS *s, RPacket *pkt,
                                 uint32_t context, X509 *x,
                                 size_t chainidx)
 {
-    return TlsParseQtpExtension(s, pkt, client_transport_param,
+    return TlsParseQtpExtension(s, pkt, kClientTransportParam,
                                     QUIC_TRANS_PARAM_NUM);
 }
 
@@ -829,8 +829,8 @@ static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,
 int TlsClntParseExtensions(TLS *tls, RPacket *pkt, uint32_t context, X509 *x,
                                     size_t chainidx)
 {
-    return TlsParseExtensions(tls, pkt, context, x, chainidx, client_ext_parse,
-                                    QUIC_NELEM(client_ext_parse));
+    return TlsParseExtensions(tls, pkt, context, x, chainidx, kClientExtParse,
+                                    QUIC_NELEM(kClientExtParse));
 }
 
 static int

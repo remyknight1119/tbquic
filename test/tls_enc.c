@@ -198,7 +198,7 @@ int TlsTlsFinalFinishMacTest(void)
     }
  
     QuicTlsFinalFinishMacHashHook = TlsFinalFinishMacHashHook;
-    if (TlsFinalFinishMac(s, tls_md_server_finish_label,
+    if (TlsFinalFinishMac(s, kTlsMdServerFinishLabel,
                 TLS_MD_SERVER_FINISH_LABEL_LEN, s->peer_finish_md) < 0) {
         printf("Final Finish Mac failed\n");
         goto out;

@@ -17,6 +17,7 @@ typedef struct {
     QuicCertPkey *key;
     QuicCertPkey pkeys[QUIC_PKEY_NUM];
     QUIC_DATA conf_sigalgs;
+    X509_STORE *verify_store;
 } QuicCert;
 
 typedef struct {

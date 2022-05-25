@@ -13,7 +13,7 @@ static int QuicTransParamGetInt(QuicTransParams *, uint64_t, void *, size_t);
 static int QuicTransParamGetActiveConnIdLimit(QuicTransParams *, uint64_t,
                                 void *, size_t);
 static int QuicTransParamSetInt(QuicTransParams *, uint64_t, void *, size_t);
-static const QuicTransParamsDefines trans_param_definition[] = {
+static const QuicTransParamsDefines kTransParamDefinition[] = {
     {
         .type = QUIC_TRANS_PARAM_MAX_IDLE_TIMEOUT,
         .offset = offsetof(QuicTransParams, max_idle_timeout),
@@ -86,8 +86,8 @@ static const QuicTransParamsDefines *QuicTransParamDefFind(uint64_t type)
     const QuicTransParamsDefines *p = NULL;
     size_t i = 0;
 
-    for (i = 0; i < QUIC_NELEM(trans_param_definition); i++) {
-        p = &trans_param_definition[i];
+    for (i = 0; i < QUIC_NELEM(kTransParamDefinition); i++) {
+        p = &kTransParamDefinition[i];
         if (p->type == type) {
             return p;
         }
@@ -171,8 +171,8 @@ void QuicTransParamInit(QuicTransParams *param)
     const QuicTransParamsDefines *p = NULL;
     size_t i = 0;
 
-    for (i = 0; i < QUIC_NELEM(trans_param_definition); i++) {
-        p = &trans_param_definition[i];
+    for (i = 0; i < QUIC_NELEM(kTransParamDefinition); i++) {
+        p = &kTransParamDefinition[i];
         if (p->init != NULL) {
             p->init(param, p->offset);
         }

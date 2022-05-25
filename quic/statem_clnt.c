@@ -21,7 +21,7 @@ static int QuicTlsClientHelloPostWork(QUIC *);
 static int QuicClntTlsEncExtPostWork(QUIC *);
 static int QuicClntTlsFinishedPostWork(QUIC *);
 
-static const QuicStatemMachine client_statem[QUIC_STATEM_MAX] = {
+static const QuicStatemMachine kClientStatem[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_TLS_ST_OK] = {
         .next_state = QUIC_STATEM_TLS_ST_CW_CLIENT_HELLO,
         .rw_state = QUIC_NOTHING,
@@ -155,6 +155,6 @@ static int QuicClntTlsFinishedPostWork(QUIC *quic)
 
 int QuicConnect(QUIC *quic)
 {
-    return QuicHandshakeStatem(quic, client_statem, QUIC_NELEM(client_statem));
+    return QuicHandshakeStatem(quic, kClientStatem, QUIC_NELEM(kClientStatem));
 }
 

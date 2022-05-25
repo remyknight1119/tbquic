@@ -51,7 +51,7 @@ static int TlsExtSrvrParseAlpn(TLS *, RPacket *, uint32_t, X509 *,
 static int TlsExtsrvrParsePsk(TLS *, RPacket *, uint32_t, X509 *,
                                         size_t);
 
-static const TlsExtConstruct server_ext_construct[] = {
+static const TlsExtConstruct kServerExtConstruct[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_ENCRYPTED_EXT,
@@ -92,7 +92,7 @@ static const TlsExtConstruct server_ext_construct[] = {
     },
 };
 
-static const TlsExtParse server_ext_parse[] = {
+static const TlsExtParse kServerExtParse[] = {
     {
         .type = EXT_TYPE_SERVER_NAME,
         .context = TLSEXT_CLIENT_HELLO,
@@ -148,7 +148,7 @@ static const TlsExtParse server_ext_parse[] = {
 static int TlsExtQtpParseSourceConnId(TLS *tls, QuicTransParams *param, size_t offset,
                         RPacket *pkt, uint64_t len);
 
-static TlsExtQtpDefinition server_transport_param[] = {
+static TlsExtQtpDefinition kServerTransportParam[] = {
     {
         .type = QUIC_TRANS_PARAM_ORIGINAL_DESTINATION_CONNECTION_ID,
         .construct = TlsExtQtpConstructSourceConnId,
@@ -214,7 +214,7 @@ static TlsExtQtpDefinition server_transport_param[] = {
     },
 };
 
-#define QUIC_SERVER_TRANS_PARAM_NUM QUIC_NELEM(server_transport_param)
+#define QUIC_SERVER_TRANS_PARAM_NUM QUIC_NELEM(kServerTransportParam)
 
 static ExtReturn TlsExtSrvrConstructServerName(TLS *s, WPacket *pkt,
                                         uint32_t context, X509 *x,
@@ -341,7 +341,7 @@ static ExtReturn TlsExtSrvrConstructAlpn(TLS *s, WPacket *pkt,
 static ExtReturn TlsExtSrvrConstructQtp(TLS *s, WPacket *pkt, uint32_t context,
                                     X509 *x, size_t chainidx)
 {
-    return TlsConstructQtpExtension(s, pkt, server_transport_param,
+    return TlsConstructQtpExtension(s, pkt, kServerTransportParam,
                                     QUIC_SERVER_TRANS_PARAM_NUM);
 }
 
@@ -438,7 +438,7 @@ static int TlsExtSrvrParseSigAlgs(TLS *s, RPacket *pkt, uint32_t context,
 static int TlsExtSrvrParseQtp(TLS *s, RPacket *pkt, uint32_t context,
                                     X509 *x, size_t chainidx)
 {
-    return TlsParseQtpExtension(s, pkt, server_transport_param,
+    return TlsParseQtpExtension(s, pkt, kServerTransportParam,
                                 QUIC_SERVER_TRANS_PARAM_NUM);
 }
 
@@ -724,8 +724,8 @@ err:
 int TlsSrvrParseExtensions(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
                                         size_t chainidx)
 {
-    return TlsParseExtensions(s, pkt, context, x, chainidx, server_ext_parse,
-                                    QUIC_NELEM(server_ext_parse));
+    return TlsParseExtensions(s, pkt, context, x, chainidx, kServerExtParse,
+                                    QUIC_NELEM(kServerExtParse));
 }
 
 static int TlsExtQtpParseSourceConnId(TLS *s, QuicTransParams *param,
@@ -761,8 +761,8 @@ int TlsSrvrConstructExtensions(TLS *s, WPacket *pkt, uint32_t context, X509 *x,
                         size_t chainidx)
 {
     return TlsConstructExtensions(s, pkt, context, x, chainidx,
-                                    server_ext_construct,
-                                    QUIC_NELEM(server_ext_construct));
+                                    kServerExtConstruct,
+                                    QUIC_NELEM(kServerExtConstruct));
 }
 
 

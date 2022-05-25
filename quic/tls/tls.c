@@ -291,10 +291,10 @@ QuicFlowReturn TlsFinishedBuild(TLS *s, void *packet)
     size_t slen = 0;
 
     if (s->server) {
-        sender = tls_md_server_finish_label;
+        sender = kTlsMdServerFinishLabel;
         slen = TLS_MD_SERVER_FINISH_LABEL_LEN;
     } else {
-        sender = tls_md_client_finish_label;
+        sender = kTlsMdClientFinishLabel;
         slen = TLS_MD_CLIENT_FINISH_LABEL_LEN;
     }
 
@@ -333,6 +333,8 @@ int TlsInit(TLS *s, QUIC_CTX *ctx)
     s->lifetime_hint = QUIC_SESSION_TICKET_LIFETIME_HINT_DEF;
     s->max_early_data = ctx->max_early_data;
     s->early_data_state = TLS_EARLY_DATA_NONE;
+    s->verify_result = X509_V_OK;
+
     if (QuicBufInit(&s->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
         return -1;
     }

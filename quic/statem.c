@@ -17,7 +17,7 @@
 #include "frame.h"
 #include "log.h"
 
-static const char *QuicStateStr[QUIC_STATEM_MAX] = {
+static const char *kQuicStateStr[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_TLS_ST_OK] = "TLS State OK",
     [QUIC_STATEM_TLS_ST_CW_CLIENT_HELLO] = "Client Write ClientHello",
     [QUIC_STATEM_TLS_ST_CW_CLIENT_CERTIFICATE] = "Client Write Client Cert",
@@ -58,7 +58,7 @@ const char *QuicStatStrGet(QuicStatem state)
         return "";
     }
 
-    str = QuicStateStr[state];
+    str = kQuicStateStr[state];
     if (str == NULL) {
         str = "";
     }
@@ -317,7 +317,6 @@ out:
 
     if (st->state == QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE) {
         QuicDataHandshakeDoneFrameBuild(quic, 0, QUIC_PKT_TYPE_1RTT);
-        QUIC_LOG("hhhhhhhhhhhhhhhhhhhhhhhhhhandshake done\n");
         st->state = QUIC_STATEM_HANDSHAKE_DONE;
         if (QuicSendPacket(quic) < 0) {
             goto err;

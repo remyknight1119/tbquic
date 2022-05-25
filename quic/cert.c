@@ -12,7 +12,9 @@
 #include "common.h"
 #include "log.h"
 
-static const QuicCertLookup QuicCertInfo[QUIC_PKEY_NUM] = {
+static volatile int ssl_x509_store_ctx_idx = -1;
+
+static const QuicCertLookup kQuicCertInfo[QUIC_PKEY_NUM] = {
     [QUIC_PKEY_RSA] = {
         .nid = EVP_PKEY_RSA,
         .mask = QUIC_A_ALG_MASK_RSA,
@@ -83,6 +85,11 @@ QuicCert *QuicCertDup(QuicCert *cert)
         }
     }
 
+    if (cert->verify_store) {
+        X509_STORE_up_ref(cert->verify_store);
+        dst->verify_store = cert->verify_store;
+    }
+
     return dst;
 out:
     QuicCertFree(dst);
@@ -116,12 +123,40 @@ void QuicCertFree(QuicCert *cert)
     }
 
     QuicDataFree(&cert->conf_sigalgs);
+    X509_STORE_free(cert->verify_store);
     QuicCertClearCerts(cert);
     QuicMemFree(cert);
 }
 
 int QuicVerifyCertChain(QUIC *quic, STACK_OF(X509) *sk)
 {
+    X509_STORE_CTX *ctx = NULL;
+    X509_STORE *verify_store = NULL;
+    TLS *s = &quic->tls;
+    X509 *x = NULL;
+
+    if ((sk == NULL) || (sk_X509_num(sk) == 0)) {
+        return -1;
+    }
+
+    if (s->cert->verify_store) {
+        verify_store = s->cert->verify_store;
+    } else {
+        verify_store = quic->ctx->cert_store;
+    }
+
+    ctx = X509_STORE_CTX_new();
+    if (ctx == NULL) {
+        return -1;
+    }
+
+    x = sk_X509_value(sk, 0);
+    if (!X509_STORE_CTX_init(ctx, verify_store, x, sk)) {
+        goto end;
+    }
+
+end:
+    X509_STORE_CTX_free(ctx);
     return 0;
 }
 
@@ -130,8 +165,8 @@ const QuicCertLookup *QuicCertLookupByNid(int nid, size_t *index)
     const QuicCertLookup *lu = NULL;
     size_t i = 0;
 
-    for (i = 0; i < QUIC_NELEM(QuicCertInfo); i++) {
-        lu = &QuicCertInfo[i];
+    for (i = 0; i < QUIC_NELEM(kQuicCertInfo); i++) {
+        lu = &kQuicCertInfo[i];
         if (lu->nid == nid) {
             if (index != NULL) {
                 *index = i;

@@ -23,14 +23,14 @@
 #include "mem.h"
 #include "log.h"
 
-static const uint8_t default_zeros[EVP_MAX_MD_SIZE];
-static const char servercontext[] = "TLS 1.3, server CertificateVerify";
-static const char clientcontext[] = "TLS 1.3, client CertificateVerify";
-const char tls_md_client_finish_label[] = "client finished";
-const char tls_md_server_finish_label[] = "server finished";
+static const uint8_t kDefaultZeros[EVP_MAX_MD_SIZE];
+static const char kServerContext[] = "TLS 1.3, server CertificateVerify";
+static const char kClientContext[] = "TLS 1.3, client CertificateVerify";
+const char kTlsMdClientFinishLabel[] = "client finished";
+const char kTlsMdServerFinishLabel[] = "server finished";
 
 /* The default curves */
-static const uint16_t eccurves_default[] = {
+static const uint16_t kEccurvesDefault[] = {
     EC_NAMED_CURVE_X25519,
     EC_NAMED_CURVE_SECP256R1,
     EC_NAMED_CURVE_X448,
@@ -38,7 +38,7 @@ static const uint16_t eccurves_default[] = {
     EC_NAMED_CURVE_SECP384R1,
 };
 
-static const uint16_t ffdh_group[] = {
+static const uint16_t kFfdhGroup[] = {
     TLS_SUPPORTED_GROUPS_FFDHE2048,
     TLS_SUPPORTED_GROUPS_FFDHE3072,
     TLS_SUPPORTED_GROUPS_FFDHE4096,
@@ -46,7 +46,7 @@ static const uint16_t ffdh_group[] = {
     TLS_SUPPORTED_GROUPS_FFDHE8192,
 };
 
-static const TlsGroupInfo group_nid_list[] = {
+static const TlsGroupInfo kGroupNidList[] = {
     [EC_NAMED_CURVE_SECT163K1] = {
         .nid = NID_sect163k1,
         .secbits = 80,
@@ -203,8 +203,8 @@ int TlsCheckFfdhGroup(uint16_t id)
 {
     size_t i = 0;
 
-    for (i = 0; i < QUIC_NELEM(ffdh_group); i++) {
-        if (id == ffdh_group[i]) {
+    for (i = 0; i < QUIC_NELEM(kFfdhGroup); i++) {
+        if (id == kFfdhGroup[i]) {
             return 0;
         }
     }
@@ -214,11 +214,11 @@ int TlsCheckFfdhGroup(uint16_t id)
 
 const TlsGroupInfo *TlsGroupIdLookup(uint16_t id)
 {
-    if (id >= QUIC_NELEM(group_nid_list)) {
+    if (id >= QUIC_NELEM(kGroupNidList)) {
         return NULL;
     }
 
-    return &group_nid_list[id];
+    return &kGroupNidList[id];
 }
 
 void TlsGetPeerGroups(TLS *s, const uint16_t **pgroups, size_t *pgroupslen)
@@ -253,8 +253,8 @@ int TlsCheckInList(TLS *s, uint16_t group_id, const uint16_t *groups,
 void TlsGetSupportedGroups(TLS *s, const uint16_t **pgroups, size_t *pgroupslen)
 {
     if (QuicDataIsEmpty(&s->ext.supported_groups)) {
-        *pgroups = eccurves_default;
-        *pgroupslen = QUIC_NELEM(eccurves_default);
+        *pgroups = kEccurvesDefault;
+        *pgroupslen = QUIC_NELEM(kEccurvesDefault);
     } else {
         QuicDataGetU16(&s->ext.supported_groups, pgroups, pgroupslen);
     }
@@ -563,12 +563,12 @@ int TlsGenerateSecret(const EVP_MD *md, const uint8_t *prevsecret,
 
     mdlen = (size_t)mdleni;
     if (insecret == NULL) {
-        insecret = default_zeros;
+        insecret = kDefaultZeros;
         insecretlen = mdlen;
     }
 
     if (prevsecret == NULL) {
-        prevsecret = default_zeros;
+        prevsecret = kDefaultZeros;
         prevsecretlen = 0;
     } else {
         mctx = EVP_MD_CTX_new();
@@ -970,7 +970,7 @@ int TlsChooseSigalg(TLS *s)
  * 64 bytes of value 32, 33 context bytes, 1 byte separator
  */
 #define TLS_TBS_START_SIZE          64
-#define TLS_TBS_PREAMBLE_SIZE       (TLS_TBS_START_SIZE + sizeof(servercontext))
+#define TLS_TBS_PREAMBLE_SIZE       (TLS_TBS_START_SIZE + sizeof(kServerContext))
 
 int TlsGetCertVerifyData(TLS *s, uint8_t *tbs, void **hdata, size_t *hdatalen)
 {
@@ -987,9 +987,9 @@ int TlsGetCertVerifyData(TLS *s, uint8_t *tbs, void **hdata, size_t *hdatalen)
     /* This copies the 33 bytes of context plus the 0 separator byte */
     if (state == QUIC_STATEM_TLS_ST_CR_CERT_VERIFY ||
             state == QUIC_STATEM_TLS_ST_SW_CERT_VERIFY) {
-        strcpy((char *)tbs + TLS_TBS_START_SIZE, servercontext);
+        strcpy((char *)tbs + TLS_TBS_START_SIZE, kServerContext);
     } else {
-        strcpy((char *)tbs + TLS_TBS_START_SIZE, clientcontext);
+        strcpy((char *)tbs + TLS_TBS_START_SIZE, kClientContext);
     }
     /*
      * If we're currently reading then we need to use the saved handshake
@@ -1154,10 +1154,10 @@ size_t TlsFinalFinishMac(TLS *s, const char *str, size_t slen, uint8_t *out)
         QuicTlsFinalFinishMacHashHook(hash, hashlen);
     }
 #endif
-    if (str == tls_md_server_finish_label) {
+    if (str == kTlsMdServerFinishLabel) {
         key = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL,
                                            s->server_finished_secret, hashlen);
-    } else if (str == tls_md_client_finish_label) {
+    } else if (str == kTlsMdClientFinishLabel) {
         key = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL,
                                            s->client_finished_secret, hashlen);
     } else {
@@ -1187,10 +1187,10 @@ int TlsTakeMac(TLS *s)
     size_t slen;
 
     if (!s->server) {
-        sender = tls_md_server_finish_label;
+        sender = kTlsMdServerFinishLabel;
         slen = TLS_MD_SERVER_FINISH_LABEL_LEN;
     } else {
-        sender = tls_md_client_finish_label;
+        sender = kTlsMdClientFinishLabel;
         slen = TLS_MD_CLIENT_FINISH_LABEL_LEN;
     }
 

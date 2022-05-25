@@ -24,14 +24,14 @@ static int QuicHandshakePacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);
 static int QuicOneRttParse(QUIC *, RPacket *, QUIC_CRYPTO *);
 static int QuicRetryPacketParse(QUIC *, RPacket *, QUIC_CRYPTO *);
 
-static const uint32_t QuicPacketTypeMap[] = {
+static const uint32_t kQuicPacketTypeMap[] = {
     [QUIC_LPACKET_TYPE_INITIAL] = QUIC_PKT_TYPE_INITIAL,
     [QUIC_LPACKET_TYPE_0RTT] = QUIC_PKT_TYPE_0RTT,
     [QUIC_LPACKET_TYPE_HANDSHAKE] = QUIC_PKT_TYPE_HANDSHAKE,
     [QUIC_LPACKET_TYPE_RETRY] = QUIC_PKT_TYPE_RETRY,
 };
 
-static QuicPacketParse QuicPacketsParser[QUIC_PKT_TYPE_MAX] = {
+static QuicPacketParse kQuicPacketsParser[QUIC_PKT_TYPE_MAX] = {
     [QUIC_PKT_TYPE_INITIAL] = QuicInitPacketParse,
     [QUIC_PKT_TYPE_0RTT] = Quic0RttPacketParse,
     [QUIC_PKT_TYPE_HANDSHAKE] = QuicHandshakePacketParse,
@@ -49,7 +49,7 @@ int QuicPktBodyParse(QUIC *quic, RPacket *pkt, uint32_t type)
         return -1;
     }
 
-    parser = QuicPacketsParser[type];
+    parser = kQuicPacketsParser[type];
     if (parser == NULL) {
         QUIC_LOG("Get parser for type(%u) failed\n", type);
         return -1;
@@ -187,7 +187,7 @@ int QuicPktHeaderParse(QUIC *quic, RPacket *pkt, QuicPacketFlags flags,
             return -1;
         }
 
-        *type = QuicPacketTypeMap[flags.lh.lpacket_type];
+        *type = kQuicPacketTypeMap[flags.lh.lpacket_type];
         return 0;
     }
 

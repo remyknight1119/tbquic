@@ -12,7 +12,7 @@
 #include "common.h"
 #include "log.h"
 
-static const uint16_t tls_sigalgs[] = {
+static const uint16_t kTlsSigalgs[] = {
     TLSEXT_SIGALG_ECDSA_SECP256R1_SHA256,
     TLSEXT_SIGALG_ECDSA_SECP384R1_SHA384,
     TLSEXT_SIGALG_ECDSA_SECP521R1_SHA512,
@@ -24,9 +24,9 @@ static const uint16_t tls_sigalgs[] = {
     TLSEXT_SIGALG_RSA_PKCS1_SHA512,
 };
 
-#define SIG_ALG_DEF_NUM QUIC_NELEM(tls_sigalgs)
+#define SIG_ALG_DEF_NUM QUIC_NELEM(kTlsSigalgs)
 
-static const SigAlgLookup sig_alg_lookup[] = {
+static const SigAlgLookup kSigAlgLookup[] = {
     {
         .sigalg = TLSEXT_SIGALG_ECDSA_SECP256R1_SHA256,
         .hash = NID_sha256,
@@ -106,7 +106,7 @@ static const SigAlgLookup sig_alg_lookup[] = {
     },
 };
 
-#define SIG_ALG_LOOKUP_NUM QUIC_NELEM(sig_alg_lookup)
+#define SIG_ALG_LOOKUP_NUM QUIC_NELEM(kSigAlgLookup)
 
 const SigAlgLookup *TlsLookupSigAlg(uint16_t sigalg)
 {
@@ -114,7 +114,7 @@ const SigAlgLookup *TlsLookupSigAlg(uint16_t sigalg)
     size_t i = 0;
 
     for (i = 0; i < SIG_ALG_LOOKUP_NUM; i++) {
-        lu = &sig_alg_lookup[i];
+        lu = &kSigAlgLookup[i];
         if (lu->sigalg == sigalg) {
             return lu;
         }
@@ -129,7 +129,7 @@ const SigAlgLookup *TlsLookupSigAlgBySig(int sig)
     size_t i = 0;
 
     for (i = 0; i < SIG_ALG_LOOKUP_NUM; i++) {
-        lu = &sig_alg_lookup[i];
+        lu = &kSigAlgLookup[i];
         if (lu->sig == sig) {
             return lu;
         }
@@ -177,7 +177,7 @@ size_t TlsGetPSigAlgs(TLS *s, const uint16_t **psigs)
         return s->cert->conf_sigalgs.len;
     }
 
-    *psigs = tls_sigalgs;
+    *psigs = kTlsSigalgs;
 
     return SIG_ALG_DEF_NUM;
 }

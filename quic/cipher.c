@@ -28,14 +28,14 @@ static size_t QuicAesEcbGetCipherLen(size_t, size_t);
 static size_t QuicAesGcmGetCipherLen(size_t, size_t);
 static size_t QuicAesCcmGetCipherLen(size_t, size_t);
 
-static const uint8_t quic_client_handshake_traffic[] = "c hs traffic";
-static const uint8_t quic_server_handshake_traffic[] = "s hs traffic";
-static const uint8_t quic_client_application_traffic[] = "c ap traffic";
-static const uint8_t quic_server_application_traffic[] = "s ap traffic";
-static const char quic_client_handshake_label[] = CLIENT_HANDSHAKE_LABEL;
-static const char quic_server_handshake_label[] = SERVER_HANDSHAKE_LABEL;
-static const char quic_client_app_lable[] = CLIENT_APPLICATION_LABEL;
-static const char quic_server_app_label[] = SERVER_APPLICATION_LABEL;
+static const uint8_t kClientHandshakeTraffic[] = "c hs traffic";
+static const uint8_t kServerHandshakeTraffic[] = "s hs traffic";
+static const uint8_t kClientApplicationTraffic[] = "c ap traffic";
+static const uint8_t kServerApplicationTraffic[] = "s ap traffic";
+static const char kClientHandshakeLabel[] = CLIENT_HANDSHAKE_LABEL;
+static const char kServerHandshakeLabel[] = SERVER_HANDSHAKE_LABEL;
+static const char kClientAppLable[] = CLIENT_APPLICATION_LABEL;
+static const char kQuicServerAppLabel[] = SERVER_APPLICATION_LABEL;
 
 static const QuicCipherSuite cipher_suite[QUIC_ALG_MAX] = {
     [QUIC_ALG_AES_128_ECB] = {
@@ -505,7 +505,7 @@ QuicCreateEncryptorDecryptor(TLS *s, QUIC_CRYPTO *c, uint8_t *in_secret,
         return -1;
     }
 
-    if (label == quic_client_application_traffic) {
+    if (label == kClientApplicationTraffic) {
         if (TLS13HkdfExpandLabel(md, in_secret, md_size,
                         resumption_master_secret,
                         sizeof(resumption_master_secret) - 1,
@@ -528,10 +528,10 @@ static int QuicCreateHandshakeClientEncryptorDecryptor(QUIC *quic, int enc)
                             s->handshake_secret, NULL,
                             s->handshake_traffic_hash,
                             sizeof(s->handshake_traffic_hash),
-                            quic_client_handshake_traffic,
-                            sizeof(quic_client_handshake_traffic) - 1,
+                            kClientHandshakeTraffic,
+                            sizeof(kClientHandshakeTraffic) - 1,
                             s->client_finished_secret,
-                            quic_client_handshake_label, false, enc);
+                            kClientHandshakeLabel, false, enc);
 }
 
 static int
@@ -543,10 +543,10 @@ QuicCreateHandshakeServerEncryptorDecryptor(QUIC *quic, int enc)
                             s->handshake_secret, NULL,
                             s->handshake_traffic_hash,
                             sizeof(s->handshake_traffic_hash),
-                            quic_server_handshake_traffic,
-                            sizeof(quic_server_handshake_traffic) - 1,
+                            kServerHandshakeTraffic,
+                            sizeof(kServerHandshakeTraffic) - 1,
                             s->server_finished_secret,
-                            quic_server_handshake_label, true, enc);
+                            kServerHandshakeLabel, true, enc);
 }
 
 int QuicCreateAppDataClientEncryptorDecryptor(QUIC *quic, int enc)
@@ -557,9 +557,9 @@ int QuicCreateAppDataClientEncryptorDecryptor(QUIC *quic, int enc)
                             s->client_app_traffic_secret,
                             s->server_finished_hash,
                             sizeof(s->server_finished_hash),
-                            quic_client_application_traffic,
-                            sizeof(quic_client_application_traffic) - 1,
-                            NULL, quic_client_app_lable, false, enc);
+                            kClientApplicationTraffic,
+                            sizeof(kClientApplicationTraffic) - 1,
+                            NULL, kClientAppLable, false, enc);
 }
 
 static int QuicCreateAppDataServerEncryptorDecryptor(QUIC *quic, int enc)
@@ -570,9 +570,9 @@ static int QuicCreateAppDataServerEncryptorDecryptor(QUIC *quic, int enc)
                             s->server_app_traffic_secret,
                             s->server_finished_hash,
                             sizeof(s->server_finished_hash),
-                            quic_server_application_traffic,
-                            sizeof(quic_server_application_traffic) - 1,
-                            NULL, quic_server_app_label, true, enc);
+                            kServerApplicationTraffic,
+                            sizeof(kServerApplicationTraffic) - 1,
+                            NULL, kQuicServerAppLabel, true, enc);
 }
 
 int QuicCreateHandshakeClientEncoders(QUIC *quic)

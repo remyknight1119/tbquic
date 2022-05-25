@@ -11,7 +11,7 @@
 #include "quic_local.h"
 #include "common.h"
 
-static const QuicPktMethod QuicBuffPktMethod[QUIC_PKT_TYPE_MAX] = {
+static const QuicPktMethod kQuicBuffPktMethod[QUIC_PKT_TYPE_MAX] = {
     [QUIC_PKT_TYPE_INITIAL] = {
         .build_pkt = QuicInitialPacketBuild,
         .get_crypto = QuicGetInitialCrypto,
@@ -35,7 +35,7 @@ static const QuicPktMethod *QBuffPktMethodFind(uint32_t type)
         return NULL;
     }
 
-    return &QuicBuffPktMethod[type];
+    return &kQuicBuffPktMethod[type];
 }
 
 void QBuffQueueHeadInit(QBuffQueueHead *h)
@@ -142,7 +142,7 @@ size_t QBufPktComputeTotalLenByType(QUIC *quic, uint32_t pkt_type,
         return 0;
     }
 
-    return QuicBuffPktMethod[pkt_type].compute_totallen(quic, data_len);
+    return kQuicBuffPktMethod[pkt_type].compute_totallen(quic, data_len);
 }
 
 size_t QBufPktComputeTotalLen(QUIC *quic, QBUFF *qb)

@@ -238,7 +238,6 @@ QuicTlsServer(int pipefd)
  
                     ret = QuicDoHandshake(quic);
                     if (ret == 0) {
-                        printf("HHHHHHHHHHHHHHHHHHHHHHHHH ok\n");
                         h = QuicStreamOpen(quic, false);
                         if (h < 0) {
                             goto out;
@@ -254,7 +253,8 @@ QuicTlsServer(int pipefd)
                     }
                     err = QUIC_get_error(quic, ret);
                     if (err != QUIC_ERROR_WANT_READ) {
-                        printf("err = %d, state = %d\n", err, quic->statem.state);
+                        fprintf(stderr, "err = %d, state = %d\n", err,
+                                    quic->statem.state);
                         goto err;
                     }
 next:

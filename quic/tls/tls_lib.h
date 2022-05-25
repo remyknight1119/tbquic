@@ -22,8 +22,8 @@ typedef struct {
     uint32_t flags;
 } TlsGroupInfo;
 
-extern const char tls_md_client_finish_label[];
-extern const char tls_md_server_finish_label[];
+extern const char kTlsMdClientFinishLabel[];
+extern const char kTlsMdServerFinishLabel[];
 #ifdef QUIC_TEST
 extern void (*QuicHandshakeSecretHook)(uint8_t *);
 extern void (*QuicTlsFinalFinishMacHashHook)(uint8_t *, size_t);

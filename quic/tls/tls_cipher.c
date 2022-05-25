@@ -16,7 +16,7 @@
 #include "cipher.h"
 #include "mem.h"
 
-static const TlsCipher tls_ciphers[] = {
+static const TlsCipher kTlsCiphers[] = {
     {
         .name = TLS_RFC_AES_128_GCM_SHA256,
         .id = TLS_CK_AES_128_GCM_SHA256,
@@ -59,7 +59,7 @@ static const TlsCipher tls_ciphers[] = {
     },
 };
 
-#define TLS_CIPHERS_NUM  QUIC_NELEM(tls_ciphers)
+#define TLS_CIPHERS_NUM  QUIC_NELEM(kTlsCiphers)
 
 const TlsCipher *QuicGetTlsCipherByName(const char *name, size_t name_len)
 {
@@ -68,7 +68,7 @@ const TlsCipher *QuicGetTlsCipherByName(const char *name, size_t name_len)
     int i = 0;
 
     for (i = 0; i < TLS_CIPHERS_NUM; i++) {
-        cipher = &tls_ciphers[i];
+        cipher = &kTlsCiphers[i];
         len = strlen(cipher->name);
         if (len == name_len && strncmp(cipher->name, name, len) == 0) {
             return cipher;
@@ -84,7 +84,7 @@ const TlsCipher *QuicGetTlsCipherById(uint16_t id)
     int i = 0;
 
     for (i = 0; i < TLS_CIPHERS_NUM; i++) {
-        cipher = &tls_ciphers[i];
+        cipher = &kTlsCiphers[i];
         if (cipher->id == id) {
             return cipher;
         }

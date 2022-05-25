@@ -106,7 +106,6 @@ QUIC *QuicDoDispense(QUIC_DISPENSER *dis, QUIC_CTX *ctx, bool *new)
     }
 
     rlen = QuicDatagramRecvfrom(fd, buf->data, buf->len, 0, &source);
-    QUIC_LOG("rlen = %d\n", rlen);
     if (rlen <= 0) {
         buf->len = 0;
         goto err;

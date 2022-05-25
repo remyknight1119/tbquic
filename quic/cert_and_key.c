@@ -11,7 +11,7 @@
 #include "cert.h"
 #include "log.h"
 
-static const int FileType[QUIC_FILE_TYPE_MAX] = {
+static const int kFileType[QUIC_FILE_TYPE_MAX] = {
     [QUIC_FILE_TYPE_ASN1] = X509_FILETYPE_ASN1,
     [QUIC_FILE_TYPE_PEM] = X509_FILETYPE_PEM,
 };
@@ -22,7 +22,7 @@ static int QuicFindFileType(uint32_t type)
         return -1;
     }
 
-    return FileType[type];
+    return kFileType[type];
 }
 
 int QuicCtxUsePrivateKey(QUIC_CTX *ctx, EVP_PKEY *pkey)

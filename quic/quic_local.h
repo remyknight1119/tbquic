@@ -62,6 +62,8 @@ struct QuicCtx {
     QuicCert *cert;
     X509_VERIFY_PARAM *param;
     X509_STORE *cert_store;
+    X509_STORE *chain_store;
+    X509_STORE *verify_store;
     STACK_OF(X509_NAME) *ca_names;
     STACK_OF(X509_NAME) *client_ca_names;
     QUIC_CTX_verify_callback_func verify_callback;

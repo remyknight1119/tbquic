@@ -32,5 +32,6 @@ int QuicVerifyCertChain(QUIC *, STACK_OF(X509) *);
 int QuicSetPkey(QuicCert *, EVP_PKEY *);
 int QuicSetCert(QuicCert *, X509 *);
 const QuicCertLookup *QuicCertLookupByPkey(const EVP_PKEY *, size_t *);
+bool QuicX509StoreCtxInit(void);
 
 #endif

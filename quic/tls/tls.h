@@ -85,6 +85,7 @@ struct Tls {
     uint32_t lifetime_hint;
     uint32_t max_early_data;
     int32_t verify_result;
+    QUIC_CTX_verify_callback_func verify_callback;
     uint64_t next_ticket_nonce;
     uint8_t early_secret[EVP_MAX_MD_SIZE];
     uint8_t handshake_secret[EVP_MAX_MD_SIZE];
@@ -130,6 +131,7 @@ struct Tls {
 extern uint8_t *quic_random_test;
 #endif
 
+int QuicTlsInit(void);
 int TlsInit(TLS *, QUIC_CTX *);
 void TlsFree(TLS *);
 QuicFlowReturn TlsHandshakeMsgRead(TLS *, QuicStatem *,

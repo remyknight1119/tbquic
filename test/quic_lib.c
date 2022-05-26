@@ -205,7 +205,7 @@ out:
     return ret;
 }
  
-static int QuicVerifyCallback(bool ok, X509_STORE_CTX *ctx)
+static int QuicVerifyCallback(int ok, X509_STORE_CTX *ctx)
 {
     return 1;
 }

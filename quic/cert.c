@@ -12,7 +12,7 @@
 #include "common.h"
 #include "log.h"
 
-static volatile int ssl_x509_store_ctx_idx = -1;
+static volatile int quic_x509_store_ctx_idx = -1;
 
 static const QuicCertLookup kQuicCertInfo[QUIC_PKEY_NUM] = {
     [QUIC_PKEY_RSA] = {
@@ -36,6 +36,19 @@ static const QuicCertLookup kQuicCertInfo[QUIC_PKEY_NUM] = {
         .mask = QUIC_A_ALG_MASK_ECDRSA,
     },
 };
+
+bool QuicX509StoreCtxInit(void)
+{
+    quic_x509_store_ctx_idx = X509_STORE_CTX_get_ex_new_index(0,
+                                    "QUIC TLS for verify callback",
+                                    NULL, NULL, NULL);
+    return quic_x509_store_ctx_idx >= 0;
+}
+
+int QuicGetExDataX509StoreCtxIdx(void)
+{
+    return quic_x509_store_ctx_idx;
+}
 
 QuicCert *QuicCertNew(void)
 {
@@ -132,8 +145,10 @@ int QuicVerifyCertChain(QUIC *quic, STACK_OF(X509) *sk)
 {
     X509_STORE_CTX *ctx = NULL;
     X509_STORE *verify_store = NULL;
+    X509_VERIFY_PARAM *param = NULL;
     TLS *s = &quic->tls;
     X509 *x = NULL;
+    int ret = 0;
 
     if ((sk == NULL) || (sk_X509_num(sk) == 0)) {
         return -1;
@@ -155,8 +170,28 @@ int QuicVerifyCertChain(QUIC *quic, STACK_OF(X509) *sk)
         goto end;
     }
 
+    if (!X509_STORE_CTX_set_ex_data(ctx, QuicGetExDataX509StoreCtxIdx(), s)) {
+        goto end;
+    }
+
+    X509_STORE_CTX_set_default(ctx, s->server ? "quic_client" : "quic_server");
+
+    param = X509_STORE_CTX_get0_param(ctx);
+    X509_VERIFY_PARAM_set1(param, quic->param);
+    if (s->verify_callback) {
+        X509_STORE_CTX_set_verify_cb(ctx, s->verify_callback);
+    }
+
+    ret = X509_verify_cert(ctx);
+    s->verify_result = X509_STORE_CTX_get_error(ctx);
+    X509_VERIFY_PARAM_move_peername(quic->param, param);
+
 end:
     X509_STORE_CTX_free(ctx);
+    if (ret == 0) {
+        return -1;
+    }
+
     return 0;
 }
 

@@ -117,8 +117,8 @@ struct Quic {
     uint64_t dcid_inited:1;
     uint64_t scid_inited:1;
     const QUIC_CTX *ctx;
-    X509_VERIFY_PARAM *param;
     const QUIC_METHOD *method;
+    X509_VERIFY_PARAM *param;
     BIO *rbio;
     BIO *wbio;
     QUIC_DATA *read_buf;

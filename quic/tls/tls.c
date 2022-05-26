@@ -333,6 +333,7 @@ int TlsInit(TLS *s, QUIC_CTX *ctx)
     s->lifetime_hint = QUIC_SESSION_TICKET_LIFETIME_HINT_DEF;
     s->max_early_data = ctx->max_early_data;
     s->early_data_state = TLS_EARLY_DATA_NONE;
+    s->verify_callback = ctx->verify_callback;
     s->verify_result = X509_V_OK;
 
     if (QuicBufInit(&s->buffer, TLS_MESSAGE_MAX_LEN) < 0) {
@@ -391,5 +392,14 @@ void TlsFree(TLS *s)
     TlsDestroyCipherList(&s->cipher_list);
     QuicCertFree(s->cert);
     QuicBufFree(&s->buffer);
+}
+
+int QuicTlsInit(void)
+{
+    if (!QuicX509StoreCtxInit()) {
+        return -1;
+    }
+
+    return 0;
 }
 

@@ -40,7 +40,7 @@
 #define QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE               0x20
 
 typedef void (*QUIC_CTX_keylog_cb_func)(const QUIC *, const char *);
-typedef int (*QUIC_CTX_verify_callback_func)(bool, X509_STORE_CTX *);
+typedef int (*QUIC_CTX_verify_callback_func)(int, X509_STORE_CTX *);
 
 enum {
     QUIC_FILE_TYPE_ASN1,
@@ -108,5 +108,6 @@ extern QUIC_SESSION *QUIC_get_session(QUIC *quic);
 extern QUIC_SESSION *QUIC_get1_session(QUIC *quic);
 extern int QUIC_set_session(QUIC *quic, QUIC_SESSION *sess);
 extern int QUIC_get_error(QUIC *quic, int ret);
+extern long QUIC_get_verify_result(const QUIC *quic);
 
 #endif

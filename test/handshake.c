@@ -90,6 +90,10 @@ static int QuicTlsClientMain(void)
         }
     }
 
+    if (QUIC_get_verify_result(quic) != X509_V_OK) {
+        fprintf(stderr, "Verify failed\n");
+    }
+
     ret = 0;
 out:
     QuicFree(quic);

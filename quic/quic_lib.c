@@ -185,6 +185,11 @@ void QUIC_CTX_set_client_CA_list(QUIC_CTX *ctx, STACK_OF(X509_NAME) *name_list)
     Set0_CA_list(&ctx->client_ca_names, name_list);
 }
 
+long QUIC_get_verify_result(const QUIC *quic)
+{
+    return quic->tls.verify_result;
+}
+
 /*
  * QUIC_set_alpn_protos sets the ALPN protocol list on |quic| to |protos|.
  * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
@@ -585,6 +590,10 @@ int QuicSendPacket(QUIC *quic)
 int QuicInit(void)
 {
     if (QuicLoadCiphers() < 0) {
+        return -1;
+    }
+
+    if (QuicTlsInit() < 0) {
         return -1;
     }
 

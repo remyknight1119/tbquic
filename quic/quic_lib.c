@@ -108,6 +108,12 @@ int QuicCtxCtrl(QUIC_CTX *ctx, uint32_t cmd, void *parg, long larg)
 
             ctx->mss = mss;
             return 0;
+        case QUIC_CTRL_CHAIN_CERT:
+            if (larg) {
+                return QuicCertAdd1ChainCert(NULL, ctx, (X509 *)parg);
+            }
+
+            return QuicCertAdd0ChainCert(NULL, ctx, (X509 *)parg);
         default:
             return -1;
     }

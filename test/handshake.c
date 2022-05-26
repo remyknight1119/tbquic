@@ -23,6 +23,7 @@
 #define QUIC_TEST_CMD_START         "start"
 #define QUIC_TEST_CMD_OK            "ok"
 #define QUIC_TEST_CMD_END           "end"
+#define QUIC_TEST_CMD_FAILED        "failed"
 
 static void QuicSetAddr(struct sockaddr_in *addr)
 {
@@ -92,6 +93,8 @@ static int QuicTlsClientMain(void)
 
     if (QUIC_get_verify_result(quic) != X509_V_OK) {
         fprintf(stderr, "Verify failed\n");
+        ret = -1;
+        goto out;
     }
 
     ret = 0;
@@ -143,6 +146,7 @@ QuicTlsClient(int pipefd)
     close(pipefd);
     return 1;
 err:
+    write(pipefd, QUIC_TEST_CMD_FAILED, strlen(QUIC_TEST_CMD_FAILED));
     close(pipefd);
     return -1;
 }
@@ -202,8 +206,7 @@ QuicTlsServer(int pipefd)
         goto err;
     }
 
-    if (QuicCtxUseCertificateFile(ctx, quic_cert, QUIC_FILE_TYPE_PEM) < 0) {
-        printf("Use Private Cert file %s failed\n", quic_cert);
+    if (QuicAddChainCert(ctx, quic_cert) < 0) {
         goto err;
     }
 
@@ -282,9 +285,16 @@ next:
                         fprintf(stdout, "Server test start!\n");
                         AddEpollEvent(epfd, &ev, pipefd);
                         continue;
-                    } else if (strcmp(buf, QUIC_TEST_CMD_END) == 0) {
+                    }
+
+                    if (strcmp(buf, QUIC_TEST_CMD_END) == 0) {
                         fprintf(stdout, "Server test end!\n");
                         goto out;
+                    }
+                    
+                    if (strcmp(buf, QUIC_TEST_CMD_FAILED) == 0) {
+                        fprintf(stdout, "Client Failed!\n");
+                        goto err;
                     }
                 }
             }

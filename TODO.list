@@ -2,7 +2,6 @@
 * Cert Auth
 * ASYNC
 * Engine
-* Cert chain
 * Token
 * Timer
 * Error handling

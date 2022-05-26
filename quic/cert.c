@@ -5,6 +5,7 @@
 #include "cert.h"
 
 #include <openssl/pem.h>
+#include <tbquic/quic.h>
 
 #include "quic_local.h"
 #include "mem.h"
@@ -60,6 +61,74 @@ QuicCert *QuicCertNew(void)
     }
 
     return cert;
+}
+
+int QuicCertAdd0ChainCert(TLS *s, QUIC_CTX *ctx, X509 *x)
+{
+    QuicCertPkey *cpk = s ? s->cert->key : ctx->cert->key;
+
+    if (cpk == NULL) {
+        return -1;
+    }
+
+    if (cpk->chain == NULL) {
+        cpk->chain = sk_X509_new_null();
+    }
+
+    if (cpk->chain == NULL || !sk_X509_push(cpk->chain, x)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int QuicCertAdd1ChainCert(TLS *s, QUIC_CTX *ctx, X509 *x)
+{
+    if (QuicCertAdd0ChainCert(s, ctx, x) < 0) {
+        return -1;
+    }
+
+    X509_up_ref(x);
+    return 0;
+}
+
+int QuicAddChainCert(QUIC_CTX *ctx, const char *file)
+{
+    BIO *in = NULL;
+    X509 *x = NULL;
+    X509 *ca = NULL;
+    int ret = -1;
+
+    in = BIO_new(BIO_s_file());
+    if (in == NULL) {
+        return -1;
+    }
+
+    if (BIO_read_filename(in, file) <= 0) {
+        goto err;
+    }
+
+    x = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
+    if (x == NULL) {
+        goto err;
+    }
+
+    if (QuicCtxUseCertificate(ctx, x) < 0) {
+        QUIC_LOG("Use Private Cert file %s failed\n", file);
+        goto err;
+    }
+
+    while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
+        if (QUIC_CTX_add0_chain_cert(ctx, ca) < 0) {
+            QUIC_LOG("Add chain cert failed\n");
+            goto err;
+        }
+    }
+
+    ret = 0;
+err:
+    BIO_free(in);
+    return ret;
 }
 
 QuicCert *QuicCertDup(QuicCert *cert)

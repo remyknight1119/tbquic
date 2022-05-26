@@ -6,6 +6,7 @@
 #include <tbquic/types.h>
 #include "base.h"
 #include "cipher.h"
+#include "types.h"
 
 typedef struct {
     X509 *x509;
@@ -33,5 +34,7 @@ int QuicSetPkey(QuicCert *, EVP_PKEY *);
 int QuicSetCert(QuicCert *, X509 *);
 const QuicCertLookup *QuicCertLookupByPkey(const EVP_PKEY *, size_t *);
 bool QuicX509StoreCtxInit(void);
+int QuicCertAdd0ChainCert(TLS *, QUIC_CTX *, X509 *);
+int QuicCertAdd1ChainCert(TLS *, QUIC_CTX *, X509 *);
 
 #endif

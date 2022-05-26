@@ -39,6 +39,11 @@
 #define QUIC_TRANS_PARAM_RETRY_SOURCE_CONNECTION_ID             0x10
 #define QUIC_TRANS_PARAM_MAX_DATAGRAME_FRAME_SIZE               0x20
 
+#define QUIC_CTX_add0_chain_cert(ctx, x509) \
+    QuicCtxCtrl(ctx, QUIC_CTRL_CHAIN_CERT, (char *)(x509), 0)
+#define QUIC_CTX_add1_chain_cert(ctx, x509) \
+    QuicCtxCtrl(ctx, QUIC_CTRL_CHAIN_CERT, (char *)(x509), 1)
+
 typedef void (*QUIC_CTX_keylog_cb_func)(const QUIC *, const char *);
 typedef int (*QUIC_CTX_verify_callback_func)(int, X509_STORE_CTX *);
 
@@ -54,6 +59,7 @@ enum {
     QUIC_CTRL_SET_SIGALGS,
     QUIC_CTRL_SET_TLSEXT_HOSTNAME,
     QUIC_CTRL_SET_MSS,
+    QUIC_CTRL_CHAIN_CERT,
 };
 
 extern int QuicInit(void);
@@ -61,6 +67,7 @@ extern void QuicExit(void);
 extern QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth);
 extern void QuicCtxFree(QUIC_CTX *ctx);
 extern int QuicCtxCtrl(QUIC_CTX *ctx, uint32_t cmd, void *parg, long larg);
+extern int QuicCtxUseCertificate(QUIC_CTX *ctx, X509 *x);
 extern int QuicCtxUsePrivateKeyFile(QUIC_CTX *ctx, const char *file,
                                     uint32_t type);
 extern int QuicCtxUseCertificateFile(QUIC_CTX *ctx, const char *file,
@@ -109,5 +116,6 @@ extern QUIC_SESSION *QUIC_get1_session(QUIC *quic);
 extern int QUIC_set_session(QUIC *quic, QUIC_SESSION *sess);
 extern int QUIC_get_error(QUIC *quic, int ret);
 extern long QUIC_get_verify_result(const QUIC *quic);
+extern int QuicAddChainCert(QUIC_CTX *ctx, const char *file);
 
 #endif

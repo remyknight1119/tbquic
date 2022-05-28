@@ -121,6 +121,29 @@ int TlsExtConstructAlpn(QUIC_DATA *alpn, WPacket *pkt)
     return WPacketClose(pkt);
 }
 
+ExtReturn TlsExtConstructSigAlgs(TLS *tls, WPacket *pkt, uint32_t context,
+                                    X509 *x, size_t chainidx)
+{
+    const uint16_t *salg = NULL;
+    size_t salglen = 0;
+
+    if (WPacketStartSubU16(pkt) < 0) { 
+        return EXT_RETURN_FAIL;
+    }
+
+    salglen = TlsGetPSigAlgs(tls, &salg);
+    if (TlsCopySigAlgs(pkt, salg, salglen) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        QUIC_LOG("Close packet failed\n");
+        return EXT_RETURN_FAIL;
+    }
+
+    return EXT_RETURN_SENT;
+}
+
 #if 0
 static const TlsExtParse *
 TlsFindExtParser(uint32_t type, const TlsExtParse *ext, size_t num)

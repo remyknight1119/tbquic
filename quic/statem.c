@@ -174,7 +174,7 @@ QuicRecvPacket(QUIC *quic, RPacket *pkt)
 }
 
 static QuicFlowReturn
-QuicHandshakeRead(QUIC *quic, QuicStatem *state, const QuicStatemMachine *statem,
+QuicHandshakeRead(QUIC *quic, QuicStatem *state, const QuicStatemMachine *stm,
                     size_t num, RPacket *pkt, RPacket *qpkt, bool *skip)
 {
     QUIC_BUFFER *buffer = QUIC_TLS_BUFFER(quic);
@@ -200,7 +200,7 @@ QuicHandshakeRead(QUIC *quic, QuicStatem *state, const QuicStatemMachine *statem
             RPacketUpdate(pkt);
         }
 
-        ret = TlsHandshakeMsgRead(&quic->tls, state, statem, num, pkt, skip);
+        ret = TlsHandshakeMsgRead(&quic->tls, state, stm, num, pkt, skip);
         if ((ret == QUIC_FLOW_RET_WANT_READ || ret == QUIC_FLOW_RET_NEXT) &&
                 RPacketRemaining(pkt)) {
             if (QuicBufAddOffset(buffer, RPacketReadLen(pkt)) < 0) {
@@ -220,18 +220,21 @@ QuicHandshakeRead(QUIC *quic, QuicStatem *state, const QuicStatemMachine *statem
 }
 
 static QuicFlowReturn
-QuicHandshakeWrite(QUIC *quic, const QuicStatemMachine *sm, WPacket *pkt)
+QuicHandshakeWrite(QUIC *quic, QuicStatem *state, const QuicStatemMachine *stm,
+                    size_t num, WPacket *pkt, bool *skip)
 {
+    const QuicStatemMachine *sm = NULL;
     QUIC_BUFFER *buffer = QUIC_TLS_BUFFER(quic);
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
 
-    ret = TlsHandshakeMsgWrite(&quic->tls, sm, pkt);
+    ret = TlsHandshakeMsgWrite(&quic->tls, state, stm, num, pkt, skip);
     if (ret != QUIC_FLOW_RET_NEXT) {
         return ret;
     }
 
     QuicBufSetDataLength(buffer, WPacket_get_written(pkt));
     WPacketCleanup(pkt);
+    sm = &stm[*state];
     if (QuicCryptoFrameBuild(quic, sm->pkt_type) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
@@ -279,7 +282,8 @@ QuicHandshakeStatem(QUIC *quic, const QuicStatemMachine *statem, size_t num)
                                             &rpkt, &qpkt, &skip_state);
                 break;
             case QUIC_WRITING:
-                ret = QuicHandshakeWrite(quic, sm, &wpkt);
+                ret = QuicHandshakeWrite(quic, &st->state, statem, num,
+                                            &wpkt, &skip_state);
                 break;
             case QUIC_FINISHED:
                 res = 0;

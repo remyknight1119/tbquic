@@ -29,6 +29,8 @@ static ExtReturn TlsExtSrvrConstructQtp(TLS *, WPacket *, uint32_t, X509 *,
                                         size_t);
 static ExtReturn TlsExtSrvrConstructEarlyData(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
+static ExtReturn TlsExtConstructCertAuthoritites(TLS *, WPacket *, uint32_t,
+                                        X509 *, size_t);
 static ExtReturn TlsExtSrvrConstructPreSharedKey(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 
@@ -83,6 +85,16 @@ static const TlsExtConstruct kServerExtConstruct[] = {
         .type = EXT_TYPE_EARLY_DATA, 
         .context = TLSEXT_NEW_SESSION_TICKET,
         .construct = TlsExtSrvrConstructEarlyData,
+    },
+    {
+        .type = EXT_TYPE_SIGNATURE_ALGORITHMS,
+        .context = TLSEXT_CERTIFICATE_REQUEST,
+        .construct = TlsExtConstructSigAlgs,
+    },
+    {
+        .type = EXT_TYPE_CERTIFICATE_AUTHORITIES,
+        .context = TLSEXT_CERTIFICATE_REQUEST,
+        .construct = TlsExtConstructCertAuthoritites,
     },
     {
         .type = EXT_TYPE_PRE_SHARED_KEY,
@@ -313,6 +325,13 @@ static ExtReturn TlsExtSrvrConstructPreSharedKey(TLS *s, WPacket *pkt,
         return EXT_RETURN_FAIL;
     }
 
+    return EXT_RETURN_SENT;
+}
+
+static ExtReturn TlsExtConstructCertAuthoritites(TLS *s, WPacket *pkt,
+                                    uint32_t context, X509 *x,
+                                    size_t chainidx)
+{
     return EXT_RETURN_SENT;
 }
 

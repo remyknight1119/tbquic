@@ -137,8 +137,9 @@ void TlsFree(TLS *);
 QuicFlowReturn TlsHandshakeMsgRead(TLS *, QuicStatem *,
                     const QuicStatemMachine *, size_t,
                     RPacket *, bool *);
-QuicFlowReturn TlsHandshakeMsgWrite(TLS *, const QuicStatemMachine *,
-                    WPacket *);
+QuicFlowReturn TlsHandshakeMsgWrite(TLS *, QuicStatem *,
+                    const QuicStatemMachine *, size_t,
+                    WPacket *, bool *);
 int TlsGenRandom(uint8_t *, size_t, WPacket *);
 
 int TlsHelloHeadParse(TLS *, RPacket *, uint8_t *, size_t);
@@ -177,5 +178,6 @@ int TlsSrvrClientHelloPostWork(QUIC *);
 int TlsClntSkipCheckCertRequest(TLS *);
 int TlsClntSkipCheckServerCert(TLS *);
 int TlsClntSkipCheckCertVerify(TLS *);
+int TlsSrvrSkipCheckCertRequest(TLS *);
 
 #endif

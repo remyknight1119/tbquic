@@ -39,7 +39,7 @@ static const QuicStatemMachine kServerStatem[QUIC_STATEM_MAX] = {
         .pkt_type = QUIC_PKT_TYPE_INITIAL,
     },
     [QUIC_STATEM_TLS_ST_SW_ENCRYPTED_EXTENSIONS] = {
-        .next_state = QUIC_STATEM_TLS_ST_SW_SERVER_CERTIFICATE,
+        .next_state = QUIC_STATEM_TLS_ST_SW_CERT_REQUEST,
         .rw_state = QUIC_WRITING,
         .msg_type = TLS_MT_ENCRYPTED_EXTENSIONS,
         .handshake = TlsSrvrEncryptedExtBuild,
@@ -50,6 +50,7 @@ static const QuicStatemMachine kServerStatem[QUIC_STATEM_MAX] = {
         .rw_state = QUIC_WRITING,
         .msg_type = TLS_MT_CERTIFICATE_REQUEST,
         .handshake = TlsSrvrCertRequestBuild,
+        .skip_check = TlsSrvrSkipCheckCertRequest,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [QUIC_STATEM_TLS_ST_SW_SERVER_CERTIFICATE] = {

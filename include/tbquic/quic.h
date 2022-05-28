@@ -89,8 +89,11 @@ extern void QUIC_CTX_set_verify_depth(QUIC_CTX *ctx, int depth);
 extern int QuicCtxLoadVerifyLocations(QUIC_CTX *ctx, const char *CAfile,
                         const char *CApath);
 extern STACK_OF(X509_NAME) *QuicLoadClientCaFile(const char *file);
-extern void QUIC_CTX_set_client_CA_list(QUIC_CTX *ctx,
+extern void QUIC_CTX_set0_CA_list(QUIC_CTX *ctx,
                         STACK_OF(X509_NAME) *name_list);
+extern void QUIC_CTX_set_peer_CA_list(QUIC_CTX *ctx,
+                        STACK_OF(X509_NAME) *name_list);
+extern STACK_OF(X509_NAME) *QuicDupCaList(const STACK_OF(X509_NAME) *sk);
 
 extern int QuicSendPacket(QUIC *quic);
 extern bool QuicWantRead(QUIC *quic);

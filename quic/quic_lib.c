@@ -55,7 +55,7 @@ QUIC_CTX *QuicCtxNew(const QUIC_METHOD *meth)
         goto out;
     }
 
-    if ((ctx->client_ca_names = sk_X509_NAME_new_null()) == NULL) {
+    if ((ctx->peer_ca_names = sk_X509_NAME_new_null()) == NULL) {
         goto out;
     }
 
@@ -82,7 +82,7 @@ void QuicCtxFree(QUIC_CTX *ctx)
 {
     QuicDataFree(&ctx->ext.alpn);
     QuicDataFree(&ctx->ext.supported_groups);
-    sk_X509_NAME_pop_free(ctx->client_ca_names, X509_NAME_free);
+    sk_X509_NAME_pop_free(ctx->peer_ca_names, X509_NAME_free);
     sk_X509_NAME_pop_free(ctx->ca_names, X509_NAME_free);
     X509_VERIFY_PARAM_free(ctx->param);
     X509_STORE_free(ctx->cert_store);
@@ -174,6 +174,29 @@ int QuicCtxLoadVerifyLocations(QUIC_CTX *ctx, const char *CAfile,
     return X509_STORE_load_locations(ctx->cert_store, CAfile, CApath);
 }
 
+STACK_OF(X509_NAME) *QuicDupCaList(const STACK_OF(X509_NAME) *sk)
+{
+    X509_NAME *name = NULL;
+    STACK_OF(X509_NAME) *ret = NULL;
+    int num = 0;
+    int i = 0;
+
+    num = sk_X509_NAME_num(sk);
+    ret = sk_X509_NAME_new_reserve(NULL, num);
+    if (ret == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < num; i++) {
+        name = X509_NAME_dup(sk_X509_NAME_value(sk, i));
+        if (name == NULL) {
+            sk_X509_NAME_pop_free(ret, X509_NAME_free);
+            return NULL;
+        }
+        sk_X509_NAME_push(ret, name);   /* Cannot fail after reserve call */
+    }
+    return ret;
+}
+
 static void Set0_CA_list(STACK_OF(X509_NAME) **ca_list,
         STACK_OF(X509_NAME) *name_list)
 {
@@ -186,9 +209,29 @@ void QUIC_CTX_set0_CA_list(QUIC_CTX *ctx, STACK_OF(X509_NAME) *name_list)
     Set0_CA_list(&ctx->ca_names, name_list);
 }
 
-void QUIC_CTX_set_client_CA_list(QUIC_CTX *ctx, STACK_OF(X509_NAME) *name_list)
+const STACK_OF(X509_NAME) *QUIC_CTX_get0_CA_list(QUIC_CTX *ctx)
 {
-    Set0_CA_list(&ctx->client_ca_names, name_list);
+    return ctx->ca_names;
+}
+
+const STACK_OF(X509_NAME) *QUIC_get0_CA_list(QUIC *quic)
+{
+    return quic->ca_names;
+}
+
+void QUIC_CTX_set_peer_CA_list(QUIC_CTX *ctx, STACK_OF(X509_NAME) *name_list)
+{
+    Set0_CA_list(&ctx->peer_ca_names, name_list);
+}
+
+const STACK_OF(X509_NAME) *QUIC_CTX_get0_peer_CA_list(QUIC_CTX *ctx)
+{
+    return ctx->ca_names;
+}
+
+const STACK_OF(X509_NAME) *QUIC_get0_peer_CA_list(QUIC *quic)
+{
+    return quic->ca_names;
 }
 
 long QUIC_get_verify_result(const QUIC *quic)
@@ -327,6 +370,17 @@ QUIC *QuicNew(QUIC_CTX *ctx)
     }
 
     QuicTransParamInit(&quic->peer_param);
+
+    quic->ca_names = QuicDupCaList(ctx->ca_names);
+    if (quic->ca_names == NULL) {
+        goto out;
+    }
+
+    quic->peer_ca_names = QuicDupCaList(ctx->peer_ca_names);
+    if (quic->peer_ca_names == NULL) {
+        goto out;
+    }
+
     QuicCryptoCipherInit(&quic->initial);
     QuicCryptoCipherInit(&quic->handshake);
     QuicCryptoCipherInit(&quic->application);
@@ -340,6 +394,39 @@ out:
 
     QuicFree(quic);
     return NULL;
+}
+
+void QuicFree(QUIC *quic)
+{
+    X509_VERIFY_PARAM_free(quic->param);
+    QuicStreamConfDeInit(&quic->stream);
+    list_del(&quic->node);
+
+    QuicDataFree(&quic->token);
+    QuicDataFree(&quic->dcid);
+    QuicDataFree(&quic->scid);
+
+    BIO_free_all(quic->rbio);
+    BIO_free_all(quic->wbio);
+
+    sk_X509_NAME_pop_free(quic->peer_ca_names, X509_NAME_free);
+    sk_X509_NAME_pop_free(quic->ca_names, X509_NAME_free);
+
+    QBuffQueueDestroy(&quic->tx_queue);
+    QBuffQueueDestroy(&quic->rx_queue);
+
+    QuicCryptoFree(&quic->application);
+    QuicCryptoFree(&quic->handshake);
+    QuicCryptoFree(&quic->initial);
+
+    QuicDataDestroy(quic->read_buf);
+
+    QuicSessionFree(quic->session);
+
+    TlsFree(&quic->tls);
+
+    QuicConnFree(&quic->conn);
+    QuicMemFree(quic);
 }
 
 void QUIC_set_accept_state(QUIC *quic)
@@ -406,36 +493,6 @@ int QuicDoHandshake(QUIC *quic)
     }
 
     return quic->do_handshake(quic);
-}
-
-void QuicFree(QUIC *quic)
-{
-    X509_VERIFY_PARAM_free(quic->param);
-    QuicStreamConfDeInit(&quic->stream);
-    list_del(&quic->node);
-
-    QuicDataFree(&quic->token);
-    QuicDataFree(&quic->dcid);
-    QuicDataFree(&quic->scid);
-
-    BIO_free_all(quic->rbio);
-    BIO_free_all(quic->wbio);
-
-    QBuffQueueDestroy(&quic->tx_queue);
-    QBuffQueueDestroy(&quic->rx_queue);
-
-    QuicCryptoFree(&quic->application);
-    QuicCryptoFree(&quic->handshake);
-    QuicCryptoFree(&quic->initial);
-
-    QuicDataDestroy(quic->read_buf);
-
-    QuicSessionFree(quic->session);
-
-    TlsFree(&quic->tls);
-
-    QuicConnFree(&quic->conn);
-    QuicMemFree(quic);
 }
 
 BIO *QUIC_get_rbio(const QUIC *quic)

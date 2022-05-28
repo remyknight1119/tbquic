@@ -59,6 +59,15 @@ static int QuicTlsClientMain(void)
         goto out;
     }
 
+    if (QuicCtxUsePrivateKeyFile(ctx, quic_key, QUIC_FILE_TYPE_PEM) < 0) {
+        printf("Use Private Key file %s failed\n", quic_key);
+        goto out;
+    }
+
+    if (QuicAddChainCert(ctx, quic_cert) < 0) {
+        goto out;
+    }
+
     QuicSetVerify(ctx, QUIC_TLS_VERIFY_PEER, quic_ca);
 
     if (QuicTlsCtxClientExtensionSet(ctx) < 0) {
@@ -81,7 +90,6 @@ static int QuicTlsClientMain(void)
 
     while (1) {
         ret = QuicDoHandshake(quic);
-        printf("client ret = %d\n", ret);
         if (ret == 0) {
             break;
         }
@@ -210,6 +218,7 @@ QuicTlsServer(int pipefd)
         goto err;
     }
 
+    QuicSetVerify(ctx, QUIC_TLS_VERIFY_PEER, quic_ca);
     if (QuicCtxCtrl(ctx, QUIC_CTRL_SET_MSS, &mss, 0) < 0) {
         goto err;
     }

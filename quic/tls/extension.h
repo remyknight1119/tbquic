@@ -11,6 +11,7 @@
 #define TLSEXT_CERTIFICATE          0x0004
 #define TLSEXT_ENCRYPTED_EXT        0x0008
 #define TLSEXT_NEW_SESSION_TICKET   0x0010
+#define TLSEXT_CERTIFICATE_REQUEST  0x0020
 
 #define TLSEXT_KEX_MODE_KE_DHE     0x01
 
@@ -106,6 +107,7 @@ int TlsParseExtensions(TLS *, RPacket *, uint32_t, X509 *, size_t,
 ExtReturn
 TlsConstructQtpExtension(TLS *, WPacket *, const TlsExtQtpDefinition *, size_t);
 int TlsExtConstructAlpn(QUIC_DATA *, WPacket *);
+ExtReturn TlsExtConstructSigAlgs(TLS *, WPacket *, uint32_t, X509 *, size_t);
 int TlsParseQtpExtension(TLS *, RPacket *, const TlsExtQtpDefinition *, size_t);
 int TlsClntConstructExtensions(TLS *, WPacket *, uint32_t, X509 *, size_t);
 int TlsSrvrConstructExtensions(TLS *, WPacket *, uint32_t, X509 *, size_t);

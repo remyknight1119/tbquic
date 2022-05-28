@@ -24,8 +24,6 @@ static int TlsExtClntCheckPreSharedKey(TLS *);
 static int TlsExtClntCheckUnknown(TLS *);
 static ExtReturn TlsExtClntConstructServerName(TLS *, WPacket *, uint32_t,
                                             X509 *, size_t);
-static ExtReturn TlsExtClntConstructSigAlgs(TLS *, WPacket *, uint32_t, X509 *,
-                                        size_t);
 static ExtReturn TlsExtClntConstructTlsExtQtp(TLS *, WPacket *, uint32_t,
                                         X509 *, size_t);
 static ExtReturn TlsExtClntConstructSupportedGroups(TLS *, WPacket *, uint32_t,
@@ -71,7 +69,7 @@ static const TlsExtConstruct kClientExtConstruct[] = {
     {
         .type = EXT_TYPE_SIGNATURE_ALGORITHMS,
         .context = TLSEXT_CLIENT_HELLO,
-        .construct = TlsExtClntConstructSigAlgs,
+        .construct = TlsExtConstructSigAlgs,
     },
     {
         .type = EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
@@ -311,30 +309,6 @@ static ExtReturn TlsExtClntConstructSupportedGroups(TLS *tls, WPacket *pkt,
         if (WPacketPut2(pkt, id) < 0) {
             return EXT_RETURN_FAIL;
         }
-    }
-
-    if (WPacketClose(pkt) < 0) {
-        QUIC_LOG("Close packet failed\n");
-        return EXT_RETURN_FAIL;
-    }
-
-    return EXT_RETURN_SENT;
-}
-
-static ExtReturn TlsExtClntConstructSigAlgs(TLS *tls, WPacket *pkt,
-                                    uint32_t context, X509 *x,
-                                    size_t chainidx)
-{
-    const uint16_t *salg = NULL;
-    size_t salglen = 0;
-
-    if (WPacketStartSubU16(pkt) < 0) { 
-        return EXT_RETURN_FAIL;
-    }
-
-    salglen = TlsGetPSigAlgs(tls, &salg);
-    if (TlsCopySigAlgs(pkt, salg, salglen) < 0) {
-        return EXT_RETURN_FAIL;
     }
 
     if (WPacketClose(pkt) < 0) {

@@ -67,6 +67,7 @@ TlsHandshakeMsgRead(TLS *s, QuicStatem *state, const QuicStatemMachine *statem,
         if (sm->skip_check != NULL && sm->skip_check(s) == 0) {
             QUIC_LOG("Skip optional state \"%s\"\n", QuicStatStrGet(*state));
             *state = sm->next_state;
+            assert(*state >= 0 && *state < num);
             sm = &statem[*state];
             *skip = true;
             QUIC_LOG("Enter state \"%s\"\n", QuicStatStrGet(*state));
@@ -119,16 +120,28 @@ TlsHandshakeMsgRead(TLS *s, QuicStatem *state, const QuicStatemMachine *statem,
 }
 
 QuicFlowReturn
-TlsHandshakeMsgWrite(TLS *s, const QuicStatemMachine *sm, WPacket *pkt)
+TlsHandshakeMsgWrite(TLS *s, QuicStatem *state, const QuicStatemMachine *stm,
+                    size_t num, WPacket *pkt, bool *skip)
 {
+    const QuicStatemMachine *sm = NULL;
     uint8_t *msg = NULL;
     QuicFlowReturn ret = QUIC_FLOW_RET_FINISH;
     size_t msg_len = 0;
     size_t wlen = 0;
 
+    sm = &stm[*state];
     if (sm->handshake == NULL) {
         QUIC_LOG("No handler func found\n");
         return QUIC_FLOW_RET_ERROR;
+    }
+
+    while (sm->skip_check != NULL && sm->skip_check(s) == 0) {
+        QUIC_LOG("Skip state \"%s\"\n", QuicStatStrGet(*state));
+        *state = sm->next_state;
+        assert(*state >= 0 && *state < num);
+        sm = &stm[*state];
+        *skip = true;
+        QUIC_LOG("Enter state \"%s\"\n", QuicStatStrGet(*state));
     }
 
     msg = WPacket_get_curr(pkt);

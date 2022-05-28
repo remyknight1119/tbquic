@@ -169,8 +169,9 @@ QuicFlowReturn TlsServerHelloBuild(TLS *s, void *packet)
 
 QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
 {
-    if (TlsSrvrConstructExtensions(s, packet, TLSEXT_ENCRYPTED_EXT, NULL,
-                0) < 0) {
+    WPacket *pkt = packet;
+
+    if (TlsSrvrConstructExtensions(s, pkt, TLSEXT_ENCRYPTED_EXT, NULL, 0) < 0) {
         QUIC_LOG("Construct extension failed\n");
         return QUIC_FLOW_RET_ERROR;
     }
@@ -184,6 +185,19 @@ QuicFlowReturn TlsSrvrEncryptedExtBuild(TLS *s, void *packet)
 
 QuicFlowReturn TlsSrvrCertRequestBuild(TLS *s, void *packet)
 {
+    WPacket *pkt = packet;
+
+    if (WPacketPut1(pkt, 0) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (TlsSrvrConstructExtensions(s, pkt, TLSEXT_CERTIFICATE_REQUEST,
+                NULL, 0) < 0) {
+        QUIC_LOG("Construct extension failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    QUIC_LOG("RRRRRRRRRRRRRRRRRRR\n");
     return QUIC_FLOW_RET_FINISH;
 }
 
@@ -492,6 +506,21 @@ int TlsSrvrClientHelloPostWork(QUIC *quic)
     }
 
     if (QuicStreamInit(quic) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int TlsSrvrSkipCheckCertRequest(TLS *s)
+{
+    QUIC *quic = QuicTlsTrans(s);
+
+    if (s->hit) {
+        return 0;
+    }
+
+    if (quic->verify_mode == QUIC_TLS_VERIFY_PEER) {
         return -1;
     }
 

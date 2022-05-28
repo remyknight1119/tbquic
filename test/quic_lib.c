@@ -228,7 +228,7 @@ void QuicSetVerify(void *ctx, int mode, char *peer_cf)
         exit(1);
     }
 
-    QUIC_CTX_set_client_CA_list(ctx, list);
+    QUIC_CTX_set0_CA_list(ctx, list);
 }
 
 void AddEpollEvent(int epfd, struct epoll_event *ev, int fd)

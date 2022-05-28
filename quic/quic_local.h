@@ -65,7 +65,7 @@ struct QuicCtx {
     X509_STORE *chain_store;
     X509_STORE *verify_store;
     STACK_OF(X509_NAME) *ca_names;
-    STACK_OF(X509_NAME) *client_ca_names;
+    STACK_OF(X509_NAME) *peer_ca_names;
     QUIC_CTX_verify_callback_func verify_callback;
     QUIC_CTX_keylog_cb_func keylog_callback;
     struct {
@@ -119,6 +119,8 @@ struct Quic {
     const QUIC_CTX *ctx;
     const QUIC_METHOD *method;
     X509_VERIFY_PARAM *param;
+    STACK_OF(X509_NAME) *ca_names;
+    STACK_OF(X509_NAME) *peer_ca_names;
     BIO *rbio;
     BIO *wbio;
     QUIC_DATA *read_buf;

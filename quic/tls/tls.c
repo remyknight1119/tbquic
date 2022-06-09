@@ -205,11 +205,13 @@ int TlsExtLenParse(RPacket *pkt)
     uint32_t ext_len = 0;
 
     if (RPacketGet2(pkt, &ext_len) < 0) {
+        QUIC_LOG("Get Ext len failed\n");
         return -1;
     }
 
     if (RPacketRemaining(pkt) != ext_len) {
-        QUIC_LOG("Check extension len failed\n");
+        QUIC_LOG("Check extension len failed(%lu:%u)\n",
+                RPacketRemaining(pkt), ext_len);
         return -1;
     }
 

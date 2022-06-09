@@ -75,7 +75,7 @@ static const QuicStatemMachine kClientStatem[QUIC_STATEM_MAX] = {
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [QUIC_STATEM_TLS_ST_CR_FINISHED] = {
-        .next_state = QUIC_STATEM_TLS_ST_CW_FINISHED,
+        .next_state = QUIC_STATEM_TLS_ST_CW_CLIENT_CERTIFICATE,
         .rw_state = QUIC_READING,
         .msg_type = TLS_MT_FINISHED,
         .handshake = TlsClntFinishedProc,
@@ -86,14 +86,16 @@ static const QuicStatemMachine kClientStatem[QUIC_STATEM_MAX] = {
         .rw_state = QUIC_WRITING,
         .msg_type = TLS_MT_CERTIFICATE,
         .handshake = TlsClntCertBuild,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
+        .skip_check = TlsClntSkipCheckClientCert,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [QUIC_STATEM_TLS_ST_CW_CERT_VERIFY] = {
         .next_state = QUIC_STATEM_TLS_ST_CW_FINISHED,
         .rw_state = QUIC_WRITING,
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
         .handshake = TlsClntCertVerifyBuild,
-        .pkt_type = QUIC_PKT_TYPE_INITIAL,
+        .skip_check = TlsClntSkipCheckClientCertVerify,
+        .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [QUIC_STATEM_TLS_ST_CW_FINISHED] = {
         .next_state = QUIC_STATEM_TLS_ST_CR_NEW_SESSION_TICKET,

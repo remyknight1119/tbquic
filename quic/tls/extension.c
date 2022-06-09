@@ -371,3 +371,21 @@ int TlsExtQtpParseInteger(TLS *tls, QuicTransParams *param, size_t offset,
     return 0;
 }
 
+int TlsExtParseSigAlgs(TLS *s, RPacket *pkt, uint32_t context,
+                                X509 *x, size_t chainidx)
+{
+    QUIC_DATA *peer = &s->ext.peer_sigalgs;
+    RPacket sig_algs = {};
+
+    if (RPacketGetLengthPrefixed2(pkt, &sig_algs) < 0) {
+        QUIC_LOG("Get SigAlg len failed\n");
+        return -1;
+    }
+
+    if (s->hit) {
+        return 0;
+    }
+
+    return RPacketSaveU16(&sig_algs, &peer->ptr_u16, &peer->len);
+}
+

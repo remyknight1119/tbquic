@@ -119,5 +119,6 @@ int TlsExtQtpConstructInteger(TLS *, QuicTransParams *, size_t,
                                     WPacket *);
 int TlsExtQtpParseInteger(TLS *, QuicTransParams *, size_t,
                                     RPacket *, uint64_t);
+int TlsExtParseSigAlgs(TLS *, RPacket *, uint32_t, X509 *, size_t);
 
 #endif

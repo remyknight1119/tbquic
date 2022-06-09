@@ -68,7 +68,7 @@ static const QuicStatemMachine kServerStatem[QUIC_STATEM_MAX] = {
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [QUIC_STATEM_TLS_ST_SW_FINISHED] = {
-        .next_state = QUIC_STATEM_TLS_ST_SR_FINISHED,
+        .next_state = QUIC_STATEM_TLS_ST_SR_CLIENT_CERTIFICATE,
         .rw_state = QUIC_WRITING,
         .msg_type = TLS_MT_FINISHED,
         .handshake = TlsSrvrFinishedBuild,
@@ -80,6 +80,7 @@ static const QuicStatemMachine kServerStatem[QUIC_STATEM_MAX] = {
         .rw_state = QUIC_READING,
         .msg_type = TLS_MT_CERTIFICATE,
         .handshake = TlsSrvrCertProc,
+        .skip_check = TlsSrvrSkipCheckClientCert,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [QUIC_STATEM_TLS_ST_SR_CERT_VERIFY] = {
@@ -87,6 +88,7 @@ static const QuicStatemMachine kServerStatem[QUIC_STATEM_MAX] = {
         .rw_state = QUIC_READING,
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
         .handshake = TlsSrvrCertVerifyProc,
+        .skip_check = TlsSrvrSkipCheckClientCertVerify,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
     [QUIC_STATEM_TLS_ST_SR_FINISHED] = {

@@ -41,8 +41,8 @@ static const char *kQuicStateStr[QUIC_STATEM_MAX] = {
     [QUIC_STATEM_TLS_ST_SW_CERT_VERIFY] = "Server Write Cert Verify",
     [QUIC_STATEM_TLS_ST_SW_FINISHED] = "Server Write Finished",
     [QUIC_STATEM_TLS_ST_SW_NEW_SESSION_TICKET] = "Server Write New Sess Ticket",
-    [QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE] = "Server ",
-	[QUIC_STATEM_HANDSHAKE_DONE] = "Server ",
+    [QUIC_STATEM_TLS_ST_SW_HANDSHAKE_DONE] = "Server Write Handshake Done",
+    [QUIC_STATEM_HANDSHAKE_DONE] = "Handshake Done",
 #if 0
 	QUIC_STATEM_CLOSING,
 	QUIC_STATEM_DRAINING,
@@ -378,21 +378,6 @@ QuicInitialRecv(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)
     }
 
     return QUIC_FLOW_RET_FINISH;
-}
-
-int QuicInitialPktBuild(QUIC *quic)
-{
-    return QuicCryptoFrameBuild(quic, QUIC_PKT_TYPE_INITIAL);
-}
-
-int QuicHandshakePktBuild(QUIC *quic)
-{
-    return QuicCryptoFrameBuild(quic, QUIC_PKT_TYPE_HANDSHAKE);
-}
-
-int QuicOneRttPktBuild(QUIC *quic)
-{
-    return QuicCryptoFrameBuild(quic, QUIC_PKT_TYPE_1RTT);
 }
 
 QuicFlowReturn QuicPacketRead(QUIC *quic, RPacket *pkt, QuicPacketFlags flags)

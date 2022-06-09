@@ -713,6 +713,11 @@ int WPacketSubAllocBytesU8(WPacket *pkt, size_t len, uint8_t **allocbytes)
     return WPacketSubAllocBytes(pkt, len, allocbytes, 1);
 }
 
+int WPacketSubAllocBytesU16(WPacket *pkt, size_t len, uint8_t **allocbytes)
+{
+    return WPacketSubAllocBytes(pkt, len, allocbytes, 2);
+}
+
 int WPacketSubAllocBytesU24(WPacket *pkt, size_t len, uint8_t **allocbytes)
 {
     return WPacketSubAllocBytes(pkt, len, allocbytes, 3);

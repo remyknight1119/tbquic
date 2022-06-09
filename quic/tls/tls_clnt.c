@@ -64,11 +64,19 @@ QuicFlowReturn TlsClntHelloBuild(TLS *s, void *packet)
 
 QuicFlowReturn TlsClntCertBuild(TLS *s, void *packet)
 {
+    WPacket *pkt = packet;
+
+    if (WPacketPut1(pkt, 0) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    QUIC_LOG("XXXXXXXXXXXX\n");
     return QUIC_FLOW_RET_NEXT;
 }
 
 QuicFlowReturn TlsClntCertVerifyBuild(TLS *s, void *packet)
 {
+    QUIC_LOG("XXXXXXXXXXXX\n");
     return QUIC_FLOW_RET_NEXT;
 }
 
@@ -152,17 +160,34 @@ QuicFlowReturn TlsServerHelloProc(TLS *tls, void *packet)
     return QUIC_FLOW_RET_FINISH;
 }
 
-QuicFlowReturn TlsClntEncExtProc(TLS *tls, void *packet)
+QuicFlowReturn TlsClntEncExtProc(TLS *s, void *packet)
 {
-    if (TlsClntParseExtensions(tls, packet, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
+    if (TlsClntParseExtensions(s, packet, TLSEXT_SERVER_HELLO, NULL, 0) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
     return QUIC_FLOW_RET_FINISH;
 }
 
-QuicFlowReturn TlsCertRequestProc(TLS *tls, void *packet)
+QuicFlowReturn TlsCertRequestProc(TLS *s, void *packet)
 {
+    RPacket *pkt = packet;
+    RPacket reqctx = {};
+
+    if (RPacketGetLengthPrefixed1(pkt, &reqctx) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (TlsClntParseExtensions(s, pkt, TLSEXT_CERTIFICATE_REQUEST,
+                                    NULL, 0) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    } 
+
+    if (TlsProcessSigalgs(s) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+    s->cert_req = 1;
+    QUIC_LOG("RRRRRRRRRRRRRRRRRRR\n");
     return QUIC_FLOW_RET_FINISH;
 }
 
@@ -423,6 +448,24 @@ int TlsClntSkipCheckServerCert(TLS *s)
 int TlsClntSkipCheckCertVerify(TLS *s)
 {
     if (!s->hit) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int TlsClntSkipCheckClientCert(TLS *s)
+{
+    if (s->cert_req) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int TlsClntSkipCheckClientCertVerify(TLS *s)
+{
+    if (s->cert_req) {
         return -1;
     }
 

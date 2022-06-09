@@ -197,7 +197,7 @@ QuicFlowReturn TlsSrvrCertRequestBuild(TLS *s, void *packet)
         return QUIC_FLOW_RET_ERROR;
     }
 
-    QUIC_LOG("RRRRRRRRRRRRRRRRRRR\n");
+    s->cert_req = 1;
     return QUIC_FLOW_RET_FINISH;
 }
 
@@ -521,6 +521,24 @@ int TlsSrvrSkipCheckCertRequest(TLS *s)
     }
 
     if (quic->verify_mode == QUIC_TLS_VERIFY_PEER) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int TlsSrvrSkipCheckClientCert(TLS *s)
+{
+    if (s->cert_req) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int TlsSrvrSkipCheckClientCertVerify(TLS *s)
+{
+    if (s->cert_req) {
         return -1;
     }
 

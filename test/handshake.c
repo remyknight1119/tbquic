@@ -228,6 +228,8 @@ QuicTlsServer(int pipefd)
         goto out;
     }
 
+    //QUIC_CTX_set_keylog_callback(ctx, QuicKeyLog);
+
     dis = QuicCreateDispenser(sockfd);
     if (dis == NULL) {
         printf("Create dispenser failed\n");

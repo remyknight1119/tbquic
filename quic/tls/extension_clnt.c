@@ -49,6 +49,8 @@ static int TlsExtClntParseSupportedVersion(TLS *, RPacket *, uint32_t,
                                         X509 *, size_t);
 static int TlsExtClntParseKeyShare(TLS *, RPacket *, uint32_t, X509 *, size_t);
 static int TlsExtClntParseTlsExtQtp(TLS *, RPacket *, uint32_t, X509 *, size_t);
+static int TlsExtClntParseCertAuthoritites(TLS *, RPacket *, uint32_t, X509 *,
+                                        size_t);
 static int TlsExtClntParseEarlyData(TLS *s, RPacket *pkt, uint32_t context,
                                 X509 *x, size_t chainidx);
 static int TlsExtClntParsePsk(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
@@ -141,6 +143,16 @@ static const TlsExtParse kClientExtParse[] = {
         .type = EXT_TYPE_QUIC_TRANS_PARAMS,
         .context = TLSEXT_SERVER_HELLO,
         .parse = TlsExtClntParseTlsExtQtp,
+    },
+    {
+        .type = EXT_TYPE_SIGNATURE_ALGORITHMS,
+        .context = TLSEXT_CERTIFICATE_REQUEST,
+        .parse = TlsExtParseSigAlgs,
+    },
+    {
+        .type = EXT_TYPE_CERTIFICATE_AUTHORITIES,
+        .context = TLSEXT_CERTIFICATE_REQUEST,
+        .parse = TlsExtClntParseCertAuthoritites,
     },
     {
         .type = EXT_TYPE_EARLY_DATA, 
@@ -654,8 +666,9 @@ static int TlsExtClntParsePreSharedKey(TLS *s, RPacket *pkt, uint32_t context,
     return 0;
 }
  
-static int TlsExtClntParseSupportedVersion(TLS *tls, RPacket *pkt, 
-                            uint32_t context, X509 *x, size_t chainidx)
+static int TlsExtClntParseSupportedVersion(TLS *s, RPacket *pkt,
+                            uint32_t context, X509 *x,
+                            size_t chainidx)
 {
     uint32_t version = 0;
 
@@ -680,6 +693,90 @@ static int TlsExtClntParseTlsExtQtp(TLS *s, RPacket *pkt,
 {
     return TlsParseQtpExtension(s, pkt, kClientTransportParam,
                                     QUIC_TRANS_PARAM_NUM);
+}
+
+static int TlsCaDnCmp(const X509_NAME *const *a, const X509_NAME *const *b)
+{
+    return X509_NAME_cmp(*a, *b);
+}
+
+static int TlsParseCaNames(TLS *s, RPacket *pkt)
+{
+    STACK_OF(X509_NAME) *ca_sk = sk_X509_NAME_new(TlsCaDnCmp);
+    X509_NAME *xn = NULL;
+    QUIC *quic = QuicTlsTrans(s);
+    const uint8_t *namebytes = NULL;
+    RPacket cadns = {};
+    uint32_t name_len = 0;
+
+    if (ca_sk == NULL) {
+        QUIC_LOG("CA SK new failed\n");
+        goto err;
+    }
+
+    /* get the CA RDNs */
+    if (RPacketGetLengthPrefixed2(pkt, &cadns) < 0) {
+        QUIC_LOG("Get CADNS failed\n");
+        goto err;
+    }
+
+    while (RPacketRemaining(&cadns)) {
+        const unsigned char *namestart = NULL;
+
+        if (RPacketGet2(&cadns, &name_len) < 0) {
+            QUIC_LOG("Get CADNS len failed\n");
+            goto err;
+        }
+
+        if (RPacketGetBytes(&cadns, &namebytes, name_len) < 0) {
+            QUIC_LOG("Get CADNS bytes failed\n");
+            goto err;
+        }
+
+        namestart = (const unsigned char *)namebytes;
+        if ((xn = d2i_X509_NAME(NULL, &namebytes, name_len)) == NULL) {
+            QUIC_LOG("d2i X509_NAME failed\n");
+            goto err;
+        }
+        if (namebytes != (namestart + name_len)) {
+            QUIC_LOG("Name bytesp(%p) and name start(%p) not match\n",
+                    namebytes, namestart + name_len);
+            goto err;
+        }
+
+        if (!sk_X509_NAME_push(ca_sk, xn)) {
+            QUIC_LOG("Push xn failed\n");
+            goto err;
+        }
+        xn = NULL;
+    }
+
+    sk_X509_NAME_pop_free(quic->peer_ca_names, X509_NAME_free);
+    quic->peer_ca_names = ca_sk;
+
+    return 0;
+
+err:
+    sk_X509_NAME_pop_free(ca_sk, X509_NAME_free);
+    X509_NAME_free(xn);
+    return -1;
+}
+
+static int TlsExtClntParseCertAuthoritites(TLS *s, RPacket *pkt,
+                                    uint32_t context, X509 *x,
+                                    size_t chainidx)
+{
+            QUIC_LOG("iiiiiiiiiiiiiii\n");
+    if (TlsParseCaNames(s, pkt) < 0) {
+        return -1;
+    }
+
+            QUIC_LOG("iiiiiiiiiiiiiii\n");
+    if (RPacketRemaining(pkt) != 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 static int TlsExtClntParsePsk(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
@@ -800,10 +897,10 @@ static int TlsExtClntParseKeyShare(TLS *tls, RPacket *pkt,
     return 0;
 }
 
-int TlsClntParseExtensions(TLS *tls, RPacket *pkt, uint32_t context, X509 *x,
+int TlsClntParseExtensions(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
                                     size_t chainidx)
 {
-    return TlsParseExtensions(tls, pkt, context, x, chainidx, kClientExtParse,
+    return TlsParseExtensions(s, pkt, context, x, chainidx, kClientExtParse,
                                     QUIC_NELEM(kClientExtParse));
 }
 

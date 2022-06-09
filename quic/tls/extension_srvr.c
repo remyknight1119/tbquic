@@ -36,8 +36,6 @@ static ExtReturn TlsExtSrvrConstructPreSharedKey(TLS *, WPacket *, uint32_t,
 
 static int TlsExtSrvrParseServerName(TLS *, RPacket *, uint32_t,
                                             X509 *, size_t);
-static int TlsExtSrvrParseSigAlgs(TLS *, RPacket *, uint32_t, X509 *,
-                                        size_t);
 static int TlsExtSrvrParseQtp(TLS *, RPacket *, uint32_t, X509 *, size_t);
 static int TlsExtSrvrParseEarlyData(TLS *, RPacket *, uint32_t, X509 *, size_t);
 static int TlsExtSrvrParseSupportedGroups(TLS *, RPacket *, uint32_t,
@@ -118,7 +116,7 @@ static const TlsExtParse kServerExtParse[] = {
     {
         .type = EXT_TYPE_SIGNATURE_ALGORITHMS,
         .context = TLSEXT_CLIENT_HELLO,
-        .parse = TlsExtSrvrParseSigAlgs,
+        .parse = TlsExtParseSigAlgs,
     },
     {
         .type = EXT_TYPE_APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
@@ -332,6 +330,39 @@ static ExtReturn TlsExtConstructCertAuthoritites(TLS *s, WPacket *pkt,
                                     uint32_t context, X509 *x,
                                     size_t chainidx)
 {
+    const STACK_OF(X509_NAME) *ca_sk = QUIC_get0_CA_list(QuicTlsTrans(s));
+    uint8_t *namebytes = NULL;
+    X509_NAME *name = NULL;
+    int namelen = 0;
+    int i = 0;
+
+    if (ca_sk == NULL || sk_X509_NAME_num(ca_sk) == 0) {
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    if (WPacketStartSubU16(pkt) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
+    for (i = 0; i < sk_X509_NAME_num(ca_sk); i++) {
+        name = sk_X509_NAME_value(ca_sk, i);
+        if (name == NULL || (namelen = i2d_X509_NAME(name, NULL)) < 0) {
+            return EXT_RETURN_FAIL;
+        }
+
+        if (WPacketSubAllocBytesU16(pkt, namelen, &namebytes) < 0) {
+            return EXT_RETURN_FAIL;
+        }
+
+        if (i2d_X509_NAME(name, &namebytes) != namelen) {
+            return EXT_RETURN_FAIL;
+        }
+    }
+
+    if (WPacketClose(pkt) < 0) {
+        return EXT_RETURN_FAIL;
+    }
+
     return EXT_RETURN_SENT;
 }
 
@@ -438,20 +469,6 @@ static int TlsExtSrvrParseServerName(TLS *s, RPacket *pkt, uint32_t context,
     }
 
     return 0;
-}
-
-static int TlsExtSrvrParseSigAlgs(TLS *s, RPacket *pkt, uint32_t context,
-                                X509 *x, size_t chainidx)
-{
-    QUIC_DATA *peer = &s->ext.peer_sigalgs;
-    RPacket sig_algs = {};
-
-    if (RPacketGetLengthPrefixed2(pkt, &sig_algs) < 0) {
-        QUIC_LOG("Get SigAlg len failed\n");
-        return -1;
-    }
-
-    return RPacketSaveU16(&sig_algs, &peer->ptr_u16, &peer->len);
 }
 
 static int TlsExtSrvrParseQtp(TLS *s, RPacket *pkt, uint32_t context,

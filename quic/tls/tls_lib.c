@@ -1417,3 +1417,8 @@ end:
     return ret;
 }
 
+int TlsProcessSigalgs(TLS *s)
+{
+    return 0;
+}
+

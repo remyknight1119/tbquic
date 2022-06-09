@@ -93,6 +93,7 @@ extern void QUIC_CTX_set0_CA_list(QUIC_CTX *ctx,
                         STACK_OF(X509_NAME) *name_list);
 extern void QUIC_CTX_set_peer_CA_list(QUIC_CTX *ctx,
                         STACK_OF(X509_NAME) *name_list);
+extern const STACK_OF(X509_NAME) *QUIC_get0_CA_list(QUIC *quic);
 extern STACK_OF(X509_NAME) *QuicDupCaList(const STACK_OF(X509_NAME) *sk);
 
 extern int QuicSendPacket(QUIC *quic);

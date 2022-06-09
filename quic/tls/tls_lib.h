@@ -3,6 +3,7 @@
 
 #include "tls.h"
 #include "session.h"
+#include "packet_local.h"
 
 #include <openssl/evp.h>
 
@@ -59,5 +60,6 @@ QUIC_SESSION *TlsGetSession(TLS *s);
 int TlsPskDoBinder(TLS *, const EVP_MD *, uint8_t *, size_t, uint8_t *,
                         uint8_t *, QuicSessionTicket *);
 int TlsDecryptTicket(TLS *, const uint8_t *, size_t, QUIC_SESSION **);
+int TlsProcessSigalgs(TLS *);
 
 #endif

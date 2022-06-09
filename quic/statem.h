@@ -119,9 +119,6 @@ int QuicHandshakeStatem(QUIC *, const QuicStatemMachine *, size_t);
 int QuicConnect(QUIC *);
 int QuicAccept(QUIC *);
 int QuicStatemReadBytes(QUIC *, RPacket *);
-int QuicInitialPktBuild(QUIC *);
-int QuicHandshakePktBuild(QUIC *);
-int QuicOneRttPktBuild(QUIC *);
 const char *QuicStatStrGet(QuicStatem);
 
 #endif

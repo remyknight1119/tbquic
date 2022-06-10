@@ -65,19 +65,19 @@ QuicFlowReturn TlsClntHelloBuild(TLS *s, void *packet)
 QuicFlowReturn TlsClntCertBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;
+    QuicCertPkey *cpk = NULL;
 
     if (WPacketPut1(pkt, 0) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
 
-    QUIC_LOG("XXXXXXXXXXXX\n");
-    return QUIC_FLOW_RET_NEXT;
+    cpk = s->tmp.cert;
+    return TlsCertChainBuild(s, pkt, cpk, TlsSrvrConstructExtensions);
 }
 
 QuicFlowReturn TlsClntCertVerifyBuild(TLS *s, void *packet)
 {
-    QUIC_LOG("XXXXXXXXXXXX\n");
-    return QUIC_FLOW_RET_NEXT;
+    return TlsCertVerifyBuild(s, packet);
 }
 
 QuicFlowReturn TlsClntFinishedBuild(TLS *s, void *packet)
@@ -186,8 +186,8 @@ QuicFlowReturn TlsCertRequestProc(TLS *s, void *packet)
     if (TlsProcessSigalgs(s) < 0) {
         return QUIC_FLOW_RET_ERROR;
     }
+
     s->cert_req = 1;
-    QUIC_LOG("RRRRRRRRRRRRRRRRRRR\n");
     return QUIC_FLOW_RET_FINISH;
 }
 

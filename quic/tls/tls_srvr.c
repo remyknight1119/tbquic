@@ -101,13 +101,13 @@ QuicFlowReturn TlsClientHelloProc(TLS *s, void *packet)
 
 QuicFlowReturn TlsSrvrCertProc(TLS *s, void *packet)
 {
-    QUIC_LOG("In\n");
+    QUIC_LOG("In==================\n");
     return QUIC_FLOW_RET_FINISH;
 }
 
 QuicFlowReturn TlsSrvrCertVerifyProc(TLS *s, void *packet)
 {
-    QUIC_LOG("In\n");
+    QUIC_LOG("In==================\n");
     return QUIC_FLOW_RET_FINISH;
 }
 

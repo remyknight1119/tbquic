@@ -18,7 +18,7 @@
 #include "quic_local.h"
 
 #define QUIC_TEST_IP                "127.0.0.1"
-#define QUIC_TEST_PORT              6231
+#define QUIC_TEST_PORT              6121
 #define QUIC_TEST_BUF_MAX_LEN       256
 #define QUIC_TEST_CMD_START         "start"
 #define QUIC_TEST_CMD_OK            "ok"
@@ -228,7 +228,9 @@ QuicTlsServer(int pipefd)
         goto out;
     }
 
-    //QUIC_CTX_set_keylog_callback(ctx, QuicKeyLog);
+    if (quic_debug) {
+        QUIC_CTX_set_keylog_callback(ctx, QuicKeyLog);
+    }
 
     dis = QuicCreateDispenser(sockfd);
     if (dis == NULL) {

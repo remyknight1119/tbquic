@@ -23,6 +23,7 @@ typedef struct FuncTest {
 char *quic_cert;
 char *quic_key;
 char *quic_ca;
+int quic_debug;
 
 static QuicFuncTest test_funcs[] = {
     {
@@ -177,7 +178,7 @@ static void help(void)
     }
 }
 
-static const char *optstring = "Ha:c:k:";
+static const char *optstring = "Hda:c:k:";
 
 
 int main(int argc, char **argv)
@@ -201,6 +202,9 @@ int main(int argc, char **argv)
                 break;
             case 'a':
                 quic_ca = optarg;
+                break;
+            case 'd':
+                quic_debug = 1;
                 break;
             default:
                 help();

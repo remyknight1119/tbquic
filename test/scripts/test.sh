@@ -12,4 +12,4 @@ cat $cacer $cer | tee $ca_chain 1>/dev/null
 
 openssl verify -CAfile $ca_chain $cer
 rm -f $ca_chain
-sudo ./$dir/quic_test -c $cer -k $key -a $cacer
+sudo ./$dir/quic_test -c $cer -k $key -a $cacer -d

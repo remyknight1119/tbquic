@@ -762,16 +762,14 @@ err:
     return -1;
 }
 
-static int TlsExtClntParseCertAuthoritites(TLS *s, RPacket *pkt,
-                                    uint32_t context, X509 *x,
+static int
+TlsExtClntParseCertAuthoritites(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
                                     size_t chainidx)
 {
-            QUIC_LOG("iiiiiiiiiiiiiii\n");
     if (TlsParseCaNames(s, pkt) < 0) {
         return -1;
     }
 
-            QUIC_LOG("iiiiiiiiiiiiiii\n");
     if (RPacketRemaining(pkt) != 0) {
         return -1;
     }

@@ -14,9 +14,11 @@
 #include "mem.h"
 #include "rand.h"
 #include "tls.h"
+#include "tls_lib.h"
 #include "log.h"
 
 static int QuicTlsClientHelloPreWork(QUIC *);
+static int QuicTlsClientCertPreWork(QUIC *);
 static int QuicTlsClientHelloPostWork(QUIC *);
 static int QuicClntTlsEncExtPostWork(QUIC *);
 static int QuicClntTlsFinishedPostWork(QUIC *);
@@ -86,6 +88,7 @@ static const QuicStatemMachine kClientStatem[QUIC_STATEM_MAX] = {
         .rw_state = QUIC_WRITING,
         .msg_type = TLS_MT_CERTIFICATE,
         .handshake = TlsClntCertBuild,
+        .pre_work = QuicTlsClientCertPreWork,
         .skip_check = TlsClntSkipCheckClientCert,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },
@@ -129,6 +132,21 @@ static int QuicTlsClientHelloPreWork(QUIC *quic)
     }
 
     if (QuicCreateInitialDecoders(quic, quic->version, cid) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int QuicTlsClientCertPreWork(QUIC *quic)
+{
+    TLS *s = &quic->tls;
+
+    if (!s->cert_req) {
+        return 0;
+    }
+    
+    if (TlsChooseSigalg(s) < 0) {
         return -1;
     }
 

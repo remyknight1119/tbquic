@@ -100,7 +100,7 @@ QUIC *QuicDoDispense(QUIC_DISPENSER *dis, QUIC_CTX *ctx, bool *new)
     int fd = dis->sock_fd;
     int rlen = 0;
 
-    buf = QuicDataCreate(ctx->mss);
+    buf = QuicDataCreate(ctx->mss*2);
     if (buf == NULL) {
         return NULL;
     }

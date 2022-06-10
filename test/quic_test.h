@@ -75,6 +75,7 @@ static inline void str2hex(uint8_t *dest, char *src, size_t len)
 extern char *quic_cert;
 extern char *quic_key;
 extern char *quic_ca;
+extern int quic_debug;
 
 void QuicKeyLog(const QUIC *, const char *);
 int QuicTlsCtxClientExtensionSet(QUIC_CTX *);

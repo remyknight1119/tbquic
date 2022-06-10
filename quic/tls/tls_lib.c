@@ -751,11 +751,19 @@ TlsGetSharedSigAlgsInfo(const SigAlgLookup **shared, const QUIC_DATA *sigalg1,
     return matched;
 }
 
-int TlsGetSharedSigAlgs(TLS *s, const QUIC_DATA *sigalg1,
-                            const QUIC_DATA *sigalg2)
+static int TlsSetSharedSigAlgs(TLS *s)
 {
+    const uint16_t *salgsp = NULL;
     const SigAlgLookup **salgs = NULL;
+    const QUIC_DATA *sigalg1 = NULL;
+    const QUIC_DATA *sigalg2 = NULL;
+    QUIC_DATA sigalgs = {};
     size_t matched = 0;
+
+    sigalgs.len = TlsGetPSigAlgs(s, &salgsp);
+    sigalgs.ptr_u16 = (void *)salgsp;
+    sigalg1 = &s->ext.peer_sigalgs;
+    sigalg2 = &sigalgs;
 
     if (QuicDataIsEmpty(sigalg1) || QuicDataIsEmpty(sigalg2)) {
         return -1;
@@ -778,19 +786,18 @@ int TlsGetSharedSigAlgs(TLS *s, const QUIC_DATA *sigalg1,
 
 int TlsSetServerSigAlgs(TLS *s)
 {
-    const uint16_t *salgs = NULL;
-    QUIC_DATA sigalgs = {};
-
     QuicMemFree(s->shared_sigalgs);
     s->shared_sigalgs_len = 0;
 
-    if (QuicDataIsEmpty(&s->ext.peer_sigalgs)) {
+    if (TlsProcessSigalgs(s) < 0) {
+        return -1;
     }
 
-    sigalgs.len = TlsGetPSigAlgs(s, &salgs);
-    sigalgs.ptr_u16 = (void *)salgs;
+    if (s->shared_sigalgs == NULL) {
+        return -1;
+    }
 
-    return TlsGetSharedSigAlgs(s, &s->ext.peer_sigalgs, &sigalgs);
+    return 0;
 }
 
 QUIC_SESSION *TlsGetSession(TLS *s)
@@ -1069,11 +1076,13 @@ int TlsConstructCertVerify(TLS *s, WPacket *pkt)
     QuicFlowReturn ret = QUIC_FLOW_RET_ERROR;
 
     if (lu == NULL || s->tmp.cert == NULL) {
+        QUIC_LOG("Can't find %s\n", lu == NULL ? "lu" : "cert");
         return -1;
     }
 
     pkey = s->tmp.cert->privatekey;
     if (pkey == NULL) {
+        QUIC_LOG("No pkey\n");
         return -1;
     }
 
@@ -1419,6 +1428,10 @@ end:
 
 int TlsProcessSigalgs(TLS *s)
 {
+    if (TlsSetSharedSigAlgs(s) < 0) {
+        return -1;
+    }
+
     return 0;
 }
 

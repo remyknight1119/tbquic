@@ -157,7 +157,7 @@ QuicFlowReturn TlsCertVerifyProc(TLS *, void *);
 QuicFlowReturn TlsClntFinishedProc(TLS *, void *);
 QuicFlowReturn TlsClientHelloProc(TLS *, void *);
 QuicFlowReturn TlsSrvrCertProc(TLS *, void *);
-QuicFlowReturn TlsSrvrCertVerifyProc(TLS *, void *);
+QuicFlowReturn TlsCertVerifyProc(TLS *, void *);
 QuicFlowReturn TlsSrvrFinishedProc(TLS *, void *);
 QuicFlowReturn TlsClntNewSessionTicketProc(TLS *, void *);
 QuicFlowReturn TlsCertChainBuild(TLS *s, WPacket *, QuicCertPkey *,

@@ -298,6 +298,59 @@ QuicFlowReturn TlsCertVerifyBuild(TLS *s, WPacket *pkt)
     return QUIC_FLOW_RET_FINISH;
 }
 
+QuicFlowReturn TlsCertVerifyProc(TLS *s, void *packet)
+{
+    RPacket *pkt = packet;
+    EVP_PKEY *pkey = NULL;
+    const EVP_MD *md = NULL;
+    const uint8_t *data = NULL;
+    uint32_t sigalg = 0;
+    uint32_t len = 0;
+    int pkey_size = 0;
+
+    pkey = X509_get0_pubkey(s->peer_cert);
+    if (pkey == NULL) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (TlsLookupSigAlgByPkey(pkey) == NULL) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGet2(pkt, &sigalg) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (TlsCheckPeerSigAlg(s, sigalg, pkey) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    md = TlsLookupMd(s->peer_sigalg);
+    if (md == NULL) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGet2(pkt, &len) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    pkey_size = EVP_PKEY_size(pkey);
+    if (pkey_size != len) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGetBytes(pkt, &data, len) < 0) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (TlsDoCertVerify(s, data, len, pkey, md) < 0) {
+        QUIC_LOG("Verify Failed\n");
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    return QUIC_FLOW_RET_FINISH;
+}
+
 QuicFlowReturn TlsFinishedBuild(TLS *s, void *packet)
 {
     WPacket *pkt = packet;

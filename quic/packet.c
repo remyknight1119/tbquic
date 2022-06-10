@@ -297,6 +297,17 @@ int RPacketGetLengthPrefixed2(RPacket *pkt, RPacket *subpkt)
     return RPacketGetLengthPrefixed(pkt, subpkt, len);
 }
 
+int RPacketGetLengthPrefixed3(RPacket *pkt, RPacket *subpkt)
+{
+    uint32_t len = 0;
+
+    if (RPacketGet3(pkt, &len) < 0) {
+        return -1;
+    }
+    
+    return RPacketGetLengthPrefixed(pkt, subpkt, len);
+}
+
 int PRacketContainsZeroByte(const RPacket *pkt)
 {
     return memchr(pkt->curr, 0, pkt->remaining) != NULL;

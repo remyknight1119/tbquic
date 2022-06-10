@@ -61,5 +61,6 @@ int TlsPskDoBinder(TLS *, const EVP_MD *, uint8_t *, size_t, uint8_t *,
                         uint8_t *, QuicSessionTicket *);
 int TlsDecryptTicket(TLS *, const uint8_t *, size_t, QUIC_SESSION **);
 int TlsProcessSigalgs(TLS *);
+int TlsSavePeerCert(TLS *, STACK_OF(X509) *);
 
 #endif

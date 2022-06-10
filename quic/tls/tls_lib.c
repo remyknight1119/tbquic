@@ -1435,3 +1435,19 @@ int TlsProcessSigalgs(TLS *s)
     return 0;
 }
 
+int TlsSavePeerCert(TLS *s, STACK_OF(X509) *sk)
+{
+    X509 *x = NULL;
+
+    x = sk_X509_value(sk, 0);
+    if (x == NULL) {
+        return -1;
+    }
+
+    X509_up_ref(x);
+    X509_free(s->peer_cert);
+    s->peer_cert = x;
+
+    return 0;
+}
+

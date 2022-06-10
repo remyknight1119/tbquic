@@ -258,6 +258,11 @@ QuicTlsServer(int pipefd)
  
                     ret = QuicDoHandshake(quic);
                     if (ret == 0) {
+                        if (QUIC_get_verify_result(quic) != X509_V_OK) {
+                            fprintf(stderr, "Verify failed\n");
+                            goto out;
+                        }
+
                         h = QuicStreamOpen(quic, false);
                         if (h < 0) {
                             goto out;

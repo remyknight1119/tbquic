@@ -87,7 +87,7 @@ static const QuicStatemMachine kServerStatem[QUIC_STATEM_MAX] = {
         .next_state = QUIC_STATEM_TLS_ST_SR_FINISHED,
         .rw_state = QUIC_READING,
         .msg_type = TLS_MT_CERTIFICATE_VERIFY,
-        .handshake = TlsSrvrCertVerifyProc,
+        .handshake = TlsCertVerifyProc,
         .skip_check = TlsSrvrSkipCheckClientCertVerify,
         .pkt_type = QUIC_PKT_TYPE_HANDSHAKE,
     },

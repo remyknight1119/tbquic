@@ -269,14 +269,9 @@ QuicFlowReturn TlsServerCertProc(TLS *s, void *packet)
         goto out;
     }
 
-    x = sk_X509_value(sk, 0);
-    if (x == NULL) {
+    if (TlsSavePeerCert(s, sk) < 0) {
         goto out;
     }
-    X509_up_ref(x);
-    X509_free(s->peer_cert);
-    s->peer_cert = x;
-    x = NULL;
 
     if (TlsHandshakeHash(s, s->cert_verify_hash, sizeof(s->cert_verify_hash),
                 &s->cert_verify_hash_len) < 0) {
@@ -288,59 +283,6 @@ out:
     X509_free(x);
     sk_X509_pop_free(sk, X509_free);
     return ret;
-}
-
-QuicFlowReturn TlsCertVerifyProc(TLS *s, void *packet)
-{
-    RPacket *pkt = packet;
-    EVP_PKEY *pkey = NULL;
-    const EVP_MD *md = NULL;
-    const uint8_t *data = NULL;
-    uint32_t sigalg = 0;
-    uint32_t len = 0;
-    int pkey_size = 0;
-
-    pkey = X509_get0_pubkey(s->peer_cert);
-    if (pkey == NULL) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (TlsLookupSigAlgByPkey(pkey) == NULL) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (RPacketGet2(pkt, &sigalg) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (TlsCheckPeerSigAlg(s, sigalg, pkey) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    md = TlsLookupMd(s->peer_sigalg);
-    if (md == NULL) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (RPacketGet2(pkt, &len) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    pkey_size = EVP_PKEY_size(pkey);
-    if (pkey_size != len) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (RPacketGetBytes(pkt, &data, len) < 0) {
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    if (TlsDoCertVerify(s, data, len, pkey, md) < 0) {
-        QUIC_LOG("Verify Failed\n");
-        return QUIC_FLOW_RET_ERROR;
-    }
-
-    return QUIC_FLOW_RET_FINISH;
 }
 
 QuicFlowReturn TlsClntFinishedProc(TLS *s, void *packet)

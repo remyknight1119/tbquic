@@ -101,14 +101,100 @@ QuicFlowReturn TlsClientHelloProc(TLS *s, void *packet)
 
 QuicFlowReturn TlsSrvrCertProc(TLS *s, void *packet)
 {
-    QUIC_LOG("In==================\n");
-    return QUIC_FLOW_RET_FINISH;
-}
+    QUIC *quic = QuicTlsTrans(s);
+    STACK_OF(X509) *sk = NULL;
+    RPacket *pkt = packet;
+    X509 *x = NULL;
+    const uint8_t *certbytes = NULL;
+    const uint8_t *certstart = NULL;
+    RPacket spkt = {};
+    RPacket context = {};
+    RPacket extension = {};
+    uint32_t len = 0;
+    size_t chainidx = 0;
+    int v = 0;
 
-QuicFlowReturn TlsSrvrCertVerifyProc(TLS *s, void *packet)
-{
-    QUIC_LOG("In==================\n");
+    if ((sk = sk_X509_new_null()) == NULL) {
+        return QUIC_FLOW_RET_ERROR;
+    }
+
+    if (RPacketGetLengthPrefixed1(pkt, &context) < 0) {
+        goto err;
+    }
+
+    //s->pha_context
+    if (RPacketGetLengthPrefixed3(pkt, &spkt) < 0) {
+        goto err;
+    }
+
+    if (RPacketRemaining(pkt) != 0) {
+        goto err;
+    }
+
+    for (chainidx = 0; RPacketRemaining(&spkt) > 0; chainidx++) {
+        if (RPacketGet3(&spkt, &len) < 0) {
+            goto err;
+        }
+
+        if (RPacketGetBytes(&spkt, &certbytes, len) < 0) {
+            goto err;
+        }
+
+        certstart = certbytes;
+        x = d2i_X509(NULL, (const unsigned char **)&certbytes, len);
+        if (x == NULL) {
+            QUIC_LOG("d2i_X509 failed\n");
+            goto err;
+        }
+
+        if (certbytes != (certstart + len)) {
+            QUIC_LOG("certbytes not match(%p, %p)\n", certbytes,
+                        certstart + len);
+            goto err;
+        }
+
+        if (RPacketGetLengthPrefixed2(&spkt, &extension) < 0) {
+            goto err;
+        }
+
+        if (TlsSrvrParseExtensions(s, &extension, TLSEXT_CERTIFICATE,
+                    NULL, 0) < 0) {
+            goto err;
+        }
+
+        if (!sk_X509_push(sk, x)) {
+            goto err;
+        }
+
+        x = NULL;
+    }
+
+    if (sk_X509_num(sk) <= 0) {
+        if (quic->verify_mode != QUIC_TLS_VERIFY_NONE) {
+            goto err;
+        }
+    } else {
+        v = QuicVerifyCertChain(quic, sk);
+        if (quic->verify_mode != QUIC_TLS_VERIFY_NONE && v < 0) {
+            goto err;
+        }
+
+        if (TlsSavePeerCert(s, sk) < 0) {
+            goto err;
+        }
+    }
+
+    if (TlsHandshakeHash(s, s->cert_verify_hash, sizeof(s->cert_verify_hash),
+                &s->cert_verify_hash_len) < 0) {
+        goto err;
+    }
+
     return QUIC_FLOW_RET_FINISH;
+
+err:
+    X509_free(x);
+    sk_X509_pop_free(sk, X509_free);
+    return QUIC_FLOW_RET_ERROR;
 }
 
 QuicFlowReturn TlsSrvrFinishedProc(TLS *s, void *packet)

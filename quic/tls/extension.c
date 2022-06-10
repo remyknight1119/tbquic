@@ -172,6 +172,10 @@ int TlsParseExtensions(TLS *s, RPacket *pkt, uint32_t context, X509 *x,
     uint32_t len = 0;
     int ret = 0;
 
+    if (RPacketRemaining(pkt) == 0) {
+        return 0;
+    }
+
     if (TlsExtLenParse(pkt) < 0) {
         return -1;
     }

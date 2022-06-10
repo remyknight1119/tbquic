@@ -60,6 +60,7 @@ int RPacketGet4(RPacket *, uint32_t *);
 int RPacketTransfer(RPacket *, RPacket *, size_t);
 int RPacketGetLengthPrefixed1(RPacket *, RPacket *);
 int RPacketGetLengthPrefixed2(RPacket *, RPacket *);
+int RPacketGetLengthPrefixed3(RPacket *, RPacket *);
 int PRacketContainsZeroByte(const RPacket *);
 int RPacketSaveU16(RPacket *, uint16_t **, size_t *);
 int PRacketMemDup(const RPacket *, uint8_t **, size_t *);

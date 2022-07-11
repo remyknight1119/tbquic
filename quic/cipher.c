@@ -229,7 +229,7 @@ static int QuicCipherDoPrepare(QUIC_CIPHER *cipher, const EVP_CIPHER *c,
     }
 
     cipher->enc = enc;
-    return QuicEvpCipherInit(cipher->ctx, c, key, NULL, enc);
+    return QuicEvpCipherInit(cipher->ctx, c, key, secret, enc);
 }
 
 static const EVP_CIPHER *QuicFindCipherByAlg(uint32_t alg)

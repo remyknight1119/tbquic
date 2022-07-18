@@ -17,6 +17,10 @@ AC_ARG_WITH(libssl_libraries,
 			[with_libssl_libraries=no])
 
 CPPFLAGS="${CPPFLAGS} -I/usr/local/include"
+if test "$with_libssl_includes" != "no"; then
+	CPPFLAGS="${CPPFLAGS} -I${with_libssl_includes}"
+fi
+
 
 LIBS="${LIBS} -L/usr/local/lib"
 
